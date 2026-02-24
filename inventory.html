@@ -201,7 +201,12 @@
                 <div class="row" style="display: flex; gap: 15px;">
                     <div class="form-group" style="flex: 1;">
                         <label class="form-label">Quantity (Stock)</label>
-                        <input type="number" id="partStock" class="form-control" min="0" required>
+                        <input type="number" id="partStock" class="form-control" min="0" value="0" required>
+                    </div>
+
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Min Stock Alert</label>
+                        <input type="number" id="partMinStock" class="form-control" min="0" value="5" required>
                     </div>
 
                     <div class="form-group" style="flex: 1;">
@@ -599,14 +604,14 @@
                 const part = {
                     sku: sku,
                     name: name,
-                    category: document.getElementById('partCategory').value,
-                    supplier: document.getElementById('partSupplier').value,
-                    stock: parseInt(document.getElementById('partStock').value),
-                    minStock: parseInt(document.getElementById('partMinStock').value) || 0,
-                    unit: document.getElementById('partUnit').value,
-                    cost: parseFloat(document.getElementById('partCost').value),
-                    price: parseFloat(document.getElementById('partPrice').value),
-                    vat: parseFloat(document.getElementById('partVat').value) || 0
+                    category: document.getElementById('partCategory')?.value || '',
+                    supplier: document.getElementById('partSupplier')?.value || '',
+                    stock: parseInt(document.getElementById('partStock')?.value) || 0,
+                    minStock: parseInt(document.getElementById('partMinStock')?.value) || 0,
+                    unit: document.getElementById('partUnit')?.value || 'pc',
+                    cost: parseFloat(document.getElementById('partCost')?.value) || 0,
+                    price: parseFloat(document.getElementById('partPrice')?.value) || 0,
+                    vat: parseFloat(document.getElementById('partVat')?.value) || 0
                 };
 
                 try {

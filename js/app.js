@@ -542,35 +542,36 @@ const App = {
      */
     login: async function (email, password) {
         try {
+            console.log(`[auth]: Attempting login for ${email}...`);
             const result = await this.apiCall('/auth/login', 'POST', { email, password });
 
             if (result.success) {
-                // Store the backend session (which includes token and user data)
                 const sessionData = {
                     ...result.data.user,
                     token: result.data.token,
                     refreshToken: result.data.refreshToken
                 };
                 localStorage.setItem(this.KEYS.SESSION, JSON.stringify(sessionData));
-                localStorage.setItem(this.KEYS.DB_MIGRATED, 'true'); // Auto-detect migration on login
+                localStorage.setItem(this.KEYS.DB_MIGRATED, 'true');
                 return { success: true, user: sessionData };
             }
             return { success: false, message: 'Invalid response from server' };
         } catch (error) {
-            // Fallback to local login ONLY IF not migrated yet?
-            // Actually, keep it simple for now: if backend is up, use it.
-            if (localStorage.getItem(this.KEYS.DB_MIGRATED) !== 'true') {
-                console.warn('[auth]: Backend failed, falling back to local storage auth during migration period.');
-                const users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
-                const user = users.find(u =>
-                    (u.email === email || u.email.split('@')[0] === email) &&
-                    u.password === password
-                );
-                if (user) {
-                    localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
-                    return { success: true, user: user };
-                }
+            console.warn(`[auth]: Backend login failed: ${error.message}. Checking local fallback...`);
+
+            // Fallback to local login if backend fails (always allowed for recovery)
+            const users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
+            const user = users.find(u =>
+                (u.email === email || u.email.split('@')[0] === email) &&
+                u.password === password
+            );
+
+            if (user) {
+                console.log(`[auth]: Local fallback successful for ${email}`);
+                localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
+                return { success: true, user: user };
             }
+
             return { success: false, message: error.message || 'Login failed' };
         }
     },
@@ -639,7 +640,9 @@ const App = {
      */
     applyRolePermissions: function () {
         const user = this.getCurrentUser();
-        if (!user) return;
+        if (!user || user.role === 'admin') return;
+
+        console.log(`[auth]: Applying restricted permissions for role: ${user.role}`);
 
         // 1. Sidebar Restrictions (Staff Only)
         if (user.role === 'staff') {
@@ -653,25 +656,25 @@ const App = {
                     }
                 }
             });
-        }
 
-        // 2. Global Delete Restriction (Staff Only)
-        // This ensures admins can still manage data while staff is restricted
-        if (user.role === 'staff') {
+            // 2. Global Delete/Add Restriction (Staff Only)
+            // Added check to ensure we don't hide everything by mistake
             const style = document.createElement('style');
-            style.innerHTML = `
-                .btn-delete, 
-                [onclick*="delete"], 
-                .action-delete,
-                .fa-trash,
-                .fa-trash-alt { 
-                    display: none !important; 
-                }
-            `;
-            document.head.appendChild(style);
+            style.id = 'role-permissions-style';
+            if (!document.getElementById(style.id)) {
+                style.innerHTML = `
+                    .btn-delete, 
+                    .action-delete,
+                    .fa-trash,
+                    .fa-trash-alt { 
+                        display: none !important; 
+                    }
+                `;
+                document.head.appendChild(style);
+            }
 
             // Immediate cleanup for existing elements
-            document.querySelectorAll('.btn-delete, [onclick*="delete"], .action-delete, .fa-trash').forEach(btn => {
+            document.querySelectorAll('.btn-delete, .action-delete, .fa-trash, .fa-trash-alt').forEach(btn => {
                 btn.style.display = 'none';
             });
         }

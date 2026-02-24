@@ -278,12 +278,14 @@
                 const result = await App.login(email, password);
 
                 if (result.success) {
+                    console.log('Login successful', result.user);
                     App.showToast(`Access Granted. Welcome, Agent ${result.user.name || 'User'}`, 'success');
                     setTimeout(() => {
                         window.location.href = 'dashboard.html';
                     }, 1000);
                 } else {
-                    App.showToast('Authentication Failed: Invalid Credentials', 'error');
+                    console.error('Login failed:', result.message);
+                    App.showToast(`Authentication Failed: ${result.message}`, 'error');
                     const card = document.querySelector('.login-card');
                     card.style.animation = 'shake 0.5s ease-in-out';
                     setTimeout(() => {
