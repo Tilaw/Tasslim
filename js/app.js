@@ -493,17 +493,22 @@ const App = {
         }
 
         // 2. Local Initialization (Fallback/Initial)
-        // Check for legacy users and update if found
-        const existingUsers = localStorage.getItem(this.KEYS.USERS);
-        if (existingUsers) {
-            const users = JSON.parse(existingUsers);
-            // If the first user is the old admin email, force update the users list
-            if (users[0] && users[0].email === 'admin@shop.com') {
-                localStorage.setItem(this.KEYS.USERS, JSON.stringify(this.defaults.users));
-            }
+        let users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
+
+        // Ensure admin and staff always exist in local fallback list
+        const hasAdmin = users.some(u => u.email === 'admin');
+        const hasStaff = users.some(u => u.email === 'staff');
+
+        if (!hasAdmin || !hasStaff || users.length === 0) {
+            console.log('[app]: Initializing or repairing local users list...');
+            // Merge defaults with unique existing users
+            const existingOther = users.filter(u => u.email !== 'admin' && u.email !== 'staff');
+            users = [...this.defaults.users, ...existingOther];
+            localStorage.setItem(this.KEYS.USERS, JSON.stringify(users));
         }
 
-        if (!localStorage.getItem(this.KEYS.USERS)) {
+        // Legacy check for old email format
+        if (users[0] && users[0].email === 'admin@shop.com') {
             localStorage.setItem(this.KEYS.USERS, JSON.stringify(this.defaults.users));
         }
         if (!localStorage.getItem(this.KEYS.INVENTORY)) {
@@ -570,6 +575,8 @@ const App = {
 
             // Fallback to local login if backend fails (always allowed for recovery)
             const users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
+            console.log(`[auth]: Checking local fallback for ${cleanEmail} against ${users.length} users...`);
+
             const user = users.find(u => {
                 const uEmail = (u.email || '').trim().toLowerCase();
                 const uPass = (u.password || '').trim();
