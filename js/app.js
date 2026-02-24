@@ -541,9 +541,18 @@ const App = {
      * Login function (Transitioned to Backend)
      */
     login: async function (email, password) {
+        // Ensure system is fully initialized before checking credentials
+        await this.init();
+
+        const cleanEmail = (email || '').trim().toLowerCase();
+        const cleanPassword = (password || '').trim();
+
         try {
-            console.log(`[auth]: Attempting login for ${email}...`);
-            const result = await this.apiCall('/auth/login', 'POST', { email, password });
+            console.log(`[auth]: Attempting login for ${cleanEmail}...`);
+            const result = await this.apiCall('/auth/login', 'POST', {
+                email: cleanEmail,
+                password: cleanPassword
+            });
 
             if (result.success) {
                 const sessionData = {
@@ -561,13 +570,16 @@ const App = {
 
             // Fallback to local login if backend fails (always allowed for recovery)
             const users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
-            const user = users.find(u =>
-                (u.email === email || u.email.split('@')[0] === email) &&
-                u.password === password
-            );
+            const user = users.find(u => {
+                const uEmail = (u.email || '').trim().toLowerCase();
+                const uPass = (u.password || '').trim();
+                // Match full email or the prefix (e.g. 'admin' matches 'admin@shop.com')
+                return (uEmail === cleanEmail || uEmail.split('@')[0] === cleanEmail) &&
+                    uPass === cleanPassword;
+            });
 
             if (user) {
-                console.log(`[auth]: Local fallback successful for ${email} (${user.role})`);
+                console.log(`[auth]: Local fallback successful for ${cleanEmail} (${user.role})`);
                 localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
                 return {
                     success: true,
