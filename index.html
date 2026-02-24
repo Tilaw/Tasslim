@@ -191,21 +191,48 @@
                 transform: translateX(0);
             }
 
-            20% {
-                transform: translateX(-10px) rotate(-1deg);
-            }
-
-            40% {
-                transform: translateX(10px) rotate(1deg);
-            }
-
+            20%,
             60% {
                 transform: translateX(-10px) rotate(-1deg);
             }
 
+            40%,
             80% {
                 transform: translateX(10px) rotate(1deg);
             }
+        }
+
+        /* Quick Login Buttons */
+        .quick-access {
+            display: flex;
+            gap: 15px;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 1px solid #444;
+        }
+
+        .btn-secondary {
+            flex: 1;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            color: #888;
+            font-size: 0.8rem;
+            padding: 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--gold-accent);
+            color: var(--gold-accent);
+            background: #222;
+        }
+
+        .btn-secondary i {
+            margin-right: 5px;
         }
     </style>
 </head>
@@ -250,10 +277,18 @@
 
             <button type="submit" class="btn btn-primary btn-block" data-i18n="loginBtn">Initialize Access</button>
 
+            <div class="quick-access">
+                <button type="button" class="btn-secondary" onclick="quickLogin('admin', 'admin')">
+                    <i class="fas fa-user-shield"></i> Admin Login
+                </button>
+                <button type="button" class="btn-secondary" onclick="quickLogin('staff', 'staff')">
+                    <i class="fas fa-user-tag"></i> Staff Login
+                </button>
+            </div>
+
             <div class="mt-20 text-center">
                 <small style="color: #555;">
-                    SECURE STORAGE TERMINAL<br>
-                    <span style="color: #444;">ID/KEY: admin / admin</span>
+                    SECURE STORAGE TERMINAL
                 </small>
             </div>
         </form>
@@ -295,6 +330,13 @@
                 }
             });
         });
+
+        async function quickLogin(user, pass) {
+            document.getElementById('email').value = user;
+            document.getElementById('password').value = pass;
+            // Trigger the form submission
+            document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+        }
     </script>
 </body>
 
