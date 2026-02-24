@@ -7,43 +7,253 @@
     <title>Login - Tasslim Parts Manager</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Metal Gate Theme Styles */
+        :root {
+            --metal-dark: #1a1a1a;
+            --metal-light: #444;
+            --metal-accent: #888;
+            --gold-accent: #d4af37;
+        }
+
+        .login-body {
+            background: radial-gradient(circle at center, #2c3e50, #000);
+            overflow: hidden;
+            perspective: 1000px;
+        }
+
+        /* Gate Panels */
+        .gate {
+            position: fixed;
+            top: 0;
+            width: 50%;
+            height: 100%;
+            background: linear-gradient(90deg, #333 0%, #1a1a1a 50%, #333 100%);
+            z-index: 9999;
+            transition: transform 1.2s cubic-bezier(0.7, 0, 0.3, 1);
+            display: flex;
+            align-items: center;
+            border: 2px solid #222;
+        }
+
+        /* Industrial Texture on Gates */
+        .gate::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, 0.2) 2px, rgba(0, 0, 0, 0.2) 4px);
+            opacity: 0.3;
+        }
+
+        .gate-left {
+            left: 0;
+            justify-content: flex-end;
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .gate-right {
+            right: 0;
+            justify-content: flex-start;
+            box-shadow: -10px 0 30px rgba(0, 0, 0, 0.8);
+        }
+
+        .gate-handle {
+            width: 80px;
+            height: 80px;
+            background: #222;
+            border: 4px solid #444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gold-accent);
+            font-size: 2rem;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            z-index: 100;
+        }
+
+        /* Animation class */
+        .gates-open .gate-left {
+            transform: translateX(-100%);
+        }
+
+        .gates-open .gate-right {
+            transform: translateX(100%);
+        }
+
+        /* Metallic Login Card */
+        .login-card {
+            background: linear-gradient(135deg, #222, #333);
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 40px;
+            position: relative;
+            box-shadow:
+                0 0 0 10px #1a1a1a,
+                0 0 0 12px #444,
+                0 20px 50px rgba(0, 0, 0, 0.9);
+            color: #ccc;
+        }
+
+        /* Rivets */
+        .login-card::before,
+        .login-card::after,
+        .login-card .rivet-bl,
+        .login-card .rivet-br {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle at 3px 3px, #666, #111);
+            border-radius: 50%;
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .login-card::before {
+            top: 10px;
+            left: 10px;
+        }
+
+        .login-card::after {
+            top: 10px;
+            right: 10px;
+        }
+
+        .login-card .rivet-bl {
+            bottom: 10px;
+            left: 10px;
+        }
+
+        .login-card .rivet-br {
+            bottom: 10px;
+            right: 10px;
+        }
+
+        .logo-icon {
+            background: #111;
+            border: 2px solid var(--gold-accent);
+            color: var(--gold-accent);
+            animation: pulse-gold 2s infinite;
+        }
+
+        @keyframes pulse-gold {
+            0% {
+                box-shadow: 0 0 0 0px rgba(212, 175, 55, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 15px rgba(212, 175, 55, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0px rgba(212, 175, 55, 0);
+            }
+        }
+
+        .login-header h2 {
+            color: #eee;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 2px #000;
+        }
+
+        .form-control {
+            background: #1a1a1a;
+            border-color: #333;
+            color: #0f0;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .form-control:focus {
+            border-color: var(--gold-accent);
+            box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(to bottom, #444, #222);
+            border: 1px solid #555;
+            color: var(--gold-accent);
+            text-transform: uppercase;
+            font-weight: 800;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(to bottom, #555, #333);
+            color: #fff;
+            border-color: var(--gold-accent);
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            20% {
+                transform: translateX(-10px) rotate(-1deg);
+            }
+
+            40% {
+                transform: translateX(10px) rotate(1deg);
+            }
+
+            60% {
+                transform: translateX(-10px) rotate(-1deg);
+            }
+
+            80% {
+                transform: translateX(10px) rotate(1deg);
+            }
+        }
+    </style>
 </head>
 
 <body class="login-body">
-    <button class="btn" style="position: absolute; top: 20px; right: 20px;" onclick="App.toggleLanguage()"
-        data-i18n="translate">Translate</button>
+    <!-- Metal Gates -->
+    <div class="gate gate-left">
+        <div class="gate-handle"><i class="fas fa-key"></i></div>
+    </div>
+    <div class="gate gate-right">
+        <div class="gate-handle"><i class="fas fa-lock"></i></div>
+    </div>
+
+    <button class="btn" style="position: absolute; top: 20px; right: 20px; z-index: 1000;"
+        onclick="App.toggleLanguage()" data-i18n="translate">Translate</button>
 
     <div class="login-card">
+        <div class="rivet-bl"></div>
+        <div class="rivet-br"></div>
         <div class="login-header">
-            <div class="logo-icon"><i class="fas fa-cogs"></i></div>
-            <h2 data-i18n="loginTitle">Sign In</h2>
-            <p>Tasslim Parts Manager</p>
+            <div class="logo-icon"><i class="fas fa-shield-alt"></i></div>
+            <h2 data-i18n="loginTitle">System Access</h2>
+            <p style="color: #888;">Tasslim Parts Security Protocol</p>
         </div>
 
         <form id="loginForm">
             <div class="form-group">
-                <label class="form-label" data-i18n="username">Username / Email</label>
+                <label class="form-label" data-i18n="username" style="color: #aaa;">Authorized ID</label>
                 <div class="input-group">
-                    <i class="fas fa-user"></i>
-                    <input type="text" id="email" class="form-control" placeholder="admin or admin@shop.com" required>
+                    <i class="fas fa-user-secret"></i>
+                    <input type="text" id="email" class="form-control" placeholder="admin" required>
                 </div>
             </div>
 
             <div class="form-group">
-                <label class="form-label" data-i18n="password">Password</label>
+                <label class="form-label" data-i18n="password" style="color: #aaa;">Encrypted Key</label>
                 <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" id="password" class="form-control" placeholder="admin" required>
+                    <i class="fas fa-terminal"></i>
+                    <input type="password" id="password" class="form-control" placeholder="••••••••" required>
                 </div>
             </div>
 
-            <button type="submit" class="btn btn-primary btn-block" data-i18n="loginBtn">Login</button>
+            <button type="submit" class="btn btn-primary btn-block" data-i18n="loginBtn">Initialize Access</button>
 
             <div class="mt-20 text-center">
-                <small class="text-light">
-                    Tasslim Part admin<br>
-                    Admin: admin / admin<br>
-                    Staff: staff / staff
+                <small style="color: #555;">
+                    SECURE STORAGE TERMINAL<br>
+                    <span style="color: #444;">ID/KEY: admin / admin</span>
                 </small>
             </div>
         </form>
@@ -51,9 +261,13 @@
 
     <script src="js/app.js"></script>
     <script>
-        // Login Page Specific Logic
         document.addEventListener('DOMContentLoaded', () => {
             App.init();
+
+            // Trigger Gate Opening Animation after a short delay
+            setTimeout(() => {
+                document.body.classList.add('gates-open');
+            }, 500);
 
             document.getElementById('loginForm').addEventListener('submit', async (e) => {
                 e.preventDefault();
@@ -64,34 +278,20 @@
                 const result = await App.login(email, password);
 
                 if (result.success) {
-                    App.showToast(`Welcome back, ${result.user.name || result.user.firstName || 'User'}!`, 'success');
+                    App.showToast(`Access Granted. Welcome, Agent ${result.user.name || 'User'}`, 'success');
                     setTimeout(() => {
                         window.location.href = 'dashboard.html';
                     }, 1000);
                 } else {
-                    App.showToast(result.message, 'error');
-                    // Shake animation logic
+                    App.showToast('Authentication Failed: Invalid Credentials', 'error');
                     const card = document.querySelector('.login-card');
-                    card.style.animation = 'shake 0.5s';
+                    card.style.animation = 'shake 0.5s ease-in-out';
                     setTimeout(() => {
                         card.style.animation = 'none';
                     }, 500);
                 }
             });
         });
-
-        // Add shake keyframes dynamically
-        const style = document.createElement('style');
-        style.innerHTML = `
-            @keyframes shake {
-                0% { transform: translateX(0); }
-                25% { transform: translateX(-10px); }
-                50% { transform: translateX(10px); }
-                75% { transform: translateX(-10px); }
-                100% { transform: translateX(0); }
-            }
-        `;
-        document.head.appendChild(style);
     </script>
 </body>
 
