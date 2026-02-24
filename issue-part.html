@@ -491,6 +491,22 @@
         .bike-chip .remove-chip:hover {
             opacity: 1;
         }
+
+        .delete-mapping-btn {
+            background: none;
+            border: none;
+            color: #ef4444;
+            cursor: pointer;
+            padding: 5px;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+            opacity: 0.6;
+        }
+
+        .delete-mapping-btn:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 
@@ -1338,15 +1354,20 @@
                             });
 
                             card.innerHTML = `
-                                <div class="history-header">
-                                    <div class="history-meta">
-                                        <span style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">
-                                            <i class="fas fa-wrench" style="color: #6366f1; width: 14px;"></i> ${tx.mechanic || 'Unknown'}
-                                        </span>
-                                        <span><i class="fas fa-motorcycle" style="color: #64748b; width: 14px;"></i> ${tx.bike || '—'}</span>
+                                    <div class="history-header">
+                                        <div class="history-meta">
+                                            <span style="font-weight: 700; color: #1e293b; font-size: 0.85rem;">
+                                                <i class="fas fa-wrench" style="color: #6366f1; width: 14px;"></i> ${tx.mechanic || 'Unknown'}
+                                            </span>
+                                            <span><i class="fas fa-motorcycle" style="color: #64748b; width: 14px;"></i> ${tx.bike || '—'}</span>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 8px;">
+                                            <span class="history-id">#${(tx.id || 'N/A').toString().slice(-6).toUpperCase()}</span>
+                                            <button class="delete-mapping-btn" onclick="PickItem.deleteMapping('${tx.id}', '${tx.source}')" title="Delete Mapping">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
                                     </div>
-                                    <span class="history-id">#${(tx.id || 'N/A').toString().slice(-6).toUpperCase()}</span>
-                                </div>
                                 <div class="history-body">
                                     ${itemsHtml}
                                 </div>
@@ -1539,6 +1560,72 @@
                     console.warn('UI Cleanup Error (Likely Cache):', uiError);
                     // Even if closeModal fails, the data is saved, so we just reload to be safe
                     setTimeout(() => window.location.reload(), 1000);
+                }
+            },
+
+            deleteMapping: async function (id, source) {
+                if (!confirm('Are you sure you want to delete this mapping? This will restore the stock levels.')) return;
+
+                try {
+                    let itemsToRestore = [];
+
+                    if (source === 'sale') {
+                        const tx = this.sales.find(s => s.id.toString() === id.toString());
+                        if (tx) {
+                            itemsToRestore = tx.items || [];
+                            this.sales = this.sales.filter(s => s.id.toString() !== id.toString());
+                        }
+                    } else {
+                        // Grouped mapping deletion
+                        const related = this.mappings.filter(m => (m.issueId || m.id).toString() === id.toString());
+                        if (related.length > 0) {
+                            itemsToRestore = related.map(m => ({ productId: m.productId, qty: m.quantity }));
+                            this.mappings = this.mappings.filter(m => (m.issueId || m.id).toString() !== id.toString());
+                        }
+                    }
+
+                    if (itemsToRestore.length === 0) {
+                        App.showToast('Mapping not found', 'error');
+                        return;
+                    }
+
+                    // 2. Restore Stock
+                    itemsToRestore.forEach(it => {
+                        const product = this.data.find(p => p.id?.toString() === it.productId?.toString());
+                        if (product) {
+                            product.stock += it.qty || 0;
+                        }
+                    });
+
+                    // 3. Sync with Backend if migrated
+                    if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
+                        try {
+                            for (const it of itemsToRestore) {
+                                await App.apiCall('/transactions', 'POST', {
+                                    productId: it.productId,
+                                    transactionType: 'restocking',
+                                    quantity: it.qty,
+                                    referenceId: `REV-${id}`,
+                                    notes: `Reversal of mapping #${id}`
+                                });
+                            }
+                        } catch (apiError) {
+                            console.warn('Backend sync failed during deletion:', apiError);
+                        }
+                    }
+
+                    // 4. Save and Re-render
+                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
+                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(this.mappings));
+                    localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
+
+                    this.renderCards();
+                    this.renderHistory();
+                    App.showToast('Mapping deleted and stock restored.');
+
+                } catch (error) {
+                    console.error('Deletion failed:', error);
+                    App.showToast('Failed to delete mapping: ' + error.message, 'error');
                 }
             }
         };
