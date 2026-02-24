@@ -278,8 +278,9 @@
                 const result = await App.login(email, password);
 
                 if (result.success) {
-                    console.log('Login successful', result.user);
-                    App.showToast(`Access Granted. Welcome, Agent ${result.user.name || 'User'}`, 'success');
+                    const role = result.user.role.toUpperCase();
+                    console.log(`Login successful as ${role}`, result.user);
+                    App.showToast(`ACCESS GRANTED: ${role} LEVEL. Welcome, ${result.user.name || 'Agent'}`, 'success');
                     setTimeout(() => {
                         window.location.href = 'dashboard.html';
                     }, 1000);

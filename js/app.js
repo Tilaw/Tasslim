@@ -567,12 +567,22 @@ const App = {
             );
 
             if (user) {
-                console.log(`[auth]: Local fallback successful for ${email}`);
+                console.log(`[auth]: Local fallback successful for ${email} (${user.role})`);
                 localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
-                return { success: true, user: user };
+                return {
+                    success: true,
+                    user: user,
+                    source: 'local',
+                    message: 'Authenticated via Local Storage (Offline Mode)'
+                };
             }
 
-            return { success: false, message: error.message || 'Login failed' };
+            return {
+                success: false,
+                message: error.message.includes('fetch')
+                    ? 'Security Server Unreachable. Please check your connection or credentials for offline access.'
+                    : error.message
+            };
         }
     },
 
