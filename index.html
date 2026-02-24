@@ -183,7 +183,11 @@
                         window.location.href = 'dashboard.html';
                     }, 1000);
                 } else {
-                    App.showToast(`Authentication Failed: ${result.message}`, 'error');
+                    App.showToast(result.message, 'error');
+
+                    // Clear password box on failed attempt for security
+                    document.getElementById('password').value = '';
+
                     const card = document.querySelector('.login-card');
                     card.style.animation = 'shake 0.5s ease-in-out';
                     setTimeout(() => {
@@ -196,7 +200,6 @@
         async function quickLogin(user, pass) {
             document.getElementById('email').value = user;
             document.getElementById('password').value = pass;
-            document.getElementById('loginForm').dispatchEvent(new Event('submit'));
         }
     </script>
 </body>

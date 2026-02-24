@@ -20,7 +20,9 @@ const App = {
         BIKES: 'spi_bikes',
         SESSION: 'spi_session',
         MAPPINGS: 'spi_mappings',
-        DB_MIGRATED: 'spi_db_migrated'
+        DB_MIGRATED: 'spi_db_migrated',
+        LOGIN_ATTEMPTS: 'spi_login_attempts',
+        LOCKOUT_TIME: 'spi_lockout_time'
     },
 
     /**
@@ -549,6 +551,24 @@ const App = {
         // Ensure system is fully initialized before checking credentials
         await this.init();
 
+        // Check for brute-force lockout
+        const lockoutTime = localStorage.getItem(this.KEYS.LOCKOUT_TIME);
+        if (lockoutTime) {
+            const timeLeft = Math.ceil((parseInt(lockoutTime) + (2 * 60 * 1000) - Date.now()) / 1000);
+            if (timeLeft > 0) {
+                return {
+                    success: false,
+                    message: `SYSTEM LOCKED: Security protocol active. Retry in ${timeLeft}s.`,
+                    locked: true,
+                    timeLeft: timeLeft
+                };
+            } else {
+                // Lockout expired
+                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
+                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
+            }
+        }
+
         const cleanEmail = (email || '').trim().toLowerCase();
         const cleanPassword = (password || '').trim();
 
@@ -560,6 +580,10 @@ const App = {
             });
 
             if (result.success) {
+                // Successful login - reset security counters
+                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
+                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
+
                 const sessionData = {
                     ...result.data.user,
                     token: result.data.token,
@@ -580,12 +604,15 @@ const App = {
             const user = users.find(u => {
                 const uEmail = (u.email || '').trim().toLowerCase();
                 const uPass = (u.password || '').trim();
-                // Match full email or the prefix (e.g. 'admin' matches 'admin@shop.com')
                 return (uEmail === cleanEmail || uEmail.split('@')[0] === cleanEmail) &&
                     uPass === cleanPassword;
             });
 
             if (user) {
+                // Successful fallback - reset security counters
+                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
+                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
+
                 console.log(`[auth]: Local fallback successful for ${cleanEmail} (${user.role})`);
                 localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
                 return {
@@ -593,6 +620,18 @@ const App = {
                     user: user,
                     source: 'local',
                     message: 'Authenticated via Local Storage (Offline Mode)'
+                };
+            }
+
+            // Authentication failed - increment attempts
+            let attempts = parseInt(localStorage.getItem(this.KEYS.LOGIN_ATTEMPTS) || '0') + 1;
+            localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, attempts.toString());
+
+            if (attempts >= 3) {
+                localStorage.setItem(this.KEYS.LOCKOUT_TIME, Date.now().toString());
+                return {
+                    success: false,
+                    message: 'TOO MANY ATTEMPTS: System locked for 2 minutes for security.'
                 };
             }
 
