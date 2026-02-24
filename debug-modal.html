@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Modal Debug Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .debug-panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .debug-panel h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        #console-output {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin: 5px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-error {
+            color: #f48771;
+        }
+
+        .log-warn {
+            color: #dcdcaa;
+        }
+
+        .log-info {
+            color: #4fc1ff;
+        }
+
+        .log-success {
+            color: #4ec9b0;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="debug-panel">
+        <h3>🔍 Invoice Modal Debug Tool</h3>
+        <p>This tool helps you debug the invoice modal issue in reports.html</p>
+
+        <button class="btn" onclick="checkLocalStorage()">1. Check LocalStorage Data</button>
+        <button class="btn" onclick="testModalElements()">2. Test Modal Elements</button>
+        <button class="btn" onclick="simulateModalOpen()">3. Simulate Modal Open</button>
+        <button class="btn" onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <div class="debug-panel">
+        <h3>Console Output</h3>
+        <div id="console-output"></div>
+    </div>
+
+    <script>
+        // Override console methods to display in our custom console
+        const consoleOutput = document.getElementById('console-output');
+
+        function addLog(message, type = 'info') {
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleOutput.appendChild(entry);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        }
+
+        function clearConsole() {
+            consoleOutput.innerHTML = '';
+            addLog('Console cleared', 'info');
+        }
+
+        function checkLocalStorage() {
+            addLog('=== Checking LocalStorage ===', 'info');
+
+            const keys = {
+                SALES: 'spi_sales',
+                INVENTORY: 'spi_inventory',
+                MECHANICS: 'spi_mechanics',
+                BIKES: 'spi_bikes'
+            };
+
+            for (const [name, key] of Object.entries(keys)) {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        addLog(`✓ ${name}: ${parsed.length} records found`, 'success');
+
+                        if (name === 'SALES' && parsed.length > 0) {
+                            addLog(`  Sample sale: ${JSON.stringify(parsed[0])}`, 'info');
+                            const issueCount = parsed.filter(s => s.type === 'issue').length;
+                            addLog(`  Issue transactions: ${issueCount}`, issueCount > 0 ? 'success' : 'warn');
+                        }
+                    } catch (e) {
+                        addLog(`✗ ${name}: Invalid JSON - ${e.message}`, 'error');
+                    }
+                } else {
+                    addLog(`✗ ${name}: No data found in localStorage`, 'warn');
+                }
+            }
+        }
+
+        function testModalElements() {
+            addLog('=== Testing Modal Elements ===', 'info');
+
+            // Open reports.html in a new window to test
+            addLog('Opening reports.html...', 'info');
+            const win = window.open('reports.html', '_blank');
+
+            if (win) {
+                addLog('✓ Reports page opened in new window', 'success');
+                addLog('Check the browser console in that window for detailed logs', 'info');
+                addLog('Try clicking the "Create Invoice" button', 'info');
+            } else {
+                addLog('✗ Failed to open reports.html - popup blocked?', 'error');
+            }
+        }
+
+        function simulateModalOpen() {
+            addLog('=== Simulating Modal Open Logic ===', 'info');
+
+            try {
+                const sales = JSON.parse(localStorage.getItem('spi_sales')) || [];
+                const mechanics = JSON.parse(localStorage.getItem('spi_mechanics')) || [];
+                const bikes = JSON.parse(localStorage.getItem('spi_bikes')) || [];
+
+                addLog(`Sales data: ${sales.length} records`, 'info');
+                addLog(`Mechanics data: ${mechanics.length} records`, 'info');
+                addLog(`Bikes data: ${bikes.length} records`, 'info');
+
+                const issues = sales.filter(s => s.type === 'issue');
+                addLog(`Issue transactions: ${issues.length}`, issues.length > 0 ? 'success' : 'warn');
+
+                if (issues.length === 0) {
+                    addLog('⚠ NO ISSUE TRANSACTIONS FOUND!', 'error');
+                    addLog('The modal will show "No issue records found"', 'warn');
+                    addLog('', 'info');
+                    addLog('SOLUTION: You need to create "issue" type transactions', 'warn');
+                    addLog('Go to "Issue Part (Mapping)" page and assign parts to mechanics', 'warn');
+                } else {
+                    addLog('✓ Modal should populate with these transactions:', 'success');
+                    issues.forEach((issue, i) => {
+                        const itemsSummary = issue.items.map(item => `${item.qty}x ${item.name}`).join(', ');
+                        addLog(`  ${i + 1}. ${itemsSummary} (Mechanic: ${issue.mechanic || 'N/A'}, Bike: ${issue.bike || 'N/A'})`, 'info');
+                    });
+                }
+            } catch (e) {
+                addLog(`✗ Error: ${e.message}`, 'error');
+                addLog(`Stack: ${e.stack}`, 'error');
+            }
+        }
+
+        // Auto-run initial check
+        window.addEventListener('load', () => {
+            addLog('Debug tool loaded', 'success');
+            addLog('Click the buttons above to run diagnostics', 'info');
+        });
+    </script>
+</body>
+
+</html>

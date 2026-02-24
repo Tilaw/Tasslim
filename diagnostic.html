@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LocalStorage Diagnostic</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f7fa;
+        }
+
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            font-weight: 500;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            overflow-x: auto;
+            border: 1px solid #dee2e6;
+        }
+
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #2980b9;
+        }
+
+        .btn-success {
+            background: #27ae60;
+        }
+
+        .btn-success:hover {
+            background: #229954;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>🔍 LocalStorage Diagnostic Tool</h1>
+        <p>This tool helps diagnose why reports.html works on <code>file://</code> but not on
+            <code>http://localhost</code></p>
+
+        <div id="protocolInfo" class="status info"></div>
+        <div id="appStatus" class="status"></div>
+
+        <h2>LocalStorage Contents</h2>
+        <div id="storageInfo"></div>
+
+        <h2>Actions</h2>
+        <button onclick="checkData()">🔄 Refresh Data</button>
+        <button onclick="addSampleData()" class="btn-success">➕ Add Sample Data</button>
+        <button onclick="exportData()" class="btn-success">📥 Export Data</button>
+        <button onclick="importData()" class="btn-success">📤 Import Data</button>
+        <button onclick="clearAll()" class="btn-danger">🗑️ Clear All Data</button>
+
+        <div id="exportSection" style="display: none; margin-top: 20px;">
+            <h3>Exported Data (Copy this):</h3>
+            <textarea id="exportData"
+                style="width: 100%; height: 200px; font-family: monospace; padding: 10px;"></textarea>
+        </div>
+
+        <div id="importSection" style="display: none; margin-top: 20px;">
+            <h3>Import Data (Paste here):</h3>
+            <textarea id="importData"
+                style="width: 100%; height: 200px; font-family: monospace; padding: 10px;"></textarea>
+            <button onclick="doImport()" class="btn-success">Import Now</button>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        function checkData() {
+            // Protocol Info
+            const protocol = window.location.protocol;
+            const protocolDiv = document.getElementById('protocolInfo');
+            protocolDiv.innerHTML = `
+                <strong>Current Protocol:</strong> ${protocol}<br>
+                <strong>Origin:</strong> ${window.location.origin}<br>
+                <strong>Full URL:</strong> ${window.location.href}
+            `;
+
+            // Check if App is loaded
+            const appDiv = document.getElementById('appStatus');
+            if (typeof App === 'undefined') {
+                appDiv.className = 'status error';
+                appDiv.innerHTML = '❌ <strong>Error:</strong> App.js not loaded! Make sure js/app.js exists and is accessible.';
+                return;
+            }
+
+            if (!App.KEYS) {
+                appDiv.className = 'status error';
+                appDiv.innerHTML = '❌ <strong>Error:</strong> App.KEYS not defined! Check js/app.js for errors.';
+                return;
+            }
+
+            appDiv.className = 'status success';
+            appDiv.innerHTML = '✅ <strong>Success:</strong> App.js loaded correctly!';
+
+            // Check localStorage data
+            const storageDiv = document.getElementById('storageInfo');
+            const keys = [
+                { key: 'SALES', label: 'Sales Transactions' },
+                { key: 'INVENTORY', label: 'Inventory Items' },
+                { key: 'MECHANICS', label: 'Mechanics' },
+                { key: 'BIKES', label: 'Bikes' },
+                { key: 'SUPPLIERS', label: 'Suppliers' },
+                { key: 'USERS', label: 'Users' }
+            ];
+
+            let html = '<table><thead><tr><th>Data Type</th><th>Count</th><th>Status</th></tr></thead><tbody>';
+            let hasData = false;
+
+            keys.forEach(({ key, label }) => {
+                const data = JSON.parse(localStorage.getItem(App.KEYS[key])) || [];
+                const count = data.length;
+                const status = count > 0 ? '✅ Has Data' : '⚠️ Empty';
+                if (count > 0) hasData = true;
+
+                html += `<tr><td>${label}</td><td>${count}</td><td>${status}</td></tr>`;
+            });
+
+            html += '</tbody></table>';
+
+            if (!hasData) {
+                html += '<div class="status warning" style="margin-top: 15px;">⚠️ <strong>No data found!</strong> This is why reports.html appears empty. You need to either:<br>1. Add sample data using the button above<br>2. Import data from file:// version<br>3. Use the app to create data (login, add inventory, etc.)</div>';
+            }
+
+            storageDiv.innerHTML = html;
+        }
+
+        function addSampleData() {
+            if (!confirm('This will add sample data to localStorage. Continue?')) return;
+
+            // Sample mechanics
+            const mechanics = [
+                { id: 1, name: 'Ahmed Ali', phone: '0501234567', specialty: 'Engine' },
+                { id: 2, name: 'Mohammed Hassan', phone: '0507654321', specialty: 'Electrical' }
+            ];
+
+            // Sample bikes
+            const bikes = [
+                { id: 1, plate: 'ABC-123', model: 'Honda CBR', year: 2020 },
+                { id: 2, plate: 'XYZ-789', model: 'Yamaha R1', year: 2021 }
+            ];
+
+            // Sample inventory
+            const inventory = [
+                { id: 1, name: 'Oil Filter', sku: 'OF-001', stock: 50, cost: 15, price: 25, supplier: 'AutoParts Co' },
+                { id: 2, name: 'Brake Pads', sku: 'BP-002', stock: 30, cost: 45, price: 75, supplier: 'AutoParts Co' },
+                { id: 3, name: 'Spark Plug', sku: 'SP-003', stock: 100, cost: 5, price: 12, supplier: 'MotorSupply' }
+            ];
+
+            // Sample sales (issue transactions)
+            const sales = [
+                {
+                    id: Date.now() - 100000,
+                    date: new Date(Date.now() - 86400000).toISOString(),
+                    type: 'issue',
+                    mechanic: 'Ahmed Ali',
+                    bike: 'ABC-123',
+                    items: [{ name: 'Oil Filter', qty: 2, price: 25 }],
+                    total: 50,
+                    user: 'admin'
+                },
+                {
+                    id: Date.now() - 50000,
+                    date: new Date().toISOString(),
+                    type: 'issue',
+                    mechanic: 'Mohammed Hassan',
+                    bike: 'XYZ-789',
+                    items: [{ name: 'Brake Pads', qty: 1, price: 75 }, { name: 'Spark Plug', qty: 4, price: 12 }],
+                    total: 123,
+                    user: 'admin'
+                }
+            ];
+
+            localStorage.setItem(App.KEYS.MECHANICS, JSON.stringify(mechanics));
+            localStorage.setItem(App.KEYS.BIKES, JSON.stringify(bikes));
+            localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(inventory));
+            localStorage.setItem(App.KEYS.SALES, JSON.stringify(sales));
+
+            alert('✅ Sample data added successfully!');
+            checkData();
+        }
+
+        function exportData() {
+            const data = {};
+            Object.keys(App.KEYS).forEach(key => {
+                const storageKey = App.KEYS[key];
+                const value = localStorage.getItem(storageKey);
+                if (value) {
+                    data[storageKey] = value;
+                }
+            });
+
+            const exportText = JSON.stringify(data, null, 2);
+            document.getElementById('exportData').value = exportText;
+            document.getElementById('exportSection').style.display = 'block';
+            document.getElementById('importSection').style.display = 'none';
+        }
+
+        function importData() {
+            document.getElementById('importSection').style.display = 'block';
+            document.getElementById('exportSection').style.display = 'none';
+        }
+
+        function doImport() {
+            const importText = document.getElementById('importData').value;
+            if (!importText.trim()) {
+                alert('Please paste data to import!');
+                return;
+            }
+
+            try {
+                const data = JSON.parse(importText);
+                Object.keys(data).forEach(key => {
+                    localStorage.setItem(key, data[key]);
+                });
+                alert('✅ Data imported successfully!');
+                checkData();
+                document.getElementById('importSection').style.display = 'none';
+            } catch (e) {
+                alert('❌ Error importing data: ' + e.message);
+            }
+        }
+
+        function clearAll() {
+            if (!confirm('⚠️ This will DELETE ALL data! Are you sure?')) return;
+
+            Object.keys(App.KEYS).forEach(key => {
+                localStorage.removeItem(App.KEYS[key]);
+            });
+
+            alert('✅ All data cleared!');
+            checkData();
+        }
+
+        // Auto-run on load
+        window.addEventListener('DOMContentLoaded', checkData);
+    </script>
+</body>
+
+</html>

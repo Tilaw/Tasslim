@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Reports Debug Test</title>
+</head>
+
+<body>
+    <h1>Reports Debug Test</h1>
+    <button id="testBtn" onclick="testReports()">Test Reports Object</button>
+    <div id="output" style="margin-top: 20px; font-family: monospace;"></div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const Reports = {
+            sales: [],
+            inventory: [],
+            mechanics: [],
+            bikes: [],
+
+            init: function () {
+                console.log('Reports init called');
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                console.log('Sales:', this.sales.length);
+                console.log('Mechanics:', this.mechanics.length);
+                console.log('Bikes:', this.bikes.length);
+            },
+
+            openInvoiceModal: function () {
+                alert('Modal function called successfully!');
+                console.log('openInvoiceModal called');
+            }
+        };
+
+        function testReports() {
+            const output = document.getElementById('output');
+            output.innerHTML = '';
+
+            try {
+                output.innerHTML += 'Testing Reports object...<br>';
+                output.innerHTML += 'App object exists: ' + (typeof App !== 'undefined') + '<br>';
+                output.innerHTML += 'App.KEYS exists: ' + (typeof App.KEYS !== 'undefined') + '<br>';
+                output.innerHTML += 'Reports object exists: ' + (typeof Reports !== 'undefined') + '<br>';
+
+                Reports.init();
+                output.innerHTML += 'Reports.init() completed<br>';
+
+                Reports.openInvoiceModal();
+                output.innerHTML += 'Reports.openInvoiceModal() completed<br>';
+
+                output.innerHTML += '<br><strong>SUCCESS: All tests passed!</strong>';
+            } catch (e) {
+                output.innerHTML += '<br><strong style="color: red;">ERROR: ' + e.message + '</strong><br>';
+                output.innerHTML += 'Stack: ' + e.stack;
+                console.error('Test error:', e);
+            }
+        }
+
+        // Auto-run on load
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log('Page loaded, running test...');
+            testReports();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mechanic History - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .filter-section {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .mechanic-info-card {
+            background: linear-gradient(135deg, #a5b4fc, #6366f1);
+            color: white;
+            padding: 24px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            display: none;
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        @media print {
+
+            .sidebar,
+            .top-bar,
+            .filter-section,
+            .btn,
+            .hide-for-print {
+                display: none !important;
+            }
+
+            .main-content {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #eee !important;
+                margin: 0 !important;
+            }
+
+            .mechanic-info-card {
+                display: block !important;
+                background: none !important;
+                color: black !important;
+                border: 1px solid #ddd !important;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+            }
+
+            th,
+            td {
+                border: 1px solid #ddd !important;
+                padding: 10px !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link active"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title">Mechanic Issuance History</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="btn btn-secondary" onclick="window.print()">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="filter-section">
+                    <div class="form-group" style="flex: 1; min-width: 250px;">
+                        <label class="form-label">Search Mechanic</label>
+                        <select id="mechanicSearch" class="form-control" onchange="MechHistory.handleSearch()">
+                            <option value="">Select or Type Mechanic Name</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Time Period</label>
+                        <select id="periodFilter" class="form-control" onchange="MechHistory.handlePeriodChange()">
+                            <option value="all">All Time</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                    <div id="customDates" class="filter-section" style="display: none; margin: 0; padding: 0;">
+                        <div class="form-group">
+                            <label class="form-label">From</label>
+                            <input type="date" id="startDate" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">To</label>
+                            <input type="date" id="endDate" class="form-control">
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="MechHistory.loadHistory()">Filter</button>
+                </div>
+
+                <div id="mechanicDetails" class="mechanic-info-card">
+                    <h2 id="detName" style="margin: 0;"></h2>
+                    <div style="display: flex; gap: 20px; margin-top: 10px; font-size: 0.9rem; opacity: 0.9;">
+                        <span id="detCode"></span>
+                        <span id="detPhone"></span>
+                        <span id="detSpec"></span>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Issue ID</th>
+                                <th>Bike Plate</th>
+                                <th>Items</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTable">
+                            <tr>
+                                <td colspan="4" class="text-center">Search for a mechanic to see history</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const MechHistory = {
+            sales: [],
+            mechanics: [],
+
+            init: function () {
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                this.mappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
+                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+
+                this.populateMechanics();
+
+                // Check if name is in URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const mechName = urlParams.get('mechanic');
+                if (mechName) {
+                    document.getElementById('mechanicSearch').value = mechName;
+                    this.loadHistory();
+                }
+            },
+
+            populateMechanics: function () {
+                const select = document.getElementById('mechanicSearch');
+                // Unique names from sales + from mechanics list + mapping list
+                const saleMechs = [...new Set(this.sales.map(s => s.mechanic).filter(Boolean))];
+                const mappingMechs = [...new Set(this.mappings.map(m => m.mechanicName).filter(Boolean))];
+                const dbMechs = this.mechanics.map(m => m.name);
+                const allMechs = [...new Set([...dbMechs, ...saleMechs, ...mappingMechs])].sort();
+
+                allMechs.forEach(name => {
+                    const opt = document.createElement('option');
+                    opt.value = name;
+                    opt.textContent = name;
+                    select.appendChild(opt);
+                });
+            },
+
+            handlePeriodChange: function () {
+                const period = document.getElementById('periodFilter').value;
+                document.getElementById('customDates').style.display = (period === 'custom') ? 'flex' : 'none';
+            },
+
+            handleSearch: function () {
+                this.loadHistory();
+            },
+
+            loadHistory: function () {
+                const name = document.getElementById('mechanicSearch').value;
+                if (!name) return;
+
+                const period = document.getElementById('periodFilter').value;
+                const start = document.getElementById('startDate').value;
+                const end = document.getElementById('endDate').value;
+
+                // Show mechanic details
+                const mech = this.mechanics.find(m => m.name === name);
+                const detBox = document.getElementById('mechanicDetails');
+                detBox.style.display = 'block';
+                document.getElementById('detName').textContent = name;
+                document.getElementById('detCode').textContent = mech ? `Code: ${mech.code || 'N/A'}` : '';
+                document.getElementById('detPhone').textContent = mech ? `Phone: ${mech.phone || 'N/A'}` : '';
+                document.getElementById('detSpec').textContent = mech ? `Specialty: ${mech.specialization || 'N/A'}` : '';
+
+                let combinedHistory = [];
+                const txKeySet = new Set();
+
+                // 1. Process Sales (Primary)
+                const relevantSales = this.sales.filter(s => s.type === 'issue' && s.mechanic === name);
+                relevantSales.forEach(s => {
+                    const dateObj = new Date(s.date);
+                    const dateStr = isNaN(dateObj.getTime()) ? 'Invalid' : dateObj.toDateString();
+                    combinedHistory.push(s);
+
+                    // Mark fingerprint (mechanic + bike + date + items)
+                    const txFingerprint = `${s.mechanic}_${s.bike}_${dateStr}`;
+                    const itemsFingerprint = (s.items || []).map(it => `${it.productId}_${it.qty}`).sort().join('|');
+                    txKeySet.add(`${txFingerprint}_${itemsFingerprint}`);
+                });
+
+                // 2. Process Mappings (Legacy/Local Sync)
+                const mappingGroups = new Map();
+                const relevantMappings = this.mappings.filter(m => m.mechanicName === name);
+
+                relevantMappings.forEach(m => {
+                    const dateObj = new Date(m.date);
+                    const dateStr = isNaN(dateObj.getTime()) ? 'Invalid' : dateObj.toDateString();
+                    const txFingerprint = `${m.mechanicName}_${m.bikePlate}_${dateStr}`;
+                    const itemFingerprint = `${m.productId}_${m.quantity}`;
+
+                    if (!txKeySet.has(`${txFingerprint}_${itemFingerprint}`)) {
+                        const groupKey = m.issueId || `legacy_${txFingerprint}_${m.id}`;
+                        if (!mappingGroups.has(groupKey)) {
+                            mappingGroups.set(groupKey, {
+                                id: m.issueId || m.id,
+                                date: m.date,
+                                items: [],
+                                bike: m.bikePlate,
+                                isLegacy: true
+                            });
+                        }
+                        mappingGroups.get(groupKey).items.push({
+                            name: m.productName,
+                            qty: m.quantity
+                        });
+                    }
+                });
+
+                mappingGroups.forEach(tx => combinedHistory.push(tx));
+
+                let filtered = combinedHistory;
+                const now = new Date();
+                if (period === 'week') {
+                    const weekAgo = new Date(now.setDate(now.getDate() - 7));
+                    filtered = filtered.filter(s => new Date(s.date) >= weekAgo);
+                } else if (period === 'month') {
+                    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+                    filtered = filtered.filter(s => new Date(s.date) >= monthAgo);
+                } else if (period === 'year') {
+                    const yearAgo = new Date(now.setFullYear(now.getFullYear() - 1));
+                    filtered = filtered.filter(s => new Date(s.date) >= yearAgo);
+                } else if (period === 'custom') {
+                    if (start) filtered = filtered.filter(s => new Date(s.date).toISOString().split('T')[0] >= start);
+                    if (end) filtered = filtered.filter(s => new Date(s.date).toISOString().split('T')[0] <= end);
+                }
+
+                this.renderTable(filtered);
+            },
+
+            renderTable: function (items) {
+                const tbody = document.getElementById('historyTable');
+                tbody.innerHTML = '';
+
+                // Load inventory for stock lookup
+                const inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">No issuance records found for this period</td></tr>';
+                } else {
+                    items.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(s => {
+                        const row = document.createElement('tr');
+
+                        row.innerHTML = `
+                            <td style="font-weight: 600; font-size: 13px;">${new Date(s.date).toLocaleDateString()}</td>
+                            <td style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #64748b; background: #f8fafc; padding: 4px 8px; border-radius: 6px;">#${s.id.toString().slice(-6).toUpperCase()}</td>
+                            <td><span style="background: #e0e7ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; border: 1px solid #c7d2fe;">${s.bike || '—'}</span></td>
+                            <td style="font-size: 13px; color: #334155;">${(s.items || []).map(i => {
+                            const prod = inventory.find(p => p.id?.toString() === i.productId?.toString() || p.name === i.name);
+                            const currStock = prod ? prod.stock : 'N/A';
+                            return `<span style="display:inline-block; margin-right:12px; margin-bottom: 4px; background: #f1f5f9; padding: 2px 8px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                                    <strong style="color: #6366f1;">${i.qty}</strong> ${i.name} 
+                                    <small style="color: ${currStock <= 5 ? '#ef4444' : '#64748b'}; font-weight: 700; margin-left: 4px;">(${currStock} Available in Stock)</small>
+                                </span>`;
+                        }).join('')}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            MechHistory.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

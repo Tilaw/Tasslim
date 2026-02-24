@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Tasslim Parts Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .settings-container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card-header {
+            margin-bottom: 25px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link active"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="settings">Settings</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="settings-container">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 style="margin: 0; color: #1e293b;"><i class="fas fa-user-shield"
+                                style="margin-right: 10px; color: #6366f1;"></i>Account Credentials</h3>
+                        <p style="color: #64748b; font-size: 14px; margin: 5px 0 0 0;">Update your login username and
+                            password.</p>
+                    </div>
+
+                    <form id="settingsForm">
+                        <div class="form-group">
+                            <label class="form-label">Username / Email</label>
+                            <input type="text" id="username" class="form-control" required>
+                        </div>
+
+                        <div style="margin: 30px 0; border-top: 1px dashed #e2e8f0;"></div>
+
+                        <div class="form-group">
+                            <label class="form-label">New Password</label>
+                            <input type="password" id="password" class="form-control"
+                                placeholder="Leave blank to keep current">
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Confirm New Password</label>
+                            <input type="password" id="confirmPassword" class="form-control"
+                                placeholder="Confirm new password">
+                        </div>
+
+                        <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+                            <button type="submit" class="btn btn-primary" style="padding: 12px 30px;">
+                                <i class="fas fa-save" style="margin-right: 8px;"></i> Save Changes
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const SettingsMgr = {
+            currentUser: null,
+
+            init: function () {
+                this.currentUser = App.getCurrentUser();
+                if (!this.currentUser) {
+                    window.location.href = 'index.html';
+                    return;
+                }
+
+                document.getElementById('username').value = this.currentUser.email || '';
+
+                document.getElementById('settingsForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.save();
+                });
+            },
+
+            save: function () {
+                const newUsername = document.getElementById('username').value.trim();
+                const newPassword = document.getElementById('password').value;
+                const confirmPassword = document.getElementById('confirmPassword').value;
+
+                if (!newUsername) {
+                    App.showToast('Username cannot be empty', 'error');
+                    return;
+                }
+
+                if (newPassword && newPassword !== confirmPassword) {
+                    App.showToast('Passwords do not match', 'error');
+                    return;
+                }
+
+                try {
+                    const users = JSON.parse(localStorage.getItem(App.KEYS.USERS)) || [];
+                    const index = users.findIndex(u => String(u.id) === String(this.currentUser.id));
+
+                    if (index === -1) {
+                        App.showToast('User record not found in database', 'error');
+                        return;
+                    }
+
+                    // Update main users list
+                    users[index].email = newUsername;
+                    if (newPassword) {
+                        users[index].password = newPassword;
+                    }
+
+                    localStorage.setItem(App.KEYS.USERS, JSON.stringify(users));
+
+                    // Update current session
+                    this.currentUser.email = newUsername;
+                    if (newPassword) {
+                        this.currentUser.password = newPassword;
+                    }
+                    localStorage.setItem(App.KEYS.SESSION, JSON.stringify(this.currentUser));
+
+                    App.showToast('Settings updated successfully!');
+
+                    // Clear password fields
+                    document.getElementById('password').value = '';
+                    document.getElementById('confirmPassword').value = '';
+                } catch (e) {
+                    console.error('Settings save error:', e);
+                    App.showToast('Failed to save settings: ' + e.message, 'error');
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            SettingsMgr.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

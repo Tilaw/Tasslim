@@ -1,0 +1,1937 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --report-bg: #f8fafc;
+            --report-card-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+            --radius: 20px;
+        }
+
+        .main-content {
+            padding: 12px;
+            max-width: 1280px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        @media screen and (min-width: 768px) {
+            .main-content {
+                padding: 30px;
+            }
+        }
+
+        .grid-2-col {
+            grid-template-columns: 1fr;
+        }
+
+        @media screen and (min-width: 1200px) {
+            .grid-2-col {
+                grid-template-columns: 1.6fr 1fr;
+            }
+
+            .grid-3-col {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        .stat-card {
+            border-radius: var(--radius) !important;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease !important;
+            padding: 18px !important;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+        }
+
+        .card {
+            border: 1px solid rgba(0, 0, 0, 0.05) !important;
+            box-shadow: var(--report-card-shadow) !important;
+            border-radius: var(--radius) !important;
+        }
+
+        .table-container {
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            border-radius: 16px;
+            overflow-x: auto;
+            background: white;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        table th {
+            background-color: #f8fafc !important;
+            color: #64748b !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            font-size: 11px !important;
+            letter-spacing: 0.05em;
+            padding: 18px 20px !important;
+            border-bottom: 2px solid #f1f5f9 !important;
+        }
+
+        table td {
+            padding: 16px 20px !important;
+            vertical-align: middle;
+        }
+
+        .item-tag {
+            display: inline-flex;
+            align-items: center;
+            background: #f1f5f9;
+            color: #475569;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            margin: 2px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .item-tag .qty {
+            background: #4f46e5;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-right: 6px;
+            font-size: 10px;
+        }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            align-items: end;
+            background: #fcfcfc;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+        }
+
+        @media screen and (max-width: 600px) {
+            .filter-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-group .form-control {
+            height: 42px;
+            border-color: #cbd5e1;
+            font-weight: 500;
+        }
+
+        @media print {
+
+            .sidebar,
+            .top-bar,
+            .stat-card,
+            .mb-20,
+            .date-range,
+            .btn,
+            .sidebar-footer,
+            .action-column,
+            .hide-for-print {
+                display: none !important;
+            }
+
+            .main-content {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #eee !important;
+                margin: 0 !important;
+                padding: 10px !important;
+            }
+
+            .app-container {
+                display: block !important;
+            }
+
+            table {
+                width: 100% !important;
+                border-collapse: collapse !important;
+                margin-top: 20px;
+            }
+
+            th,
+            td {
+                border: 1px solid #ddd !important;
+                padding: 8px !important;
+                text-align: left !important;
+            }
+
+            .print-header {
+                display: block !important;
+                text-align: center;
+                border-bottom: 2px solid #333;
+                padding-bottom: 20px;
+            }
+
+            .invoice-title {
+                font-size: 28px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 2px;
+            }
+
+            .print-footer {
+                display: block !important;
+                margin-top: 50px;
+                text-align: center;
+                font-size: 12px;
+                color: #666;
+            }
+        }
+
+        .print-header,
+        .print-footer {
+            display: none;
+        }
+
+        /* Premium Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background-color: #ffffff;
+            margin: 4% auto;
+            padding: 0;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 750px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-header {
+            padding: 25px 30px;
+            background: #f8fafc;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .modal-body {
+            padding: 30px;
+        }
+
+        .modal-footer {
+            padding: 20px 30px;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .close-modal {
+            position: absolute;
+            right: 25px;
+            top: 25px;
+            font-size: 20px;
+            cursor: pointer;
+            color: #94a3b8;
+            transition: color 0.2s;
+        }
+
+        .close-modal:hover {
+            color: #64748b;
+        }
+
+        .invoice-item-list {
+            max-height: 350px;
+            overflow-y: auto;
+            margin: 20px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        .invoice-item-row {
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #f1f5f9;
+            transition: background 0.2s;
+        }
+
+        .invoice-item-row:hover {
+            background-color: #f8fafc;
+        }
+
+        .invoice-item-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 20px;
+            cursor: pointer;
+            accent-color: var(--primary-color);
+        }
+
+        .invoice-item-info {
+            flex-grow: 1;
+        }
+
+        .invoice-item-meta {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Invoice Builder (right-side panel) */
+        .invoice-builder-list {
+            max-height: 520px;
+            overflow-y: auto;
+            border: 1px solid #e2e8f0;
+            border-radius: 10px;
+            background: #ffffff;
+        }
+
+        .invoice-builder-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .invoice-builder-row:last-child {
+            border-bottom: none;
+        }
+
+        .invoice-builder-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+            flex: 1;
+        }
+
+        .invoice-builder-name {
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .invoice-builder-qty {
+            width: 90px;
+            height: 34px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 0 10px;
+        }
+
+        .invoice-builder-meta {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-top: 2px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        @media print {
+            body.is-custom-printing .hide-column-for-custom {
+                display: none !important;
+            }
+
+            .invoice-title {
+                font-size: 26px;
+                letter-spacing: 2px;
+                margin-bottom: 5px;
+                color: #000;
+            }
+
+            .print-header {
+                border-bottom: 2px solid #000;
+                margin-bottom: 30px;
+                padding-bottom: 15px;
+            }
+
+            .print-footer {
+                display: flex !important;
+                justify-content: space-between;
+                margin-top: 80px;
+                padding: 0 40px;
+            }
+
+            .signature-box {
+                text-align: center;
+                width: 200px;
+            }
+
+            .signature-line {
+                border-top: 1px solid #000;
+                margin-bottom: 5px;
+            }
+        }
+
+        /* New Builder Modal Styles */
+        .builder-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 20px;
+        }
+
+        .builder-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .builder-list-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #fff;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .builder-list-item {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .builder-list-item:hover {
+            background: #f8fafc;
+        }
+
+        .builder-list-item.selected {
+            background: #eff6ff;
+            border-left: 3px solid #3b82f6;
+        }
+
+        .mapping-row {
+            padding: 12px;
+            border-bottom: 1px solid #f1f5f9;
+            display: grid;
+            grid-template-columns: 2fr 0.8fr 1.5fr 40px;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .mapping-label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+
+        .search-results {
+            position: absolute;
+            z-index: 100;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            max-height: 200px;
+            overflow-y: auto;
+            width: 100%;
+            display: none;
+        }
+
+        .search-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .search-item:hover {
+            background: #f8fafc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link active"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="print-header">
+                <div style="font-size: 14px; font-weight: bold; margin-bottom: 5px; color: #666;">TASSLIM WORKSHOP
+                    MANAGEMENT</div>
+                <div class="invoice-title">Tasslim Spare part inventory invoice</div>
+                <p id="printMeta" style="margin-top: 15px; font-size: 14px;"></p>
+            </div>
+
+            <header class="top-bar"
+                style="height: auto; padding: 25px 30px; flex-direction: column; align-items: flex-start; gap: 20px;">
+                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin: 0;">
+                            <i class="fas fa-bars"></i>
+                        </button>
+                        <div class="page-title" data-i18n="reports" style="font-size: 1.8rem; letter-spacing: -0.5px;">
+                            Analytics & Reports</div>
+                    </div>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <button class="btn btn-secondary" onclick="window.print()">
+                            <i class="fas fa-print"></i> Full Report
+                        </button>
+                        <div class="user-profile">
+                            <div class="user-avatar" id="userInitials">AU</div>
+                            <span id="userName">Admin User</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="filter-row" style="width: 100%; margin-bottom: 0;">
+                    <div class="filter-group">
+                        <label>Search Item</label>
+                        <select id="itemFilter" class="form-control" onchange="Reports.generate()">
+                            <option value="">All Items</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Mechanic</label>
+                        <select id="mechFilter" class="form-control" onchange="Reports.generate()">
+                            <option value="">All Mechanics</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Start Date</label>
+                        <input type="date" id="startDate" class="form-control" onchange="Reports.generate()">
+                    </div>
+                    <div class="filter-group">
+                        <label>End Date</label>
+                        <input type="date" id="endDate" class="form-control" onchange="Reports.generate()">
+                    </div>
+                    <div class="filter-group">
+                        <label>Bike Plate</label>
+                        <select id="bikeFilter" class="form-control" onchange="Reports.generate()">
+                            <option value="">All Bikes</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="filter-group" style="justify-content: flex-end; display: flex;">
+                    <button class="btn btn-primary" onclick="Reports.generate()"
+                        style="height: 40px; padding: 0 20px; font-size: 13px;">
+                        <i class="fas fa-filter"></i> Apply
+                    </button>
+                </div>
+    </div>
+    </header>
+
+    <div class="grid-2-col" style="grid-template-columns: repeat(2, 400px); gap: 15px; margin-bottom: 20px;">
+        <div class="card stat-card"
+            style="background: linear-gradient(135deg, #4f46e5, #818cf8); color: white; border: none; padding: 15px;">
+            <div class="stat-icon"
+                style="background: rgba(255,255,255,0.2); color: white; width: 45px; height: 45px; font-size: 1.2rem;">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="totalSalesCount" style="font-size: 1.5rem;">0</div>
+                <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.85rem;">Transactions Logged
+                </div>
+            </div>
+        </div>
+        <div class="card stat-card"
+            style="background: linear-gradient(135deg, #059669, #34d399); color: white; border: none; padding: 15px;">
+            <div class="stat-icon"
+                style="background: rgba(255,255,255,0.2); color: white; width: 45px; height: 45px; font-size: 1.2rem;">
+                <i class="fas fa-coins"></i>
+            </div>
+            <div class="stat-info">
+                <div class="stat-value" id="totalRevenue" style="font-size: 1.5rem;">AED 0.00</div>
+                <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.85rem;"
+                    data-i18n="totalRevenue">Revenue
+                    (Sales Only)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mechanic Report Section (Shrunk) -->
+    <div style="margin-top: 20px;">
+        <div class="card" style="display: flex; flex-direction: column; margin: 0; padding: 15px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin: 0; font-size: 1rem; color: #1e293b; font-weight: 800;">
+                    <i class="fas fa-wrench" style="margin-right: 10px; color: #6366f1; font-size: 0.9rem;"></i>
+                    WORKSHOP CONSUMPTION
+                </h3>
+                <button class="btn btn-primary" onclick="Reports.openBuilderModal()"
+                    style="padding: 7px 15px; font-size: 13px;">
+                    <i class="fas fa-file-invoice"></i> Create Invoice
+                </button>
+            </div>
+            <div class="table-container" style="flex: 1; max-height: 350px;">
+                <table style="font-size: 12px;">
+                    <thead>
+                        <tr>
+                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Date</th>
+                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Mechanic</th>
+                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Bike Plate</th>
+                            <th style="padding: 10px 15px !important;">Items</th>
+                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Total Items</th>
+                            <th class="action-column" style="padding: 10px 15px !important;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mechTable">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    </div>
+
+    <!-- ULTRA-COMPACT BOTTOM GRID -->
+    <div class="grid-2-col" style="margin-top: 15px; grid-template-columns: 1fr 1fr; gap: 15px;">
+
+        <!-- Transaction History (Compact) -->
+        <div class="card" style="margin: 0; padding: 15px;">
+            <h3
+                style="margin-bottom: 12px; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; font-weight: 800;">
+                <i class="fas fa-history" style="margin-right: 8px; color: #f59e0b; font-size: 0.8rem;"></i>
+                RECENT TRANSACTIONS
+            </h3>
+            <div class="table-container" style="max-height: 220px; overflow-y: auto;">
+                <table style="font-size: 12px;">
+                    <thead>
+                        <tr>
+                            <th style="padding: 10px 12px !important; font-size: 10px;">DATE</th>
+                            <th style="padding: 10px 12px !important; font-size: 10px;">ITEMS</th>
+                            <th style="padding: 10px 12px !important; font-size: 10px; text-align: right;">TOTAL</th>
+                            <th style="width: 30px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesTable"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Inventory Value (Horizontal Row) -->
+        <div class="card" style="margin: 0; padding: 15px;">
+            <h3 style="margin-bottom: 12px; font-size: 0.9rem; color: #1e293b; font-weight: 800;">
+                <i class="fas fa-chart-pie" style="margin-right: 8px; color: #10b981; font-size: 0.8rem;"></i>
+                INVENTORY VALUATION
+            </h3>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                <div
+                    style="background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03); text-align: center;">
+                    <small
+                        style="color: #64748b; text-transform: uppercase; font-size: 9px; font-weight: 700; display: block;">COST</small>
+                    <div id="totalCostValue"
+                        style="color: #1e293b; font-size: 1.1rem; font-weight: 800; margin-top: 4px;">AED 0.00</div>
+                </div>
+                <div
+                    style="background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03); text-align: center;">
+                    <small
+                        style="color: #64748b; text-transform: uppercase; font-size: 9px; font-weight: 700; display: block;">RETAIL</small>
+                    <div id="totalRetailValue"
+                        style="color: #1e293b; font-size: 1.1rem; font-weight: 800; margin-top: 4px;">AED 0.00</div>
+                </div>
+                <div
+                    style="background: rgba(16, 185, 129, 0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.1); text-align: center;">
+                    <small
+                        style="color: #059669; text-transform: uppercase; font-size: 9px; font-weight: 800; display: block;">PROFIT</small>
+                    <div id="potentialProfit"
+                        style="color: #059669; font-size: 1.3rem; font-weight: 900; margin-top: 2px;">AED 0.00</div>
+                </div>
+            </div>
+            <div
+                style="margin-top: 15px; padding: 10px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 12px; font-size: 11px; color: #b45309; text-align: center;">
+                <i class="fas fa-info-circle" style="margin-right: 5px;"></i> Values calculated from current stock
+                levels.
+            </div>
+        </div>
+    </div>
+    </main>
+
+    <div class="print-footer">
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div>Technician Signature</div>
+        </div>
+        <div class="signature-box">
+            <div class="signature-line"></div>
+            <div>Workshop Supervisor</div>
+        </div>
+    </div>
+    </div>
+
+    <div id="builderModal" class="modal">
+        <div class="modal-content" style="max-width: 900px;">
+            <div class="modal-header">
+                <span class="close-modal" onclick="Reports.closeBuilderModal()">&times;</span>
+                <h2 style="margin: 0; color: #1e293b;">Create New Invoice</h2>
+                <p style="color: #64748b; font-size: 14px; margin: 5px 0 0 0;">Select mechanic, bikes, and map parts to
+                    each plate.</p>
+            </div>
+
+            <div class="modal-body">
+                <div class="builder-grid">
+                    <!-- Left Column: Primary Selections -->
+                    <div class="builder-section">
+                        <div class="form-group">
+                            <label class="form-label" style="font-weight: 700;">MECHANIC</label>
+                            <select id="builderMechSelect" class="form-control" style="height: 42px;">
+                                <option value="">Select Mechanic</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" style="font-weight: 700;">ADD BIKE PLATES</label>
+                            <div style="position: relative;">
+                                <input type="text" id="builderBikeSearch" class="form-control"
+                                    placeholder="Search plate number..." onkeyup="Reports.searchBikesInBuilder()">
+                                <div id="builderBikeResults" class="search-results"></div>
+                            </div>
+                            <div id="builderSelectedBikes"
+                                style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px;">
+                                <!-- Selected bike tags -->
+                            </div>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 10px;">
+                            <label class="form-label" style="font-weight: 700;">ADD PARTS</label>
+                            <div style="position: relative;">
+                                <input type="text" id="builderPartSearch" class="form-control"
+                                    placeholder="Search part name or SKU..." onkeyup="Reports.searchPartsInBuilder()">
+                                <div id="builderPartResults" class="search-results"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Mapping & Summary -->
+                    <div class="builder-section">
+                        <label class="form-label" style="font-weight: 700;">PART MAPPING & QUANTITY</label>
+                        <div class="builder-list-container" style="flex: 1; min-height: 350px;">
+                            <div id="builderMappingList">
+                                <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                                    <i class="fas fa-toolbox"
+                                        style="font-size: 3rem; margin-bottom: 20px; display: block; opacity: 0.3;"></i>
+                                    Add bikes and parts to start mapping
+                                </div>
+                            </div>
+                        </div>
+                        <div style="background: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                            <div
+                                style="display: flex; justify-content: space-between; font-weight: 700; color: #1e293b;">
+                                <span>TOTAL ITEMS:</span>
+                                <span id="builderTotalItems">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" style="background: #e2e8f0; color: #475569;"
+                    onclick="Reports.closeBuilderModal()">Cancel</button>
+                <button class="btn btn-primary" style="padding: 12px 35px;"
+                    onclick="Reports.generateInvoiceFromBuilder()">
+                    <i class="fas fa-print" style="margin-right: 8px;"></i> Print Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="invoiceModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="close-modal" onclick="Reports.closeInvoiceModal()">&times;</span>
+                <h2 style="margin: 0; color: #1e293b;">Tasslim Spare part inventory invoice</h2>
+                <p style="color: #64748b; font-size: 14px; margin: 5px 0 0 0;">Select records and confirm header details
+                    for the final document.</p>
+            </div>
+
+            <div class="modal-body">
+                <div
+                    style="background: #f1f5f9; padding: 20px; border-radius: 12px; margin-bottom: 25px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="form-group">
+                        <label
+                            style="font-size: 12px; font-weight: 700; color: #475569; display: block; margin-bottom: 8px; text-transform: uppercase;">Invoice
+                            Mechanic</label>
+                        <select id="modalMechSelect" class="form-control" style="border-color: #cbd5e1; height: 42px;">
+                            <option value="">All Mechanics</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label
+                            style="font-size: 12px; font-weight: 700; color: #475569; display: block; margin-bottom: 8px; text-transform: uppercase;">Bike
+                            Plate Number</label>
+                        <select id="modalBikeSelect" class="form-control" style="border-color: #cbd5e1; height: 42px;">
+                            <option value="">All Bikes</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="font-weight: 600; font-size: 13px; color: #64748b;" id="modalFilterInfo">Results for
+                        current filters</div>
+                    <button class="btn btn-sm btn-secondary" onclick="Reports.toggleModalSelectAll()">Toggle
+                        All</button>
+                </div>
+
+                <div class="invoice-item-list" id="modalItemList">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" style="background: #e2e8f0; color: #475569;"
+                    onclick="Reports.closeInvoiceModal()">Cancel</button>
+                <button class="btn btn-primary" style="padding: 10px 25px;" onclick="Reports.printFromModal()">
+                    <i class="fas fa-print" style="margin-right: 8px;"></i> Generate & Print
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const Reports = {
+            sales: [],
+            inventory: [],
+            mechanics: [],
+            bikes: [],
+            filteredSales: [],
+            invoiceSelectionDirty: false,
+            builderSelectedBikes: new Set(),
+            builderSelectedParts: new Map(), // key: partId -> { productId, name, qty, bikePlate }
+            invoiceModalListenersAttached: false,
+            invoiceModalCurrentParts: [],
+
+            init: function () {
+                try {
+                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                    this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                    this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+
+                    // Initialize filteredSales with all sales
+                    this.filteredSales = this.sales;
+
+                    this.populateFilters();
+                    this.generate();
+                } catch (e) {
+                    console.error('Reports: Initialization failed:', e);
+                }
+            },
+
+            populateFilters: function () {
+                const mechSelect = document.getElementById('mechFilter');
+                if (mechSelect && mechSelect.options.length <= 1) {
+                    this.mechanics.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.name;
+                        opt.textContent = m.name;
+                        mechSelect.appendChild(opt);
+                    });
+                }
+
+                const bikeSelect = document.getElementById('bikeFilter');
+                if (bikeSelect && bikeSelect.options.length <= 1) {
+                    const saleBikes = [...new Set(this.sales.map(s => s.bike).filter(b => b))];
+                    const allBikes = [...new Set([...this.bikes.map(b => b.plate), ...saleBikes])];
+                    allBikes.sort().forEach(b => {
+                        const opt = document.createElement('option');
+                        opt.value = b;
+                        opt.textContent = b;
+                        bikeSelect.appendChild(opt);
+                    });
+                }
+
+                const itemSelect = document.getElementById('itemFilter');
+                if (itemSelect && itemSelect.options.length <= 1) {
+                    this.inventory.sort((a, b) => a.name.localeCompare(b.name)).forEach(i => {
+                        const opt = document.createElement('option');
+                        opt.value = i.name;
+                        opt.textContent = i.name;
+                        itemSelect.appendChild(opt);
+                    });
+                }
+            },
+
+            generate: function () {
+                const start = document.getElementById('startDate')?.value || '';
+                const end = document.getElementById('endDate')?.value || '';
+                const mech = document.getElementById('mechFilter')?.value || '';
+                const bike = document.getElementById('bikeFilter')?.value || '';
+                const itm = document.getElementById('itemFilter')?.value || '';
+
+                let filteredSales = this.sales;
+
+                if (start || end || mech || bike || itm) {
+                    filteredSales = this.sales.filter(s => {
+                        const sDate = (s.date && typeof s.date === 'string') ? s.date.split('T')[0] : '';
+                        const matchDate = (!start || sDate >= start) && (!end || sDate <= end);
+                        const matchMech = (!mech || s.mechanic === mech);
+
+                        // Support multi-bike match (if s.bike is "ABC-123, DEF-456")
+                        const sBike = (s.bike || '').toString();
+                        const matchBike = (!bike || sBike === bike || sBike.split(', ').includes(bike));
+
+                        const matchItem = (!itm || (s.items && s.items.some(i => i.name === itm)));
+
+                        return matchDate && matchMech && matchBike && matchItem;
+                    });
+                }
+
+                this.renderSalesStats(filteredSales);
+                this.renderSalesTable(filteredSales);
+                this.renderInventoryStats(this.inventory);
+                this.updateMechanicReport(filteredSales);
+                this.filteredSales = filteredSales;
+            },
+
+            updateMechanicReport: function (providedSales = null) {
+                const salesToUse = providedSales || this.sales;
+                const tbody = document.getElementById('mechTable');
+                if (!tbody) return;
+
+                tbody.innerHTML = '';
+
+                const issueTransactions = salesToUse.filter(s => s.type === 'issue');
+
+                if (issueTransactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No records found for selected filters</td></tr>';
+                } else {
+                    issueTransactions.forEach(s => {
+                        const row = document.createElement('tr');
+                        const itemsHtml = (s.items || []).map(i => `
+                            <span class="item-tag">
+                                <span class="qty">${i.qty}</span>${i.name}
+                            </span>
+                        `).join('');
+
+                        const totalQty = (s.items || []).reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+
+                        row.innerHTML = `
+                                <td style="white-space: nowrap;">${new Date(s.date).toLocaleDateString()}</td>
+                                <td>${s.mechanic || '-'}</td>
+                                <td>${s.bike || '-'}</td>
+                                <td style="white-space: normal;">${itemsHtml}</td>
+                                <td style="text-align: center; font-weight: 700;">${totalQty}</td>
+                                <td class="action-column">
+                                    <div style="display: flex; gap: 4px; justify-content: flex-end;">
+                                        <button class="btn btn-sm" style="padding: 4px 8px; font-size: 10px; background: #eff6ff; color: #2563eb;" onclick="Reports.printSingleInvoice('${s.id}')">
+                                            <i class="fas fa-print"></i>
+                                        </button>
+                                        <button class="btn btn-sm" style="padding: 4px 8px; font-size: 10px; background: #fef2f2; color: #dc2626;" onclick="Reports.deleteTransaction('${s.id}')">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            `;
+                        tbody.appendChild(row);
+                    });
+                }
+
+                this.updatePrintMeta();
+            },
+
+            deleteTransaction: function (id) {
+                if (!confirm('Are you sure you want to delete this record? The items will be returned to stock.')) return;
+
+                const index = this.sales.findIndex(s => String(s.id) === String(id));
+                if (index === -1) return;
+
+                const transaction = this.sales[index];
+
+                // Return stock
+                if (transaction.items && Array.isArray(transaction.items)) {
+                    const invMap = new Map((this.inventory || []).map(i => [String(i.id), i]));
+                    let inventoryChanged = false;
+
+                    transaction.items.forEach(item => {
+                        const invItem = invMap.get(String(item.productId));
+                        if (invItem) {
+                            invItem.stock = (Number(invItem.stock) || 0) + (Number(item.qty) || 0);
+                            inventoryChanged = true;
+                        }
+                    });
+
+                    if (inventoryChanged) {
+                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+                    }
+                }
+
+                // Remove transaction
+                this.sales.splice(index, 1);
+                localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
+
+                // Refresh UI
+                this.syncData();
+                this.generate(); // Refresh tables
+
+                alert('Record deleted and stock restored.');
+            },
+
+            syncData: function () {
+                // Always read the latest data from localStorage (your "stored db")
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+            },
+
+            getUniqueSortedStrings: function (values) {
+                return [...new Set((values || []).map(v => (v ?? '').toString().trim()).filter(Boolean))].sort((a, b) =>
+                    a.localeCompare(b)
+                );
+            },
+
+            getAllMechanicNames: function () {
+                const fromDb = (this.mechanics || []).map(m => m && m.name).filter(Boolean);
+                const fromSales = (this.sales || []).map(s => s && s.mechanic).filter(Boolean);
+                return this.getUniqueSortedStrings([...fromDb, ...fromSales]);
+            },
+
+            getAllBikePlates: function () {
+                const fromDb = (this.bikes || []).map(b => b && b.plate).filter(Boolean);
+                const fromSales = (this.sales || []).map(s => s && s.bike).filter(Boolean);
+                return this.getUniqueSortedStrings([...fromDb, ...fromSales]);
+            },
+
+            printTechnicianIssue: function (mechanic, items) {
+                const title = 'Technician Issue Printed';
+                const totalItems = items.reduce((sum, i) => sum + (Number(i.qty) || 0), 0);
+
+                const metaHtml = `
+                    <div style="font-size: 16px; line-height: 1.6; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div><strong>Date:</strong> ${new Date().toLocaleString()}</div>
+                        <div><strong>Technician:</strong> ${mechanic}</div>
+                    </div>
+                `;
+
+                const printWindow = window.open('', '_blank', 'width=900,height=700');
+                if (!printWindow) {
+                    alert('Popup blocked! Please allow popups to print invoices.');
+                    return;
+                }
+
+                const doc = printWindow.document;
+                doc.title = title;
+                doc.body.innerHTML = `
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+                        body { font-family: 'Inter', sans-serif; padding: 50px; color: #1e293b; line-height: 1.5; }
+                        .header { border-bottom: 3px solid #1e293b; padding-bottom: 20px; margin-bottom: 40px; }
+                        .title { font-size: 28px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.5px; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th { background: #f8fafc; border: 1px solid #e2e8f0; padding: 14px; text-align: left; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
+                        td { border: 1px solid #e2e8f0; padding: 14px; font-size: 14px; color: #334155; }
+                        .footer { margin-top: 80px; display: grid; grid-template-columns: 1fr 1fr; gap: 60px; }
+                        .sig-box { border-top: 2px solid #e2e8f0; padding-top: 10px; text-align: center; font-weight: 600; color: #64748b; font-size: 12px; text-transform: uppercase; }
+                    </style>
+                    <div class="header">
+                        <div style="font-weight: 700; color: #6366f1; margin-bottom: 5px;">TASSLIM WORKSHOP MANAGEMENT</div>
+                        <div class="title">${title}</div>
+                    </div>
+                    ${metaHtml}
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Spare Part Name / SKU</th>
+                                <th>Quantity</th>
+                                <th>Bike Plate</th>
+                                <th>Purpose / Part Use</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map((it, idx) => `
+                                <tr>
+                                    <td style="width: 40px; color: #94a3b8; font-weight: 600;">${idx + 1}</td>
+                                    <td style="font-weight: 600;">${it.name}</td>
+                                    <td>${it.qty}</td>
+                                    <td><span style="background: #f1f5f9; padding: 4px 8px; border-radius: 4px; font-weight: 600; font-family: monospace;">${it.bikePlate || '—'}</span></td>
+                                    <td style="color: #64748b; font-style: italic;">${it.bikePlate ? `Used for Bike ${it.bikePlate}` : 'General Issue'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    <div class="footer">
+                        <div class="sig-box">Technician Signature</div>
+                        <div class="sig-box">Workshop Supervisor</div>
+                    </div>
+                `;
+
+                setTimeout(() => {
+                    printWindow.focus();
+                    printWindow.print();
+                    printWindow.close();
+                }, 500);
+            },
+
+            openBuilderModal: function () {
+                this.syncData();
+                const modal = document.getElementById('builderModal');
+                if (!modal) return;
+
+                // Clear state
+                this.builderSelectedBikes.clear();
+                this.builderSelectedParts.clear();
+
+                // Populate mechanics
+                const mechSelect = document.getElementById('builderMechSelect');
+                if (mechSelect) {
+                    mechSelect.innerHTML = '<option value="">Select Mechanic</option>';
+                    this.getAllMechanicNames().forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        mechSelect.appendChild(opt);
+                    });
+                }
+
+                this.renderBuilderBikes();
+                this.renderBuilderMapping();
+                modal.style.display = 'block';
+            },
+
+            closeBuilderModal: function () {
+                const modal = document.getElementById('builderModal');
+                if (modal) modal.style.display = 'none';
+            },
+
+            searchBikesInBuilder: function () {
+                const query = (document.getElementById('builderBikeSearch')?.value || '').toLowerCase().trim();
+                const resultsCont = document.getElementById('builderBikeResults');
+                if (!query) {
+                    resultsCont.style.display = 'none';
+                    return;
+                }
+
+                const matches = this.getAllBikePlates().filter(p => p.toLowerCase().includes(query));
+                if (matches.length === 0) {
+                    resultsCont.innerHTML = '<div class="search-item" style="color:#94a3b8; cursor:default;">No matches</div>';
+                } else {
+                    resultsCont.innerHTML = matches.map(m => `<div class="search-item" onclick="Reports.addBikeToBuilder('${m.replace(/'/g, "\\'")}')">${m}</div>`).join('');
+                }
+                resultsCont.style.display = 'block';
+            },
+
+            addBikeToBuilder: function (plate) {
+                this.builderSelectedBikes.add(plate);
+                const searchInput = document.getElementById('builderBikeSearch');
+                if (searchInput) searchInput.value = '';
+                document.getElementById('builderBikeResults').style.display = 'none';
+                this.renderBuilderBikes();
+                this.renderBuilderMapping();
+            },
+
+            removeBikeFromBuilder: function (plate) {
+                this.builderSelectedBikes.delete(plate);
+                // Also remove mapping for this bike if any part was assigned to it
+                this.builderSelectedParts.forEach(p => {
+                    if (p.bikePlate === plate) p.bikePlate = '';
+                });
+                this.renderBuilderBikes();
+                this.renderBuilderMapping();
+            },
+
+            renderBuilderBikes: function () {
+                const cont = document.getElementById('builderSelectedBikes');
+                if (!cont) return;
+                cont.innerHTML = Array.from(this.builderSelectedBikes).map(p => `
+                    <span class="item-tag" style="background:#e0e7ff; color:#4338ca; border-color:#c7d2fe; display:flex; align-items:center; gap:8px;">
+                        ${p}
+                        <i class="fas fa-times" style="cursor:pointer; opacity:0.6;" onclick="Reports.removeBikeFromBuilder('${p.replace(/'/g, "\\'")}')"></i>
+                    </span>
+                `).join('');
+            },
+
+            searchPartsInBuilder: function () {
+                const query = (document.getElementById('builderPartSearch')?.value || '').toLowerCase().trim();
+                const resultsCont = document.getElementById('builderPartResults');
+                if (!query) {
+                    resultsCont.style.display = 'none';
+                    return;
+                }
+
+                const matches = (this.inventory || []).filter(item =>
+                    (item.name || '').toLowerCase().includes(query) ||
+                    (item.sku || '').toLowerCase().includes(query)
+                ).slice(0, 10);
+
+                if (matches.length === 0) {
+                    resultsCont.innerHTML = '<div class="search-item" style="color:#94a3b8; cursor:default;">No parts found</div>';
+                } else {
+                    resultsCont.innerHTML = matches.map(item => `
+                        <div class="search-item" onclick="Reports.addPartToBuilder('${item.id}')">
+                            <div style="font-weight:600;">${item.name}</div>
+                            <div style="font-size:11px; color:#94a3b8;">SKU: ${item.sku || 'N/A'} | Stock: ${item.stock || 0}</div>
+                        </div>
+                    `).join('');
+                }
+                resultsCont.style.display = 'block';
+            },
+
+            addPartToBuilder: function (id) {
+                const item = (this.inventory || []).find(i => String(i.id) === String(id));
+                if (!item) return;
+
+                if (!this.builderSelectedParts.has(String(id))) {
+                    this.builderSelectedParts.set(String(id), {
+                        productId: item.id,
+                        name: item.name,
+                        qty: 1,
+                        bikePlate: Array.from(this.builderSelectedBikes)[0] || ''
+                    });
+                }
+
+                const searchInput = document.getElementById('builderPartSearch');
+                if (searchInput) searchInput.value = '';
+                document.getElementById('builderPartResults').style.display = 'none';
+                this.renderBuilderMapping();
+            },
+
+            removePartFromBuilder: function (id) {
+                this.builderSelectedParts.delete(String(id));
+                this.renderBuilderMapping();
+            },
+
+            updateBuilderPartQty: function (id, qty) {
+                const p = this.builderSelectedParts.get(String(id));
+                if (p) p.qty = Math.max(1, Number(qty) || 1);
+                this.updateBuilderTotalCount();
+            },
+
+            updateBuilderPartMapping: function (id, plate) {
+                const p = this.builderSelectedParts.get(String(id));
+                if (p) p.bikePlate = plate;
+            },
+
+            renderBuilderMapping: function () {
+                const cont = document.getElementById('builderMappingList');
+                if (!cont) return;
+
+                if (this.builderSelectedParts.size === 0) {
+                    cont.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #94a3b8;">
+                            <i class="fas fa-toolbox" style="font-size: 3rem; margin-bottom: 20px; display: block; opacity: 0.3;"></i>
+                            Add parts to start mapping
+                        </div>
+                    `;
+                    this.updateBuilderTotalCount();
+                    return;
+                }
+
+                const bikes = Array.from(this.builderSelectedBikes);
+                let html = '';
+
+                this.builderSelectedParts.forEach((data, id) => {
+                    const bikeOptions = bikes.map(b => `<option value="${b}" ${data.bikePlate === b ? 'selected' : ''}>${b}</option>`).join('');
+
+                    html += `
+                        <div class="mapping-row">
+                            <div class="mapping-label" title="${data.name}">${data.name}</div>
+                            <input type="number" class="form-control" style="height:32px; padding:0 8px;" value="${data.qty}" min="1" onchange="Reports.updateBuilderPartQty('${id}', this.value)">
+                            <select class="form-control" style="height:32px; padding:0 5px; font-size:12px;" onchange="Reports.updateBuilderPartMapping('${id}', this.value)">
+                                <option value="">No Plate</option>
+                                ${bikeOptions}
+                            </select>
+                            <button class="btn btn-sm" style="color:#ef4444; background:transparent;" onclick="Reports.removePartFromBuilder('${id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+
+                cont.innerHTML = html;
+                this.updateBuilderTotalCount();
+            },
+
+            updateBuilderTotalCount: function () {
+                const total = Array.from(this.builderSelectedParts.values()).reduce((sum, p) => sum + (Number(p.qty) || 0), 0);
+                const el = document.getElementById('builderTotalItems');
+                if (el) el.textContent = total;
+            },
+
+            generateInvoiceFromBuilder: function () {
+                const mech = document.getElementById('builderMechSelect')?.value;
+                if (!mech) {
+                    alert('Please select a mechanic.');
+                    return;
+                }
+
+                if (this.builderSelectedParts.size === 0) {
+                    alert('Please add at least one part.');
+                    return;
+                }
+
+                try {
+                    const itemsForTransaction = [];
+                    const inventoryUpdates = [];
+                    const invById = new Map((this.inventory || []).map(i => [String(i.id), i]));
+
+                    for (const [id, data] of this.builderSelectedParts) {
+                        const item = invById.get(String(id));
+                        if (!item) continue;
+
+                        const q = Math.max(1, Number(data.qty) || 1);
+                        const currentStock = Number(item.stock) || 0;
+                        if (q > currentStock) {
+                            throw new Error(`Insufficient stock for "${item.name}". Requested ${q}, available ${currentStock}.`);
+                        }
+
+                        itemsForTransaction.push({
+                            productId: item.id,
+                            name: item.name,
+                            qty: q,
+                            price: Number(item.price) || 0,
+                            total: (Number(item.price) || 0) * q,
+                            bikePlate: data.bikePlate
+                        });
+
+                        inventoryUpdates.push({ id: item.id, newStock: currentStock - q });
+                    }
+
+                    // 1) Update Inventory
+                    inventoryUpdates.forEach(u => {
+                        const invItem = this.inventory.find(i => String(i.id) === String(u.id));
+                        if (invItem) invItem.stock = u.newStock;
+                    });
+                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+
+                    // 2) Record Sales Transaction
+                    const currentUser = (() => { try { return App.getCurrentUser(); } catch { return null; } })();
+                    const transaction = {
+                        id: Date.now() + Math.floor(Math.random() * 1000),
+                        date: new Date().toISOString(),
+                        type: 'issue',
+                        items: itemsForTransaction,
+                        total: itemsForTransaction.reduce((sum, p) => sum + p.total, 0),
+                        mechanic: mech,
+                        bike: Array.from(this.builderSelectedBikes).join(', '),
+                        status: 'completed',
+                        user: currentUser?.name || 'Unknown'
+                    };
+
+                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.sales.push(transaction);
+                    localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
+
+                    // Sync with MAPPINGS for History completeness
+                    const currentMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
+                    itemsForTransaction.forEach(it => {
+                        currentMappings.push({
+                            id: transaction.id + '_' + it.productId,
+                            issueId: 'INV-' + transaction.id,
+                            productId: it.productId,
+                            productName: it.name,
+                            mechanicName: mech,
+                            bikePlate: it.bikePlate || transaction.bike,
+                            quantity: it.qty,
+                            pickedDate: new Date().toISOString().split('T')[0],
+                            date: new Date().toISOString()
+                        });
+                    });
+                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(currentMappings));
+
+                    // 3) Print
+                    this.printTechnicianIssue(mech, itemsForTransaction);
+                    this.closeBuilderModal();
+                    this.generate();
+
+                } catch (e) {
+                    console.error('Reports: generateInvoiceFromBuilder failed', e);
+                    alert(e.message || 'Failed to generate invoice.');
+                }
+            },
+
+            getIssueTransactions: function () {
+                const issues = (this.sales || []).filter(s => s && s.type === 'issue');
+                return issues.sort((a, b) => new Date(b.date) - new Date(a.date));
+            },
+
+            getFilteredIssueTransactionsForInvoice: function () {
+                const { mech, bike } = this.getInvoiceModalFilters();
+                let issues = this.getIssueTransactions();
+                if (mech) issues = issues.filter(s => (s.mechanic || '') === mech);
+                if (bike) issues = issues.filter(s => (s.bike || '') === bike);
+                return issues;
+            },
+
+            getInvoicePartsFromIssues: function (issues) {
+                // Aggregate parts from issue transactions into part lines
+                // key: prefer productId, fallback to name
+                const map = new Map();
+
+                (issues || []).forEach(s => {
+                    (s.items || []).forEach(it => {
+                        const name = (it?.name || '').toString().trim();
+                        if (!name) return;
+                        const productId = it?.productId ?? '';
+                        const key = `${productId}|${name}`;
+
+                        const qty = Number(it?.qty) || 0;
+                        const price = Number(it?.price);
+                        const total = Number(it?.total) || (Number.isFinite(price) ? price * qty : 0);
+
+                        if (!map.has(key)) {
+                            map.set(key, {
+                                key,
+                                productId,
+                                name,
+                                qty: 0,
+                                total: 0,
+                                price: Number.isFinite(price) ? price : null,
+                                mixedPrice: false
+                            });
+                        }
+
+                        const row = map.get(key);
+                        row.qty += qty;
+                        row.total += total;
+
+                        if (Number.isFinite(price)) {
+                            if (row.price === null) row.price = price;
+                            else if (row.price !== price) row.mixedPrice = true;
+                        }
+                    });
+                });
+
+                return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+            },
+
+            updateInvoiceModalFilterInfo: function () {
+                const filterInfo = document.getElementById('modalFilterInfo');
+                if (!filterInfo) return;
+
+                const parts = this.invoiceModalCurrentParts || [];
+                const selectedParts = parts.filter(p => this.invoiceSelectedIds.has(String(p.key)));
+                const selectedTotal = selectedParts.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+
+                filterInfo.textContent = `Parts: ${parts.length} | Selected: ${selectedParts.length} | Total Items: ${selectedParts.reduce((sum, p) => sum + (Number(p.qty) || 0), 0)}`;
+            },
+
+            openInvoiceModal: function () {
+                try {
+                    this.syncData();
+
+                    const modal = document.getElementById('invoiceModal');
+                    const modalMech = document.getElementById('modalMechSelect');
+                    const modalBike = document.getElementById('modalBikeSelect');
+                    if (!modal || !modalMech || !modalBike) {
+                        alert('Invoice modal elements not found in the page.');
+                        return;
+                    }
+
+                    // Populate dropdowns from stored data
+                    modalMech.innerHTML = '<option value="">All Mechanics</option>';
+                    this.getAllMechanicNames().forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        modalMech.appendChild(opt);
+                    });
+
+                    modalBike.innerHTML = '<option value="">All Bikes</option>';
+                    this.getAllBikePlates().forEach(plate => {
+                        const opt = document.createElement('option');
+                        opt.value = plate;
+                        opt.textContent = plate;
+                        modalBike.appendChild(opt);
+                    });
+
+                    // Start with 0 selected when opening
+                    this.invoiceSelectedIds = new Set();
+                    this.invoiceSelectionDirty = true;
+
+                    this.ensureInvoiceModalListeners();
+                    this.renderInvoiceModalList();
+
+                    modal.style.display = 'block';
+                } catch (e) {
+                    console.error('Reports: Failed to open invoice modal:', e);
+                    alert('Error opening invoice modal: ' + e.message);
+                }
+            },
+
+            closeInvoiceModal: function () {
+                const modal = document.getElementById('invoiceModal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            },
+
+            getInvoiceModalFilters: function () {
+                const mech = (document.getElementById('modalMechSelect')?.value || '').trim();
+                const bike = (document.getElementById('modalBikeSelect')?.value || '').trim();
+                return { mech, bike };
+            },
+
+            renderInvoiceModalList: function () {
+                const list = document.getElementById('modalItemList');
+                if (!list) return;
+
+                const issues = this.getFilteredIssueTransactionsForInvoice();
+                const parts = this.getInvoicePartsFromIssues(issues);
+                this.invoiceModalCurrentParts = parts;
+
+                list.innerHTML = '';
+
+                if (issues.length === 0) {
+                    list.innerHTML = '<div class="p-20 text-center">No issue records found for selected filters.</div>';
+                    this.updateInvoiceModalFilterInfo();
+                    return;
+                }
+
+                if (parts.length === 0) {
+                    list.innerHTML = '<div class="p-20 text-center">No parts found in issue records for selected filters.</div>';
+                    this.updateInvoiceModalFilterInfo();
+                    return;
+                }
+
+                // Do not auto-select anything. Start from 0 selected; user can toggle/select.
+
+                parts.forEach(p => {
+                    const idStr = String(p.key);
+                    const row = document.createElement('div');
+                    row.className = 'invoice-item-row';
+
+                    const checkedAttr = this.invoiceSelectedIds.has(idStr) ? 'checked' : '';
+                    const priceText = p.mixedPrice
+                        ? 'Mixed'
+                        : (p.price === null ? '—' : App.formatCurrency(Number(p.price) || 0));
+
+                    row.innerHTML = `
+                        <input type="checkbox" class="modal-item-select" data-id="${idStr}" ${checkedAttr}>
+                        <div class="invoice-item-info">
+                            <div style="font-weight: 600;">${p.name}</div>
+                            <div class="invoice-item-meta">
+                                Qty: ${Number(p.qty) || 0}
+                                | Unit: ${priceText}
+                                | Line Total: ${App.formatCurrency(Number(p.total) || 0)}
+                            </div>
+                        </div>
+                    `;
+
+                    list.appendChild(row);
+                });
+
+                this.updateInvoiceModalFilterInfo();
+            },
+
+            toggleModalSelectAll: function () {
+                const list = document.getElementById('modalItemList');
+                if (!list) return;
+
+                const checkboxes = list.querySelectorAll('.modal-item-select');
+                const anyUnchecked = Array.from(checkboxes).some(cb => !cb.checked);
+
+                checkboxes.forEach(cb => {
+                    cb.checked = anyUnchecked;
+                    const id = cb.getAttribute('data-id');
+                    if (!id) return;
+                    if (anyUnchecked) this.invoiceSelectedIds.add(String(id));
+                    else this.invoiceSelectedIds.delete(String(id));
+                });
+
+                this.invoiceSelectionDirty = true;
+                this.updateInvoiceModalFilterInfo();
+            },
+
+            openPrintWindow: function (title, metaHtml, items) {
+                const printWindow = window.open('', '_blank', 'width=800,height=600');
+
+                if (!printWindow) {
+                    alert('Popup blocked! Please allow popups to print invoices.');
+                    return;
+                }
+
+                const doc = printWindow.document;
+                doc.title = title;
+
+                // Build the printable document without document.write()
+                doc.documentElement.lang = 'en';
+                doc.body.innerHTML = '';
+
+                // Styles
+                const style = doc.createElement('style');
+                style.textContent = `
+                    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 30px; }
+                    .header-sub { font-size: 14px; font-weight: bold; color: #666; text-transform: uppercase; margin-bottom: 5px; }
+                    .title { font-size: 26px; font-weight: bold; letter-spacing: 2px; }
+                    .meta-box { margin: 30px 0; font-size: 16px; border-left: 4px solid #333; padding-left: 20px; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+                    th { background: #f8fafc; border: 1px solid #ddd; padding: 12px; text-align: left; font-size: 13px; text-transform: uppercase; }
+                    td { border: 1px solid #ddd; padding: 12px; }
+                    .footer { display: flex; justify-content: space-between; margin-top: 100px; padding: 0 40px; }
+                    .sig-box { text-align: center; width: 220px; }
+                    .sig-line { border-top: 1px solid #000; margin-bottom: 8px; }
+                `;
+                doc.head.appendChild(style);
+
+                // Header
+                const header = doc.createElement('div');
+                header.className = 'header';
+                header.innerHTML = `
+                    <div class="header-sub">TASSLIM WORKSHOP MANAGEMENT</div>
+                    <div class="title">${title}</div>
+                `;
+                doc.body.appendChild(header);
+
+                // Meta
+                const metaBox = doc.createElement('div');
+                metaBox.className = 'meta-box';
+                metaBox.innerHTML = metaHtml || '';
+                doc.body.appendChild(metaBox);
+
+                // Table (supports printing either transactions OR part lines)
+                const isTransaction = Array.isArray(items) && items.length > 0 && Array.isArray(items[0]?.items);
+
+                const table = doc.createElement('table');
+                table.innerHTML = `<thead><tr></tr></thead><tbody></tbody>`;
+                const theadRow = table.querySelector('thead tr');
+                const tbody = table.querySelector('tbody');
+
+                if (isTransaction) {
+                    theadRow.innerHTML = `
+                        <th>Date</th>
+                        <th>Mechanic</th>
+                        <th>Bike Plate</th>
+                        <th>Items / Spare Parts</th>
+                    `;
+
+                    (items || []).forEach(s => {
+                        const itemsSummary = (s.items || []).map(i => `${i.qty}x ${i.name}`).join(', ');
+                        const tr = doc.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${new Date(s.date).toLocaleDateString()}</td>
+                            <td>${s.mechanic || 'N/A'}</td>
+                            <td>${s.bike || 'N/A'}</td>
+                            <td>${itemsSummary || '—'}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } else {
+                    theadRow.innerHTML = `
+                        <th>Bike Plate</th>
+                        <th>Part Name / SKU</th>
+                        <th style="text-align:right;">Qty</th>
+                    `;
+
+                    (items || []).forEach(p => {
+                        const tr = doc.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="font-family: monospace; font-weight: 600;">${p?.bikePlate || '—'}</td>
+                            <td>${p?.name || '—'}</td>
+                            <td style="text-align:right; font-weight: 700;">${Number(p?.qty) || 0}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                doc.body.appendChild(table);
+
+                // Footer signatures
+                const footer = doc.createElement('div');
+                footer.className = 'footer';
+                footer.innerHTML = `
+                    <div class="sig-box"><div class="sig-line"></div><div>Technician Signature</div></div>
+                    <div class="sig-box"><div class="sig-line"></div><div>Workshop Supervisor</div></div>
+                `;
+                doc.body.appendChild(footer);
+
+                // Print shortly after render
+                setTimeout(function () {
+                    try {
+                        printWindow.focus();
+                        printWindow.print();
+                        printWindow.close();
+                    } catch (e) {
+                        printWindow.print();
+                    }
+                }, 250);
+            },
+
+            printFromModal: function () {
+                const selectedIds = Array.from(this.invoiceSelectedIds);
+                if (selectedIds.length === 0) {
+                    alert('Please select at least one item.');
+                    return;
+                }
+
+                const modalMech = (document.getElementById('modalMechSelect')?.value || '').trim();
+                const modalBike = (document.getElementById('modalBikeSelect')?.value || '').trim();
+
+                const issues = this.getFilteredIssueTransactionsForInvoice();
+                const parts = this.getInvoicePartsFromIssues(issues);
+                const chosenParts = parts.filter(p => selectedIds.includes(String(p.key)));
+
+                if (chosenParts.length === 0) {
+                    alert('No matching parts selected to print.');
+                    return;
+                }
+
+                const mechanicText = modalMech || 'Not Specified';
+                const bikeText = modalBike || 'Not Specified';
+                const totalValue = chosenParts.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
+
+                const metaHtml = `
+                    <div style="font-size: 16px; line-height: 1.6; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div><strong>Date:</strong> ${new Date().toLocaleString()}</div>
+                        <div><strong>Technician:</strong> ${mechanicText}</div>
+                    </div>
+                `;
+
+                this.openPrintWindow('Tasslim Spare part inventory invoice', metaHtml, chosenParts);
+                this.closeInvoiceModal();
+
+                // Clear modal selections after printing (reset figures to 0)
+                this.invoiceSelectedIds = new Set();
+                this.invoiceSelectionDirty = true;
+                this.updateInvoiceModalFilterInfo();
+            },
+
+            ensureInvoiceModalListeners: function () {
+                if (this.invoiceModalListenersAttached) return;
+
+                const modalMech = document.getElementById('modalMechSelect');
+                const modalBike = document.getElementById('modalBikeSelect');
+                const list = document.getElementById('modalItemList');
+
+                if (modalMech) {
+                    modalMech.addEventListener('change', () => this.renderInvoiceModalList());
+                }
+                if (modalBike) {
+                    modalBike.addEventListener('change', () => this.renderInvoiceModalList());
+                }
+                if (list) {
+                    list.addEventListener('change', (e) => {
+                        const target = e.target;
+                        if (!target || !target.classList || !target.classList.contains('modal-item-select')) return;
+                        const id = target.getAttribute('data-id');
+                        if (!id) return;
+                        if (target.checked) this.invoiceSelectedIds.add(String(id));
+                        else this.invoiceSelectedIds.delete(String(id));
+                        this.invoiceSelectionDirty = true;
+                        this.updateInvoiceModalFilterInfo();
+                    });
+                }
+
+                this.invoiceModalListenersAttached = true;
+            },
+
+            updatePrintMeta: function () {
+                const start = document.getElementById('startDate')?.value || 'Beginning';
+                const end = document.getElementById('endDate')?.value || 'Today';
+                const mechDisplay = document.getElementById('mechFilter')?.value || 'All Mechanics';
+                const bikeDisplay = document.getElementById('bikeFilter')?.value || 'All Bikes';
+
+                const printMeta = document.getElementById('printMeta');
+                if (printMeta) {
+                    printMeta.innerHTML = `
+                        <div style="display: flex; justify-content: space-around; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+                            <div><strong>Mechanic:</strong> ${mechDisplay}</div>
+                            <div><strong>Bike Plate:</strong> ${bikeDisplay}</div>
+                            <div><strong>Period:</strong> ${start} to ${end}</div>
+                        </div>
+                    `;
+                }
+            },
+
+            renderSalesStats: function (sales) {
+                const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+                const countEl = document.getElementById('totalSalesCount');
+                const revenueEl = document.getElementById('totalRevenue');
+
+                if (countEl) countEl.textContent = sales.length;
+                if (revenueEl) revenueEl.textContent = App.formatCurrency(totalRevenue);
+            },
+
+            renderSalesTable: function (sales) {
+                const tbody = document.getElementById('salesTable');
+                if (!tbody) return;
+
+                tbody.innerHTML = '';
+
+                if (sales.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No sales recorded</td></tr>';
+                    return;
+                }
+
+                const sorted = [...sales].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                sorted.forEach(s => {
+                    const row = document.createElement('tr');
+                    const itemsHtml = (s.items || []).map(i => `
+                        <span class="item-tag">
+                            <span class="qty">${i.qty}</span>${i.name}
+                        </span>
+                    `).join('');
+
+                    row.innerHTML = `
+                        <td style="white-space: nowrap;">${new Date(s.date).toLocaleString()}</td>
+                        <td style="font-family: monospace; font-weight: bold; color: #6366f1;">#${s.id.toString().slice(-6)}</td>
+                        <td style="white-space: normal;">${itemsHtml}</td>
+                        <td style="font-weight: 600;">${s.user}</td>
+                        <td style="font-weight: 700; color: #10b981;">${App.formatCurrency(s.total)}</td>
+                        <td class="action-column">
+                            <button class="btn btn-sm" style="padding: 6px; background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe;" onclick="Reports.printSingleInvoice('${s.id}')" title="Print Invoice">
+                                <i class="fas fa-file-invoice"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            },
+
+            printSingleInvoice: function (id) {
+                const transaction = this.sales.find(s => s.id == id);
+                if (!transaction) return;
+
+                const metaHtml = `
+                    <div style="font-size: 16px; line-height: 1.6; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
+                        <div style="font-weight: bold; color: #6366f1;">Invoice #${transaction.id.toString().slice(-8).toUpperCase()}</div>
+                        <div><strong>Date:</strong> ${new Date(transaction.date).toLocaleString()}</div>
+                        <div><strong>Technician:</strong> ${transaction.mechanic || 'Not Specified'}</div>
+                    </div>
+                `;
+
+                // Standardize: Print the list of items directly, NOT the transaction summary row.
+                // Pass transaction.items instead of [transaction].
+                this.openPrintWindow('Tasslim Spare part inventory invoice', metaHtml, transaction.items || []);
+            },
+
+            renderInventoryStats: function (inventory) {
+                const totalCost = inventory.reduce((sum, i) => sum + (i.cost * i.stock), 0);
+                const totalRetail = inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
+                const profit = totalRetail - totalCost;
+
+                const costEl = document.getElementById('totalCostValue');
+                const retailEl = document.getElementById('totalRetailValue');
+                const profitEl = document.getElementById('potentialProfit');
+
+                if (costEl) costEl.textContent = App.formatCurrency(totalCost);
+                if (retailEl) retailEl.textContent = App.formatCurrency(totalRetail);
+                if (profitEl) profitEl.textContent = App.formatCurrency(profit);
+            }
+        };
+
+        // IMPORTANT: Make Reports accessible to inline onclick="Reports.*" handlers.
+        // Top-level `const Reports = ...` does not create `window.Reports` in browsers.
+        window.Reports = Reports;
+
+        // Close modal on outside click
+        window.addEventListener('click', function (event) {
+            const modal = document.getElementById('invoiceModal');
+            if (event.target == modal) {
+                Reports.closeInvoiceModal();
+            }
+        });
+
+        // Real-time updates when data changes in localStorage (other pages/tabs)
+        window.addEventListener('storage', function () {
+            try {
+                Reports.syncData();
+                Reports.generate();          // updates top figures + tables
+            } catch (e) {
+                console.error('Reports: Failed to refresh on storage event', e);
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            Reports.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

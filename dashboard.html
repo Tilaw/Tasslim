@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link active"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="dashboard">Dashboard</div>
+                </div>
+
+                <!-- Migration Alert -->
+                <div id="migrationAlert"
+                    style="display: none; background: #fffbeb; border: 1px solid #fef3c7; color: #92400e; padding: 10px 20px; border-radius: 12px; font-size: 0.9rem; align-items: center; gap: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin: 10px 0;">
+                    <i class="fas fa-database"></i>
+                    <span>Database Ready! Move your data to permanent storage.</span>
+                    <button class="btn btn-primary" onclick="App.exportToDatabase()"
+                        style="padding: 6px 15px; font-size: 0.8rem; background: #d97706; border: none;">
+                        Migrate Now
+                    </button>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="btn" style="background: #f39c12; color: white; padding: 10px 20px;"
+                        onclick="window.location.href='issue-part.html'">
+                        <i class="fas fa-hand-holding"></i> <span data-i18n="pickItem">Issue Part / Mapping</span>
+                    </button>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Stats Grid -->
+            <div class="grid-4-col">
+                <div class="card stat-card" style="border-inline-start: 5px solid #1abc9c;">
+                    <div class="stat-icon" style="background: #e8f6f3; color: #1abc9c;"><i class="fas fa-box"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="totalProducts">0</div>
+                        <div class="stat-label" data-i18n="totalProducts">Total Products</div>
+                    </div>
+                </div>
+                <div class="card stat-card" style="border-inline-start: 5px solid #e74c3c;">
+                    <div class="stat-icon" style="background: #fdedec; color: #e74c3c;"><i
+                            class="fas fa-exclamation-triangle"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="lowStockCount">0</div>
+                        <div class="stat-label" data-i18n="lowStock">Low Stock Items</div>
+                    </div>
+                </div>
+                <div class="card stat-card" style="border-inline-start: 5px solid #3498db;">
+                    <div class="stat-icon" style="background: #ebf5fb; color: #3498db;"><i
+                            class="fas fa-dollar-sign"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="totalRevenue">AED 0.00</div>
+                        <div class="stat-label" data-i18n="totalRevenue">Total Revenue</div>
+                    </div>
+                </div>
+                <div class="card stat-card" style="border-inline-start: 5px solid #f1c40f;">
+                    <div class="stat-icon" style="background: #fef9e7; color: #f1c40f;"><i class="fas fa-truck"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="totalSuppliers">0</div>
+                        <div class="stat-label" data-i18n="totalSuppliers">Total Suppliers</div>
+                    </div>
+                </div>
+                <!-- New Stat Card: Total Issued Parts -->
+                <div class="card stat-card" style="border-inline-start: 5px solid #e67e22;">
+                    <div class="stat-icon" style="background: #fdf2e9; color: #e67e22;"><i
+                            class="fas fa-hand-holding-medical"></i></div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="globalIssuedTotal">0</div>
+                        <div class="stat-label">Total Issued</div>
+                    </div>
+                </div>
+                <!-- New Stat Card: Grand Total Volume -->
+                <div class="card stat-card" style="border-inline-start: 5px solid #2ecc71;">
+                    <div class="stat-icon" style="background: #eafaf1; color: #2ecc71;"><i class="fas fa-warehouse"></i>
+                    </div>
+                    <div class="stat-info">
+                        <div class="stat-value" id="grandTotalVolume">0</div>
+                        <div class="stat-label">Store Volume</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid" style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px;">
+                <div class="grid-2-col">
+                    <!-- Recent Sales -->
+                    <div class="card">
+                        <h3 class="mb-20" data-i18n="recentSales">Recent Sales</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th data-i18n="date">Date</th>
+                                        <th>Items</th>
+                                        <th data-i18n="total">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentSalesTable">
+                                    <!-- JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Low Stock Alerts -->
+                    <div class="card">
+                        <h3 class="mb-20" data-i18n="lowStockAlerts">Low Stock Alerts</h3>
+                        <ul class="list-group" id="lowStockList" style="list-style: none; padding: 0;">
+                            <!-- JS -->
+                        </ul>
+                    </div>
+
+                    <!-- New Card: Recent Stock Additions -->
+                    <div class="card" style="height: 400px; display: flex; flex-direction: column;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0;">Recent Stock Additions</h3>
+                            <div class="search-box" style="width: 250px; position: relative;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;"></i>
+                                <input type="text" id="additionsSearch" placeholder="Search item..."
+                                    style="width: 100%; padding: 8px 12px 8px 35px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem;"
+                                    onkeyup="Dashboard.filterAdditions()">
+                            </div>
+                        </div>
+                        <div class="table-container" style="flex: 1; overflow-y: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Item Name</th>
+                                        <th>Qty Added</th>
+                                        <th>How Many Left</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentAdditionsTable">
+                                    <tr>
+                                        <td colspan="4" class="text-center">No recent additions</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- New Card: Inventory Status Breakdown (Grid of Cards) -->
+                    <div class="card" style="height: 600px; display: flex; flex-direction: column;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                            <h3 style="margin: 0;">Inventory Flow Breakdown (Per Part)</h3>
+                            <div class="search-box" style="width: 250px; position: relative;">
+                                <i class="fas fa-search"
+                                    style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 0.85rem;"></i>
+                                <input type="text" id="flowSearch" placeholder="Search part..."
+                                    style="width: 100%; padding: 8px 12px 8px 35px; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 0.85rem;"
+                                    onkeyup="Dashboard.filterFlow()">
+                            </div>
+                        </div>
+                        <div id="flowGridScrollContainer" style="flex: 1; overflow-y: auto; padding-right: 5px;">
+                            <div id="inventoryStatusGrid"
+                                style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px;">
+                                <!-- JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        // Dashboard Specific Logic
+        const Dashboard = {
+            inventory: [],
+            sales: [],
+            issuedTotals: {},
+
+            init: async function () {
+                await App.init();
+                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                const suppliers = JSON.parse(localStorage.getItem(App.KEYS.SUPPLIERS)) || [];
+
+                const user = App.getCurrentUser();
+                if (user) {
+                    const displayName = user.name || user.firstName || user.email || 'User';
+                    const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                    document.getElementById('userName').textContent = displayName;
+                    document.getElementById('userInitials').textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+                }
+
+                // Check for migration
+                const totalLocalItems = this.inventory.length + this.sales.length + suppliers.length;
+                if (totalLocalItems > 0) {
+                    const alert = document.getElementById('migrationAlert');
+                    if (alert) alert.style.display = 'flex';
+                }
+
+                // 1. Total Inventory Quantity
+                const totalInventoryQty = this.inventory.reduce((sum, item) => sum + (Number(item.stock) || 0), 0);
+                document.getElementById('totalProducts').textContent = this.inventory.length; // Count of unique SKUs
+
+                // 2. Total Revenue
+                const normalSales = this.sales.filter(sale => !sale.type || sale.type === 'sale');
+                const revenue = normalSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
+                document.getElementById('totalRevenue').textContent = App.formatCurrency(revenue);
+
+                // 3. Low Stock Items
+                const lowStockItems = this.inventory.filter(item => {
+                    const stock = Number(item.stock) || 0;
+                    const min = Number(item.minStock);
+                    const threshold = Number.isFinite(min) ? min : 0;
+                    return stock > 0 && stock <= threshold;
+                });
+                document.getElementById('lowStockCount').textContent = lowStockItems.length;
+                document.getElementById('totalSuppliers').textContent = suppliers.length;
+
+                // Populate Tables
+                this.renderRecentSales(normalSales);
+                this.renderLowStock(lowStockItems);
+                const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
+                this.renderRecentAdditions(additions);
+
+                // Calculate and Render Flow
+                this.calculateIssuedTotals();
+                this.renderFlowGrid(this.inventory);
+            },
+
+            calculateIssuedTotals: function () {
+                this.issuedTotals = {};
+                this.sales.forEach(s => {
+                    if (s.type === 'issue') {
+                        (s.items || []).forEach(it => {
+                            const pid = it.productId?.toString();
+                            if (pid) {
+                                const qty = (Number(it.qty) || 0);
+                                this.issuedTotals[pid] = (this.issuedTotals[pid] || 0) + qty;
+                            }
+                        });
+                    }
+                });
+            },
+
+            renderRecentSales: function (sales) {
+                const recentSalesTable = document.getElementById('recentSalesTable');
+                const last5 = sales.slice(-5).reverse();
+                if (last5.length === 0) {
+                    recentSalesTable.innerHTML = '<tr><td colspan="4" class="text-center">No recent sales</td></tr>';
+                    return;
+                }
+                recentSalesTable.innerHTML = last5.map(sale => `
+                    <tr>
+                        <td>#${sale.id.toString().slice(-6)}</td>
+                        <td>${new Date(sale.date).toLocaleDateString()}</td>
+                        <td>${(sale.items || []).length}</td>
+                        <td>${App.formatCurrency(sale.total)}</td>
+                    </tr>
+                `).join('');
+            },
+
+            renderLowStock: function (items) {
+                const lowStockList = document.getElementById('lowStockList');
+                if (items.length === 0) {
+                    lowStockList.innerHTML = '<li style="padding: 10px; color: var(--success-color);">All items are well stocked!</li>';
+                    return;
+                }
+                lowStockList.innerHTML = items.map(item => `
+                    <li style="padding: 10px 0; borderBottom: 1px solid #f1f1f1; display: flex; justify-content: space-between;">
+                        <span>${item.name} <small style="color: #7f8c8d;">(${item.sku})</small></span>
+                        <span style="color: var(--danger-color); font-weight: bold;">${item.stock} left</span>
+                    </li>
+                `).join('');
+            },
+
+            renderRecentAdditions: function (additions) {
+                const recentAdditionsTable = document.getElementById('recentAdditionsTable');
+                if (!additions || additions.length === 0) {
+                    recentAdditionsTable.innerHTML = '<tr><td colspan="4" class="text-center">No recent stock additions found</td></tr>';
+                    return;
+                }
+                recentAdditionsTable.innerHTML = '';
+                additions.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(add => {
+                    (add.items || []).forEach(it => {
+                        const product = this.inventory.find(p => p.id?.toString() === it.productId?.toString() || p.name === it.name);
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${new Date(add.date).toLocaleDateString()}</td>
+                            <td>${it.name}</td>
+                            <td style="color: #10b981; font-weight: bold;">+${it.qty}</td>
+                            <td><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">${product ? product.stock : 'N/A'}</span></td>
+                        `;
+                        recentAdditionsTable.appendChild(row);
+                    });
+                });
+            },
+
+            filterAdditions: function () {
+                const query = document.getElementById('additionsSearch').value.toLowerCase();
+                const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
+                const filtered = additions.filter(s =>
+                    (s.items || []).some(it =>
+                        (it.name || '').toLowerCase().includes(query) ||
+                        (it.sku || '').toLowerCase().includes(query)
+                    )
+                );
+                this.renderRecentAdditions(filtered);
+            },
+
+            renderFlowGrid: function (items) {
+                const statusGrid = document.getElementById('inventoryStatusGrid');
+                if (!statusGrid) return;
+                statusGrid.innerHTML = '';
+
+                let globalIssued = 0;
+                Object.values(this.issuedTotals).forEach(v => globalIssued += v);
+
+                const totalInventoryQty = this.inventory.reduce((sum, item) => sum + (Number(item.stock) || 0), 0);
+                document.getElementById('globalIssuedTotal').textContent = globalIssued;
+                document.getElementById('grandTotalVolume').textContent = globalIssued + totalInventoryQty;
+
+                if (items.length === 0) {
+                    statusGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px;">No parts matching search.</div>';
+                    return;
+                }
+
+                items.forEach(p => {
+                    const issued = this.issuedTotals[p.id?.toString()] || 0;
+                    const available = Number(p.stock) || 0;
+                    const total = issued + available;
+
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.style.padding = '15px';
+                    card.style.border = '1px solid #e2e8f0';
+                    card.style.background = '#f8fafc';
+                    card.style.display = 'flex';
+                    card.style.flexDirection = 'column';
+                    card.style.gap = '12px';
+
+                    card.innerHTML = `
+                        <div style="border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 5px;">
+                            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem;">${p.name}</div>
+                            <div style="font-size: 0.75rem; color: #64748b; display: flex; justify-content: space-between; margin-top: 4px;">
+                                <span>${p.sku}</span>
+                                <span style="background: white; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">${p.category}</span>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                            <div style="background: #fee2e2; padding: 10px; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 0.65rem; color: #b91c1c; font-weight: 700; text-transform: uppercase;">Issued</div>
+                                <div style="font-size: 1.1rem; color: #ef4444; font-weight: 800;">${issued}</div>
+                            </div>
+                            <div style="background: #dcfce7; padding: 10px; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 0.65rem; color: #15803d; font-weight: 700; text-transform: uppercase;">Available</div>
+                                <div style="font-size: 1.1rem; color: #10b981; font-weight: 800;">${available}</div>
+                            </div>
+                        </div>
+                        <div style="background: #e0e7ff; padding: 12px; border-radius: 8px; text-align: center; border: 1px solid #c7d2fe;">
+                            <div style="font-size: 0.7rem; color: #4338ca; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Total System Volume</div>
+                            <div style="font-size: 1.25rem; color: #1e1b4b; font-weight: 800;">${total} <span style="font-size: 0.75rem; font-weight: 400; color: #6366f1;">pcs</span></div>
+                        </div>
+                    `;
+                    statusGrid.appendChild(card);
+                });
+            },
+
+            filterFlow: function () {
+                const query = document.getElementById('flowSearch').value.toLowerCase();
+                const filtered = this.inventory.filter(p =>
+                    (p.name || '').toLowerCase().includes(query) ||
+                    (p.sku || '').toLowerCase().includes(query) ||
+                    (p.category || '').toLowerCase().includes(query)
+                );
+                this.renderFlowGrid(filtered);
+            }
+        };
+
+        window.Dashboard = Dashboard;
+        document.addEventListener('DOMContentLoaded', () => Dashboard.init());
+    </script>
+</body>
+
+</html>

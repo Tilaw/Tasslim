@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POS - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .pos-grid {
+            display: grid;
+            grid-template-columns: 2fr 1.2fr;
+            gap: 20px;
+            height: calc(100vh - 100px);
+        }
+
+        .product-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        .product-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .product-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-color);
+        }
+
+        .cart-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: var(--card-shadow);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .cart-header {
+            padding: 20px;
+            border-bottom: 1px solid var(--light-bg);
+            background: var(--primary-color);
+            color: white;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .cart-items {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .qty-btn {
+            background: var(--light-bg);
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        .cart-footer {
+            padding: 20px;
+            border-top: 1px solid var(--light-bg);
+            background: #f8f9fa;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <button class="menu-toggle" onclick="App.toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="page-title" data-i18n="pos">Point of Sale</div>
+                <div>
+                    <input type="text" id="posSearch" placeholder="Search products..." class="form-control"
+                        style="width: 300px; max-width: 100%;" onkeyup="POS.search()" data-i18n="search">
+                </div>
+            </header>
+
+            <div class="pos-container grid-2-col" style="grid-template-columns: 2fr 1fr; margin-top: 20px;">
+                <!-- Product Section -->
+                <div style="overflow: hidden; display: flex; flex-direction: column;">
+                    <div style="margin-bottom: 10px; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px;"
+                        id="categoryFilters">
+                        <button class="btn btn-primary" onclick="POS.filterCategory('All')">All</button>
+                        <!-- Categories populated by JS -->
+                    </div>
+                    <div class="product-grid" id="productGrid">
+                        <!-- Products populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Cart Section -->
+                <div class="cart-section">
+                    <div class="cart-header">
+                        <h3 data-i18n="cart"><i class="fas fa-shopping-basket"></i> Current Order</h3>
+                        <button class="btn btn-sm btn-danger" onclick="POS.clearCart()"
+                            data-i18n="cancel">Clear</button>
+                    </div>
+                    <div class="cart-items" id="cartItems">
+                        <!-- Cart items populated by JS -->
+                        <div class="text-center" style="margin-top: 50px; color: #ccc;">
+                            <i class="fas fa-shopping-cart fa-3x"></i>
+                            <p data-i18n="emptyCart">Cart is empty</p>
+                        </div>
+                    </div>
+                    <div class="cart-footer">
+                        <div class="total-row">
+                            <span data-i18n="total">Total</span>
+                            <span id="cartTotal">$0.00</span>
+                        </div>
+                        <button class="btn btn-primary" style="width: 100%; padding: 15px; font-size: 1.1rem;"
+                            onclick="POS.checkout()" data-i18n="pay">
+                            <i class="fas fa-check-circle"></i> Pay Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Receipt Modal -->
+    <div class="modal-overlay" id="receiptModal">
+        <div class="modal-content" style="text-align: center; width: 400px;">
+            <div style="color: var(--success-color); font-size: 4rem; margin-bottom: 20px;">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <h2>Sale Completed!</h2>
+            <p>Order #<span id="receiptId"></span></p>
+            <div style="margin: 20px 0; border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 15px 0;">
+                <p>Total Paid: <strong id="receiptTotal"></strong></p>
+            </div>
+            <button class="btn btn-primary" onclick="POS.closeReceipt()">New Sale</button>
+            <button class="btn" onclick="window.print()"><i class="fas fa-print"></i> Print</button>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const POS = {
+            inventory: [],
+            cart: [],
+            categories: new Set(),
+
+            init: function () {
+                this.loadInventory();
+                this.renderCategories();
+                this.renderProducts('All');
+
+                // Search
+                document.getElementById('posSearch').addEventListener('input', (e) => {
+                    this.filterProducts(e.target.value);
+                });
+            },
+
+            loadInventory: function () {
+                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.inventory.forEach(item => this.categories.add(item.category));
+            },
+
+            renderCategories: function () {
+                const container = document.getElementById('categoryFilters');
+                // Keep "All" button
+                container.innerHTML = '<button class="btn btn-primary" onclick="POS.filterCategory(\'All\')">All</button>';
+
+                this.categories.forEach(cat => {
+                    const btn = document.createElement('button');
+                    btn.className = 'btn';
+                    btn.style.background = 'var(--white)';
+                    btn.style.marginLeft = '5px';
+                    btn.textContent = cat;
+                    btn.onclick = () => POS.filterCategory(cat);
+                    container.appendChild(btn);
+                });
+            },
+
+            filterCategory: function (category) {
+                if (category === 'All') {
+                    this.renderProducts(this.inventory);
+                } else {
+                    const filtered = this.inventory.filter(i => i.category === category);
+                    this.renderProducts(filtered);
+                }
+            },
+
+            filterProducts: function (term) {
+                term = term.toLowerCase();
+                const filtered = this.inventory.filter(i =>
+                    i.name.toLowerCase().includes(term) ||
+                    i.sku.toLowerCase().includes(term)
+                );
+                this.renderProducts(filtered);
+            },
+
+            renderProducts: function (products) {
+                if (products === 'All') products = this.inventory;
+
+                const grid = document.getElementById('productGrid');
+                grid.innerHTML = '';
+
+                products.forEach(p => {
+                    const card = document.createElement('div');
+                    card.className = 'product-card';
+                    card.onclick = () => this.addToCart(p);
+
+                    // Stock indicator
+                    let stockBadge = `<span style="font-size: 0.8rem; color: var(--success-color);">In Stock (${p.stock})</span>`;
+                    if (p.stock === 0) {
+                        stockBadge = `<span style="font-size: 0.8rem; color: var(--danger-color);">Out of Stock</span>`;
+                        card.style.opacity = '0.6';
+                        card.style.pointerEvents = 'none';
+                    } else if (p.stock <= p.minStock) {
+                        stockBadge = `<span style="font-size: 0.8rem; color: var(--warning-color);">Low Stock (${p.stock})</span>`;
+                    }
+
+                    card.innerHTML = `
+                        <div style="font-weight: bold; margin-bottom: 5px;">${p.name}</div>
+                        <div style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 10px;">${p.sku}</div>
+                        ${stockBadge}
+                        <div style="margin-top: auto; font-weight: bold; color: var(--primary-color);">${App.formatCurrency(p.price)}</div>
+                    `;
+                    grid.appendChild(card);
+                });
+            },
+
+            addToCart: function (product) {
+                const existing = this.cart.find(item => item.id === product.id);
+
+                if (existing) {
+                    if (existing.qty < product.stock) {
+                        existing.qty++;
+                    } else {
+                        App.showToast('Not enough stock!', 'error');
+                        return;
+                    }
+                } else {
+                    this.cart.push({ ...product, qty: 1 });
+                }
+                this.renderCart();
+            },
+
+            // For inline onkeyup="POS.search()" in the search box
+            search: function () {
+                const term = (document.getElementById('posSearch')?.value || '').trim();
+                this.filterProducts(term);
+            },
+
+            updateQty: function (id, change) {
+                const item = this.cart.find(i => i.id === id);
+                if (!item) return;
+
+                const product = this.inventory.find(p => p.id === id);
+
+                if (change === 1) {
+                    if (item.qty < product.stock) {
+                        item.qty++;
+                    } else {
+                        App.showToast('Max stock reached', 'error');
+                    }
+                } else {
+                    item.qty--;
+                }
+
+                if (item.qty <= 0) {
+                    this.cart = this.cart.filter(i => i.id !== id);
+                }
+                this.renderCart();
+            },
+
+            renderCart: function () {
+                const container = document.getElementById('cartItems');
+
+                if (this.cart.length === 0) {
+                    container.innerHTML = `
+                        <div class="text-center" style="margin-top: 50px; color: #ccc;">
+                            <i class="fas fa-shopping-cart fa-3x"></i>
+                            <p>Cart is empty</p>
+                        </div>`;
+                    document.getElementById('cartTotal').textContent = '$0.00';
+                    return;
+                }
+
+                container.innerHTML = '';
+                let total = 0;
+
+                this.cart.forEach(item => {
+                    const itemTotal = item.price * item.qty;
+                    total += itemTotal;
+
+                    const div = document.createElement('div');
+                    div.className = 'cart-item';
+                    div.innerHTML = `
+                        <div style="flex: 1;">
+                            <div style="font-weight: 500;">${item.name}</div>
+                            <small>${App.formatCurrency(item.price)}</small>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="qty-btn" onclick="POS.updateQty(${item.id}, -1)">-</button>
+                            <span>${item.qty}</span>
+                            <button class="qty-btn" onclick="POS.updateQty(${item.id}, 1)">+</button>
+                        </div>
+                        <div style="margin-left: 15px; font-weight: bold;">
+                            ${App.formatCurrency(itemTotal)}
+                        </div>
+                    `;
+                    container.appendChild(div);
+                });
+
+                document.getElementById('cartTotal').textContent = App.formatCurrency(total);
+            },
+
+            checkout: function () {
+                if (this.cart.length === 0) {
+                    App.showToast('Cart is empty', 'error');
+                    return;
+                }
+
+                // 1. Create Sale Record
+                const sale = {
+                    id: Date.now(),
+                    date: new Date().toISOString(),
+                    items: [...this.cart],
+                    total: this.cart.reduce((sum, i) => sum + (i.price * i.qty), 0),
+                    user: App.getCurrentUser().name
+                };
+
+                // 2. Update Inventory Stock
+                this.cart.forEach(cartItem => {
+                    const productIndex = this.inventory.findIndex(p => p.id === cartItem.id);
+                    if (productIndex !== -1) {
+                        this.inventory[productIndex].stock -= cartItem.qty;
+                    }
+                });
+
+                // 3. Save to LocalStorage
+                const sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                sales.push(sale);
+                localStorage.setItem(App.KEYS.SALES, JSON.stringify(sales));
+                localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+
+                // 4. Show Success
+                document.getElementById('receiptId').textContent = sale.id;
+                document.getElementById('receiptTotal').textContent = App.formatCurrency(sale.total);
+                document.getElementById('receiptModal').classList.add('open');
+
+                // 5. Reset
+                this.cart = [];
+                this.renderCart();
+                this.loadInventory(); // Refresh stock in UI
+                this.renderProducts('All');
+            },
+
+            closeReceipt: function () {
+                document.getElementById('receiptModal').classList.remove('open');
+            }
+        };
+
+        // Make POS accessible to inline onclick="POS.*" handlers
+        window.POS = POS;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            POS.init();
+        });
+    </script>
+</body>
+
+</html>

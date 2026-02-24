@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mechanics - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link active"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="mechanics">Mechanic Management</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"
+                            style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #7f8c8d;"></i>
+                        <input type="text" id="mechSearch" class="form-control"
+                            style="width: 250px; padding-left: 35px; height: 40px;"
+                            placeholder="Search by Code, Name..." onkeyup="MechanicMgr.filterMechanics()"
+                            data-i18n="search">
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button class="btn" style="background-color: #27ae60; color: white;"
+                            onclick="MechanicMgr.triggerImport()">
+                            <i class="fas fa-file-excel"></i> <span data-i18n="import">Import Excel</span>
+                        </button>
+                        <input type="file" id="excelInput" accept=".xlsx, .xls" style="display: none;"
+                            onchange="MechanicMgr.handleFileSelect(event)">
+                        <button class="btn btn-primary" onclick="MechanicMgr.openModal()">
+                            <i class="fas fa-plus"></i> <span data-i18n="add">Add Mechanic</span>
+                        </button>
+                    </div>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th data-i18n="code">Code</th>
+                                <th data-i18n="uniqueCode">Unique Code</th>
+                                <th data-i18n="name">Name</th>
+                                <th data-i18n="passport">Passport No.</th>
+                                <th data-i18n="phone">Phone</th>
+                                <th data-i18n="specialization">Specialization</th>
+                                <th data-i18n="actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mechanicTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Mechanic Modal -->
+    <div class="modal-overlay" id="mechanicModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="MechanicMgr.closeModal()">&times;</span>
+            <h2 id="modalTitle">Add Mechanic</h2>
+
+            <form id="mechanicForm" style="margin-top: 20px;">
+                <input type="hidden" id="mechId">
+
+                <!-- Section: Personal Identity -->
+                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                    <h3 style="font-size: 16px; color: #2c3e50; margin-bottom: 15px;"><i class="fas fa-user-circle"></i>
+                        <span data-i18n="personalIdentity">Personal
+                            Identity</span>
+                    </h3>
+                    <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="code">Mechanic Code</label>
+                            <input type="text" id="mechCode" class="form-control" placeholder="e.g. M-001" required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="uniqueCode">Unique Code</label>
+                            <input type="text" id="mechUniqueCode" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label class="form-label" data-i18n="name">Mechanic Name</label>
+                        <input type="text" id="mechName" class="form-control" placeholder="Full Name" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" data-i18n="passport">Passport Number</label>
+                        <input type="text" id="mechPassport" class="form-control" placeholder="Enter passport number"
+                            required>
+                    </div>
+                </div>
+
+                <!-- Section: Contact & Specialization -->
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; color: #2c3e50; margin-bottom: 15px;"><i class="fas fa-id-card"></i>
+                        <span data-i18n="contactSpec">Contact & Specialization</span>
+                    </h3>
+                    <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="phone">Phone Number</label>
+                            <input type="text" id="mechPhone" class="form-control" placeholder="+971..." required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="specialization">Specialization</label>
+                            <input type="text" id="mechSpec" class="form-control" placeholder="e.g. Engine, Brakes">
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px; padding-top: 15px; border-top: 2px solid #eee;">
+                    <button type="button" class="btn" style="background: #95a5a6; color: white; margin-right: 10px;"
+                        onclick="MechanicMgr.closeModal()" data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Save Mechanic</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const MechanicMgr = {
+            data: [],
+
+            init: function () {
+                this.loadData();
+                this.renderTable();
+
+                document.getElementById('mechanicForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.saveMechanic();
+                });
+
+                // Real-time validation
+                ['mechCode', 'mechUniqueCode'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('blur', (e) => {
+                            const val = e.target.value.trim();
+                            if (!val) return;
+                            const field = (id === 'mechCode') ? 'code' : 'uniqueCode';
+                            const currentId = document.getElementById('mechId').value;
+                            if (this.isDuplicate(field, val, currentId)) {
+                                App.showToast(`${val} already in the system`, 'warning');
+                                e.target.classList.add('error');
+                            } else {
+                                e.target.classList.remove('error');
+                            }
+                        });
+                    }
+                });
+            },
+
+            isDuplicate: function (field, value, excludeId = null) {
+                return this.data.some(m => {
+                    if (excludeId && m.id?.toString() === excludeId.toString()) return false;
+                    return m[field]?.toString().toLowerCase() === value.toString().toLowerCase();
+                });
+            },
+
+            loadData: function () {
+                this.data = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+            },
+
+            filterMechanics: function () {
+                const query = document.getElementById('mechSearch').value.toLowerCase().trim();
+                const filtered = this.data.filter(m => {
+                    return (m.code || '').toLowerCase().includes(query) ||
+                        (m.uniqueCode || '').toLowerCase().includes(query) ||
+                        (m.name || '').toLowerCase().includes(query) ||
+                        (m.specialization || '').toLowerCase().includes(query);
+                });
+                this.renderTable(filtered);
+            },
+
+            renderTable: function (items = this.data) {
+                const tbody = document.getElementById('mechanicTable');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+
+                if (items.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="7" class="text-center">${document.getElementById('mechSearch').value ? 'No matching mechanics found' : 'No mechanics found'}</td></tr>`;
+                    return;
+                }
+
+                items.forEach(m => {
+                    const row = document.createElement('tr');
+                    // Safety check for names that might contain quotes
+                    const safeName = (m.name || '').replace(/'/g, "\\'");
+
+                    row.innerHTML = `
+                        <td style="font-weight: bold;">${m.code || '-'}</td>
+                        <td>${m.uniqueCode || '-'}</td>
+                        <td style="font-weight: 500;">${m.name || '-'}</td>
+                        <td>${m.passport || '-'}</td>
+                        <td>${m.phone || '-'}</td>
+                        <td>${m.specialization || '-'}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; background: #2ecc71; color: white;" 
+                                onclick="window.location.href='mechanic-history.html?mechanic=' + encodeURIComponent('${safeName}')" title="View History">
+                                <i class="fas fa-history"></i>
+                            </button>
+                            <button class="btn" style="padding: 5px 10px; background: #3498db; color: white;" 
+                                onclick="MechanicMgr.edit('${m.id}')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn" style="padding: 5px 10px; background: #e74c3c; color: white;" 
+                                onclick="MechanicMgr.delete('${m.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            },
+
+            openModal: function (isEdit = false) {
+                document.getElementById('modalTitle').textContent = isEdit ? 'Edit Mechanic' : 'Add Mechanic';
+                document.getElementById('mechanicModal').classList.add('open');
+                if (!isEdit) {
+                    document.getElementById('mechanicForm').reset();
+                    document.getElementById('mechId').value = '';
+                }
+            },
+
+            closeModal: function () {
+                document.getElementById('mechanicModal').classList.remove('open');
+            },
+
+            saveMechanic: async function () {
+                const id = document.getElementById('mechId').value;
+                const isEdit = !!id;
+
+                const code = document.getElementById('mechCode').value.trim();
+                const uCode = document.getElementById('mechUniqueCode').value.trim();
+
+                if (this.isDuplicate('code', code, id)) {
+                    App.showToast(`Mechanic Code "${code}" is already in the system`, 'error');
+                    return;
+                }
+                if (this.isDuplicate('uniqueCode', uCode, id)) {
+                    App.showToast(`Unique Code "${uCode}" is already in the system`, 'error');
+                    return;
+                }
+                const name = document.getElementById('mechName').value.trim();
+                if (this.isDuplicate('name', name, id)) {
+                    App.showToast(`Mechanic Name "${name}" is already in the system`, 'error');
+                    return;
+                }
+
+                const mechanic = {
+                    code: code,
+                    uniqueCode: uCode,
+                    name: document.getElementById('mechName').value.trim(),
+                    passport: document.getElementById('mechPassport').value.trim(),
+                    passportNumber: document.getElementById('mechPassport').value.trim(),
+                    phone: document.getElementById('mechPhone').value.trim(),
+                    specialization: document.getElementById('mechSpec').value.trim()
+                };
+
+                try {
+                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                    if (isMigrated) {
+                        const endpoint = isEdit ? `/mechanics/${id}` : '/mechanics';
+                        const method = isEdit ? 'PATCH' : 'POST';
+                        const result = await App.apiCall(endpoint, method, mechanic);
+                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
+                        await App.loadData();
+                    } else {
+                        const localMech = { ...mechanic, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
+                        if (isEdit) {
+                            const index = this.data.findIndex(m => m.id?.toString() === id.toString());
+                            if (index !== -1) this.data[index] = localMech;
+                        } else {
+                            this.data.push(localMech);
+                        }
+                        localStorage.setItem(App.KEYS.MECHANICS, JSON.stringify(this.data));
+                    }
+                    this.loadData();
+                    this.renderTable();
+                    this.closeModal();
+                    App.showToast('Mechanic saved successfully');
+                } catch (error) {
+                    console.error('Save failed:', error);
+                    App.showToast(error.message || 'Failed to save mechanic', 'error');
+                }
+            },
+
+            edit: function (id) {
+                const mechanic = this.data.find(m => m.id?.toString() === id.toString());
+                if (mechanic) {
+                    document.getElementById('mechId').value = mechanic.id;
+                    document.getElementById('mechCode').value = mechanic.code || '';
+                    document.getElementById('mechUniqueCode').value = mechanic.uniqueCode || '';
+                    document.getElementById('mechName').value = mechanic.name;
+                    document.getElementById('mechPassport').value = mechanic.passport || '';
+                    document.getElementById('mechPhone').value = mechanic.phone;
+                    document.getElementById('mechSpec').value = mechanic.specialization;
+                    this.openModal(true);
+                }
+            },
+
+            delete: async function (id) {
+                if (confirm('Are you sure?')) {
+                    try {
+                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                        if (isMigrated) {
+                            const result = await App.apiCall(`/mechanics/${id}`, 'DELETE');
+                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
+                            await App.loadData();
+                        } else {
+                            this.data = this.data.filter(m => m.id?.toString() !== id.toString());
+                            localStorage.setItem(App.KEYS.MECHANICS, JSON.stringify(this.data));
+                        }
+                        this.loadData();
+                        this.renderTable();
+                        App.showToast('Mechanic deleted', 'error');
+                    } catch (error) {
+                        console.error('Delete failed:', error);
+                        App.showToast(error.message || 'Failed to delete mechanic', 'error');
+                    }
+                }
+            },
+
+            triggerImport: function () {
+                document.getElementById('excelInput').click();
+            },
+
+            // Helper to find a key case-insensitively
+            findKey: function (row, candidates) {
+                const keys = Object.keys(row);
+                for (const candidate of candidates) {
+                    const found = keys.find(k => k.toLowerCase().trim() === candidate.toLowerCase());
+                    if (found) return row[found];
+                }
+                return null;
+            },
+
+            handleFileSelect: function (event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                        // Get all rows as arrays to find the header
+                        const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (rawRows.length === 0) {
+                            alert('Excel file is empty or invalid.');
+                            return;
+                        }
+
+                        // Find the header row (searching for "Name" or "Mechanic")
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+                            const row = rawRows[i];
+                            if (row && row.some(cell => {
+                                const c = (cell || '').toString().toLowerCase();
+                                return c.includes('name') || c.includes('mechanic') || c.includes('code');
+                            })) {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex === -1) {
+                            const foundKeys = rawRows[0]?.join(', ') || 'none';
+                            alert(`No valid mechanic data found.\n\nCould not find a header row containing "Name" or "Code".\nFound in first row: ${foundKeys}\n\nPlease check your file format.`);
+                            return;
+                        }
+
+                        // Parse the sheet starting from the detected header row
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { range: headerRowIndex });
+
+                        let addedCount = 0;
+                        jsonData.forEach(row => {
+                            const name = this.findKey(row, ['Name', 'name', 'Mechanic Name', 'Mechanic']);
+                            if (name && !this.isDuplicate('name', name)) {
+                                this.data.push({
+                                    id: Date.now() + Math.floor(Math.random() * 1000) + addedCount,
+                                    code: this.findKey(row, ['Code', 'code', 'Mechanic Code']) || '',
+                                    uniqueCode: this.findKey(row, ['Unique Code', 'uniqueCode', 'ID']) || '',
+                                    name: name,
+                                    passport: this.findKey(row, ['Passport', 'passport', 'Passport No']) || '',
+                                    phone: this.findKey(row, ['Phone', 'phone', 'Mobile']) || '',
+                                    specialization: this.findKey(row, ['Specialization', 'specialization', 'Expertise']) || ''
+                                });
+                                addedCount++;
+                            }
+                        });
+
+                        if (addedCount > 0) {
+                            localStorage.setItem(App.KEYS.MECHANICS, JSON.stringify(this.data));
+                            this.renderTable();
+                            App.showToast(`Successfully imported ${addedCount} mechanics.`);
+                        } else {
+                            alert('No valid mechanic names found in the detected row.');
+                        }
+                    } catch (error) {
+                        console.error('Import failed:', error);
+                        alert('Error processing file. Please ensure it is a valid Excel file.');
+                    }
+                    event.target.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        };
+
+        // Make MechanicMgr accessible to inline onclick="MechanicMgr.*" handlers
+        window.MechanicMgr = MechanicMgr;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            MechanicMgr.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

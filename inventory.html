@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link active"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="inventory">Inventory Management</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div>
+                        <input type="text" id="searchQuery" class="form-control" style="width: 250px; height: 40px;"
+                            placeholder="Search..." onkeyup="Inventory.filterData()" data-i18n="search">
+                    </div>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="d-flex justify-between align-center mb-20">
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-primary" onclick="Inventory.openModal()">
+                            <i class="fas fa-plus"></i> <span data-i18n="add">Add New</span>
+                        </button>
+                        <button class="btn" style="background: #f39c12; color: white;"
+                            onclick="window.location.href='issue-part.html'">
+                            <i class="fas fa-hand-holding"></i> <span data-i18n="pickItem">Issue Part (Mapping)</span>
+                        </button>
+                    </div>
+                    <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">
+                        <i class="fas fa-file-excel"></i> <span data-i18n="import">Import Excel</span>
+                    </button>
+                    <input type="file" id="fileInput" accept=".xlsx, .xls" style="display: none;"
+                        onchange="Inventory.handleFileSelect(event)">
+                    <div style="display: flex; gap: 10px;">
+                        <select id="categoryFilter" class="form-control" onchange="Inventory.filterItems()"
+                            style="width: 150px; height: 40px;">
+                            <option value="Electricals & Lighting" data-i18n="cat_elec_light">Electricals & Lighting
+                            </option>
+                            <option value="Body & Controls" data-i18n="cat_body_ctrl">Body & Controls</option>
+                            <option value="Engine Components" data-i18n="cat_engine">Engine Components</option>
+                            <option value="Fuel & Air system" data-i18n="cat_fuel_air">Fuel & Air System</option>
+                            <option value="Electricals & Sensors" data-i18n="cat_elec_sens">Electricals & Sensors
+                            </option>
+                            <option value="Suspension" data-i18n="cat_suspension">Suspension</option>
+                            <option value="Body & Chassis" data-i18n="cat_body_chassis">Body & Chassis</option>
+                            <option value="Transmission/Clutch" data-i18n="cat_trans">Transmission/Clutch</option>
+                            <option value="Service & Maintenance" data-i18n="cat_service">Service & Maintenance</option>
+                            <option value="Drivetrain" data-i18n="cat_drivetrain">Drivetrain</option>
+                            <option value="Accessories/Protection" data-i18n="cat_acc">Accessories/Protection</option>
+                        </select>
+                        <select id="stockFilter" class="form-control" onchange="Inventory.filterItems()"
+                            style="width: 150px; height: 40px;">
+                            <option value="" data-i18n="allStock">All Stock Status</option>
+                            <option value="low" data-i18n="stock_low">Low Stock</option>
+                            <option value="out" data-i18n="stock_out">Out of Stock</option>
+                            <option value="good" data-i18n="stock_good">In Stock</option>
+                        </select>
+                        <select id="pageSize" class="form-control" onchange="Inventory.changePageSize()"
+                            style="width: 130px; height: 40px;">
+                            <option value="10">10 per page</option>
+                            <option value="20" selected>20 per page</option>
+                            <option value="50">50 per page</option>
+                            <option value="100">100 per page</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>SI NO</th>
+                                <th data-i18n="sku">CODE</th>
+                                <th data-i18n="name">DESCRIPTION</th>
+                                <th data-i18n="stock">QUANTITY</th>
+                                <th>UNIT</th>
+                                <th data-i18n="price">UNIT PRICE</th>
+                                <th data-i18n="total">TOTAL EXCL</th>
+                                <th>VAT %</th>
+                                <th>VAT AMOUNT</th>
+                                <th data-i18n="total">TOTAL INCL</th>
+                                <th data-i18n="actions">ACTIONS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Controls -->
+                <div id="paginationControls"
+                    style="margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 10px 0;">
+                    <!-- JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Part Modal -->
+    <div class="modal-overlay" id="partModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="Inventory.closeModal()">&times;</span>
+            <h2 id="modalTitle">Add New Part</h2>
+
+            <form id="partForm" style="margin-top: 20px;">
+                <input type="hidden" id="partId">
+
+                <div class="row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">si no</label>
+                        <input type="text" id="partSku" class="form-control" placeholder="e.g. BRK-001" required>
+                    </div>
+                    <div class="form-group" style="flex: 2;">
+                        <label class="form-label">Description (Name)</label>
+                        <input type="text" id="partName" class="form-control" placeholder="e.g. Brake Pad Set" required>
+                    </div>
+                </div>
+
+                <div class="row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Category</label>
+                        <select id="partCategory" class="form-control" required>
+                            <option value="Electricals & Lighting">Electricals & Lighting</option>
+                            <option value="Body & Controls">Body & Controls</option>
+                            <option value="Engine Components">Engine Components</option>
+                            <option value="Fuel & Air system">Fuel & Air System</option>
+                            <option value="Electricals & Sensors">Electricals & Sensors</option>
+                            <option value="Suspension">Suspension</option>
+                            <option value="Body & Chassis">Body & Chassis</option>
+                            <option value="Transmission/Clutch">Transmission/Clutch</option>
+                            <option value="Service & Maintenance">Service & Maintenance</option>
+                            <option value="Drivetrain">Drivetrain</option>
+                            <option value="Accessories/Protection">Accessories/Protection</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Supplier</label>
+                        <select id="partSupplier" class="form-control" required>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Quantity (Stock)</label>
+                        <input type="number" id="partStock" class="form-control" min="0" required>
+                    </div>
+
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Unit</label>
+                        <input type="text" id="partUnit" class="form-control" placeholder="e.g. pc, set" value="pc"
+                            required>
+                    </div>
+                </div>
+
+                <div class="row" style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">unit price</label>
+                        <input type="number" id="partCost" class="form-control" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">total incl</label>
+                        <input type="number" id="partPrice" class="form-control" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">VAT %</label>
+                        <input type="number" id="partVat" class="form-control" step="0.1" min="0" value="0">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">VAT AMOUNT</label>
+                        <input type="number" id="partVatAmount" class="form-control" step="0.1" min="0" value="0"
+                            readonly>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label class="form-label">Total Incl. VAT</label>
+                        <input type="number" id="partTotalIncl" class="form-control" step="0.1" min="0" value="0"
+                            readonly>
+                    </div>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn" style="background: #e74c3c; color: white; margin-right: 10px;"
+                        onclick="Inventory.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Part</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Duplicate Pick Modal removed in favor of issue-part.html -->
+
+    <script src="js/app.js"></script>
+    <!-- Excel import library for Inventory Import/Template buttons -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        const Inventory = {
+            data: [],
+            filteredData: [],
+            suppliers: [],
+            currentPage: 1,
+            itemsPerPage: 20,
+
+            init: function () {
+                this.loadData();
+                this.filteredData = [...this.data];
+                this.renderTable();
+                this.populateDropdowns();
+
+                document.getElementById('partForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.savePart();
+                });
+
+                // Real-time validation
+                ['partSku', 'partName'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.addEventListener('blur', (e) => {
+                            const val = e.target.value.trim();
+                            if (!val) return;
+                            const field = (id === 'partSku') ? 'sku' : 'name';
+                            const currentId = document.getElementById('partId').value;
+                            if (this.isDuplicate(field, val, currentId)) {
+                                App.showToast(`${val} already in the system`, 'warning');
+                                e.target.classList.add('error');
+                            } else {
+                                e.target.classList.remove('error');
+                            }
+                        });
+                    }
+                });
+
+                // Check for auto-open actions
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('action') === 'add') {
+                    this.openModal();
+                }
+            },
+
+            loadData: function () {
+                this.data = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.suppliers = JSON.parse(localStorage.getItem(App.KEYS.SUPPLIERS)) || [];
+            },
+
+            populateDropdowns: function () {
+                const supplierSelect = document.getElementById('partSupplier');
+                if (supplierSelect) {
+                    supplierSelect.innerHTML = '<option value="">Select Supplier</option>';
+                    this.suppliers.forEach(s => {
+                        const option = document.createElement('option');
+                        option.value = s.name;
+                        option.textContent = s.name;
+                        supplierSelect.appendChild(option);
+                    });
+                }
+            },
+
+            renderTable: function (items = this.filteredData) {
+                const tbody = document.getElementById('inventoryTable');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="11" class="text-center">No parts found</td></tr>';
+                    this.renderPagination(0);
+                    return;
+                }
+
+                // Pagination logic
+                const start = (this.currentPage - 1) * this.itemsPerPage;
+                const end = start + this.itemsPerPage;
+                const pagedItems = items.slice(start, end);
+
+                pagedItems.forEach((item, index) => {
+                    const qty = item.stock || 0;
+                    const unitPrice = item.price || 0;
+                    const totalExcl = qty * unitPrice;
+                    const vatRate = item.vat || 0;
+                    const vatAmount = totalExcl * (vatRate / 100);
+                    const totalIncl = totalExcl + vatAmount;
+
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${start + index + 1}</td>
+                        <td style="font-weight: bold;">${item.sku}</td>
+                        <td>
+                            <div>${item.name}</div>
+                            <small style="color: #7f8c8d;">${item.category}</small>
+                        </td>
+                        <td>
+                            <span class="badge ${qty <= (item.minStock || 0) ? 'badge-danger' : 'badge-success'}">
+                                ${qty}
+                            </span>
+                        </td>
+                        <td>${item.unit || 'pc'}</td>
+                        <td>${App.formatCurrency(unitPrice)}</td>
+                        <td>${App.formatCurrency(totalExcl)}</td>
+                        <td>${vatRate}%</td>
+                        <td>${App.formatCurrency(vatAmount)}</td>
+                        <td>${App.formatCurrency(totalIncl)}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; background: #f39c12; color: white;" onclick="window.location.href='issue-part.html?sku=${item.sku}'" title="Pick Item"><i class="fas fa-hand-holding"></i></button>
+                            <button class="btn" style="padding: 5px 10px; background: #3498db; color: white;" onclick="Inventory.edit('${item.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn" style="padding: 5px 10px; background: #e74c3c; color: white;" onclick="Inventory.delete('${item.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+
+                this.renderPagination(items.length);
+            },
+
+            renderPagination: function (totalItems) {
+                const container = document.getElementById('paginationControls');
+                if (!container) return;
+                container.innerHTML = '';
+
+                const totalPages = Math.ceil(totalItems / this.itemsPerPage) || 1;
+
+                // Prev Button
+                const prevBtn = document.createElement('button');
+                prevBtn.className = 'btn';
+                prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+                prevBtn.disabled = this.currentPage <= 1;
+                prevBtn.style.padding = '8px 15px';
+                prevBtn.onclick = () => { this.currentPage--; this.renderTable(); };
+                container.appendChild(prevBtn);
+
+                // Info text
+                const info = document.createElement('span');
+                info.textContent = `Page ${this.currentPage} of ${totalPages} (${totalItems} total items)`;
+                info.style.fontSize = '0.9rem';
+                info.style.fontWeight = '600';
+                info.style.margin = '0 15px';
+                container.appendChild(info);
+
+                // Next Button
+                const nextBtn = document.createElement('button');
+                nextBtn.className = 'btn';
+                nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+                nextBtn.disabled = this.currentPage >= totalPages;
+                nextBtn.style.padding = '8px 15px';
+                nextBtn.onclick = () => { this.currentPage++; this.renderTable(); };
+                container.appendChild(nextBtn);
+            },
+
+            changePageSize: function () {
+                this.itemsPerPage = parseInt(document.getElementById('pageSize').value);
+                this.currentPage = 1;
+                this.renderTable();
+            },
+
+            handleFileSelect: function (event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                        // Get all rows as arrays to find the header
+                        const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (rawRows.length === 0) {
+                            alert('Excel file is empty or invalid.');
+                            return;
+                        }
+
+                        // Find the header row (searching for "SKU" or "Name")
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+                            const row = rawRows[i];
+                            if (row && row.some(cell => {
+                                const c = (cell || '').toString().toLowerCase();
+                                return c.includes('sku') || c.includes('name') || c.includes('item') || c.includes('code');
+                            })) {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex === -1) {
+                            const foundKeys = rawRows[0]?.join(', ') || 'none';
+                            alert(`No valid inventory data found.\n\nCould not find a header row containing "SKU" or "Name".\nFound in first row: ${foundKeys}\n\nPlease check your file format.`);
+                            return;
+                        }
+
+                        // Parse the sheet starting from the detected header row
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { range: headerRowIndex });
+
+                        if (jsonData.length > 0) {
+                            this.processImportedData(jsonData);
+                        } else {
+                            alert('No data found in the file after header row.');
+                        }
+                    } catch (error) {
+                        console.error('Import failed:', error);
+                        alert('Error processing file. Please ensure it is a valid Excel file.');
+                    }
+                    // Reset input
+                    document.getElementById('fileInput').value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            },
+
+            processImportedData: function (data) {
+                let addedCount = 0;
+
+                data.forEach(row => {
+                    const name = this.findKey(row, ['Name', 'name', 'Description', 'Item', 'Description (Name)']);
+                    const sku = this.findKey(row, ['SKU', 'sku', 'CODE', 'Code', 'SI NO', 'si no']);
+
+                    if (name || sku) {
+                        const newItem = {
+                            id: Date.now() + Math.random().toString(36).substr(2, 9),
+                            name: name || 'New Item',
+                            sku: sku || ('SKU-' + Date.now()),
+                            category: this.findKey(row, ['Category', 'category']) || 'Uncategorized',
+                            stock: Number(this.findKey(row, ['Stock', 'stock', 'QUANTITY', 'Quantity']) || 0),
+                            price: Number(this.findKey(row, ['Price', 'price', 'UNIT PRICE', 'Unit Price']) || 0),
+                            cost: Number(this.findKey(row, ['Cost', 'cost', 'Unit Cost']) || 0),
+                            supplier: this.findKey(row, ['Supplier', 'supplier']) || 'General',
+                            minStock: Number(this.findKey(row, ['MinStock', 'min_stock', 'Min Stock']) || 5),
+                            unit: this.findKey(row, ['Unit', 'unit']) || 'pc',
+                            vat: Number(this.findKey(row, ['VAT', 'vat', 'VAT %']) || 0),
+                            date: new Date().toISOString()
+                        };
+
+                        this.data.push(newItem);
+                        addedCount++;
+                    }
+                });
+
+                if (addedCount > 0) {
+                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(Inventory.data));
+                    this.filteredData = [...this.data];
+                    this.currentPage = 1;
+                    this.renderTable();
+                    App.showToast(`Imported ${addedCount} parts.`);
+                }
+            },
+
+            downloadTemplate: function () {
+                const templateData = [
+                    {
+                        "Name": "Example Part",
+                        "SKU": "EX-001",
+                        "Category": "Brakes",
+                        "Stock": 50,
+                        "MinStock": 10,
+                        "Unit": "pc",
+                        "Cost": 15.00,
+                        "Price": 25.00,
+                        "VAT": 5,
+                        "Supplier": "Local Supplier"
+                    }
+                ];
+
+                const ws = XLSX.utils.json_to_sheet(templateData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Template");
+                XLSX.writeFile(wb, "Inventory_Template.xlsx");
+            },
+
+            filterData: function () {
+                const query = document.getElementById('searchQuery').value.toLowerCase();
+                const category = document.getElementById('categoryFilter').value;
+                const stockStatus = document.getElementById('stockFilter').value;
+
+                this.filteredData = this.data.filter(item => {
+                    const matchQuery = (item.name || '').toLowerCase().includes(query) || (item.sku || '').toLowerCase().includes(query);
+                    const matchCategory = !category || item.category === category;
+
+                    let matchStock = true;
+                    if (stockStatus === 'low') {
+                        matchStock = item.stock <= (item.minStock || 0) && item.stock > 0;
+                    } else if (stockStatus === 'out') {
+                        matchStock = item.stock === 0;
+                    } else if (stockStatus === 'good') {
+                        matchStock = item.stock > (item.minStock || 0);
+                    }
+
+                    return matchQuery && matchCategory && matchStock;
+                });
+
+                this.currentPage = 1;
+                this.renderTable();
+            },
+
+            filterItems: function () {
+                this.filterData();
+            },
+
+            openModal: function (isEdit = false) {
+                document.getElementById('modalTitle').textContent = isEdit ? 'Edit Part' : 'Add New Part';
+                document.getElementById('partModal').classList.add('open');
+                if (!isEdit) {
+                    document.getElementById('partForm').reset();
+                    document.getElementById('partId').value = '';
+                    // Set defaults
+                    document.getElementById('partUnit').value = 'pc';
+                    document.getElementById('partVat').value = '0';
+                }
+            },
+
+            closeModal: function () {
+                document.getElementById('partModal').classList.remove('open');
+                // Clear any error states
+                document.getElementById('partSku').classList.remove('error');
+                document.getElementById('partName').classList.remove('error');
+            },
+
+            isDuplicate: function (field, value, excludeId = null) {
+                return this.data.some(item => {
+                    if (excludeId && item.id?.toString() === excludeId.toString()) return false;
+                    return item[field]?.toString().toLowerCase() === value.toString().toLowerCase();
+                });
+            },
+
+            savePart: async function () {
+                const id = document.getElementById('partId').value;
+                const isEdit = !!id;
+
+                const sku = document.getElementById('partSku').value.trim();
+                const name = document.getElementById('partName').value.trim();
+
+                // Duplicate Checks
+                if (this.isDuplicate('sku', sku, id)) {
+                    App.showToast(`SI NO "${sku}" is already in the system`, 'error');
+                    document.getElementById('partSku').classList.add('error');
+                    return;
+                }
+                if (this.isDuplicate('name', name, id)) {
+                    App.showToast(`Description "${name}" is already in the system`, 'error');
+                    document.getElementById('partName').classList.add('error');
+                    return;
+                }
+
+                const part = {
+                    sku: sku,
+                    name: name,
+                    category: document.getElementById('partCategory').value,
+                    supplier: document.getElementById('partSupplier').value,
+                    stock: parseInt(document.getElementById('partStock').value),
+                    minStock: parseInt(document.getElementById('partMinStock').value) || 0,
+                    unit: document.getElementById('partUnit').value,
+                    cost: parseFloat(document.getElementById('partCost').value),
+                    price: parseFloat(document.getElementById('partPrice').value),
+                    vat: parseFloat(document.getElementById('partVat').value) || 0
+                };
+
+                try {
+                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                    if (isMigrated) {
+                        const endpoint = isEdit ? `/products/${id}` : '/products';
+                        const method = isEdit ? 'PATCH' : 'POST';
+                        const result = await App.apiCall(endpoint, method, part);
+                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
+                        await App.loadData();
+                        this.loadData();
+                        this.filterData(); // This will refresh table and keep pagination correct
+                    } else {
+                        const localPart = { ...part, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
+                        if (isEdit) {
+                            const index = this.data.findIndex(i => i.id?.toString() === id.toString());
+                            if (index !== -1) this.data[index] = localPart;
+                        } else {
+                            this.data.push(localPart);
+                        }
+                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
+                        this.filterData();
+                    }
+                    this.closeModal();
+                    App.showToast('Part saved successfully');
+                } catch (error) {
+                    console.error('Save failed:', error);
+                    App.showToast(error.message || 'Failed to save part', 'error');
+                }
+            },
+
+            edit: function (id) {
+                const item = this.data.find(i => i.id?.toString() === id.toString());
+                if (item) {
+                    document.getElementById('partId').value = item.id;
+                    document.getElementById('partSku').value = item.sku;
+                    document.getElementById('partName').value = item.name;
+                    document.getElementById('partCategory').value = item.category;
+                    document.getElementById('partSupplier').value = item.supplier;
+                    document.getElementById('partStock').value = item.stock;
+                    if (document.getElementById('partMinStock')) {
+                        document.getElementById('partMinStock').value = item.minStock ?? 0;
+                    }
+                    document.getElementById('partUnit').value = item.unit || 'pc';
+                    document.getElementById('partCost').value = item.cost;
+                    document.getElementById('partPrice').value = item.price;
+                    document.getElementById('partVat').value = item.vat || 0;
+                    this.openModal(true);
+                }
+            },
+
+            delete: async function (id) {
+                if (confirm('Are you sure?')) {
+                    try {
+                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                        if (isMigrated) {
+                            const result = await App.apiCall(`/products/${id}`, 'DELETE');
+                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
+                            await App.loadData();
+                            this.loadData();
+                            this.filterData();
+                        } else {
+                            this.data = this.data.filter(i => i.id?.toString() !== id.toString());
+                            localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
+                            this.filterData();
+                        }
+                        App.showToast('Part deleted', 'error');
+                    } catch (error) {
+                        console.error('Delete failed:', error);
+                        App.showToast(error.message || 'Failed to delete part', 'error');
+                    }
+                }
+            }
+        };
+
+        // Make Inventory accessible to inline onclick="Inventory.*" handlers
+        window.Inventory = Inventory;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            Inventory.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

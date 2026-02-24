@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link active"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="users">User Management</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="btn btn-primary" onclick="UserMgr.openModal()">
+                        <i class="fas fa-plus"></i> <span data-i18n="add">Add User</span>
+                    </button>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th data-i18n="name">Name</th>
+                                <th data-i18n="username">Username</th>
+                                <th data-i18n="role">Role</th>
+                                <th data-i18n="actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="userTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit User Modal -->
+    <div class="modal-overlay" id="userModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="UserMgr.closeModal()">&times;</span>
+            <h2 id="modalTitle">Add User</h2>
+
+            <form id="userForm" style="margin-top: 20px;">
+                <input type="hidden" id="userId">
+                <div class="form-group">
+                    <label class="form-label">Full Name</label>
+                    <input type="text" id="modUserName" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Username / Email</label>
+                    <input type="text" id="userEmail" class="form-control" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Password</label>
+                    <input type="password" id="userPassword" class="form-control"
+                        placeholder="Leave blank to keep current" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Role</label>
+                    <select id="userRole" class="form-control">
+                        <option value="staff">Staff</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px;">
+                    <button type="button" class="btn" style="background: #e74c3c; color: white; margin-right: 10px;"
+                        onclick="UserMgr.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const UserMgr = {
+            data: [],
+
+            init: async function () {
+                await this.loadData();
+                this.renderTable();
+
+                document.getElementById('userForm').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    await this.saveUser();
+                });
+            },
+
+            loadData: async function () {
+                // If migrated, fetch from backend
+                if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
+                    try {
+                        const result = await App.apiCall('/auth');
+                        if (result.success) {
+                            this.data = result.data;
+                            localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
+                            return;
+                        }
+                    } catch (error) {
+                        console.error('[UserMgr]: Backend fetch failed', error);
+                    }
+                }
+                // Fallback to local storage
+                this.data = JSON.parse(localStorage.getItem(App.KEYS.USERS)) || [];
+            },
+
+            renderTable: function () {
+                const tbody = document.getElementById('userTable');
+                tbody.innerHTML = '';
+
+                this.data.forEach(u => {
+                    const row = document.createElement('tr');
+                    // IDs might be numeric or UUID
+                    const safeId = u.id?.toString();
+                    row.innerHTML = `
+                        <td>${u.name}</td>
+                        <td>${u.email}</td>
+                        <td><span style="text-transform: capitalize; background: #ecf0f1; padding: 2px 8px; border-radius: 4px;">${u.role}</span></td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; background: #3498db; color: white;" onclick="UserMgr.edit('${safeId}')"><i class="fas fa-edit"></i></button>
+                            ${safeId !== '1' && safeId !== '2' ? `<button class="btn" style="padding: 5px 10px; background: #e74c3c; color: white;" onclick="UserMgr.delete('${safeId}')"><i class="fas fa-trash"></i></button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            },
+
+            openModal: function (isEdit = false) {
+                document.getElementById('modalTitle').textContent = isEdit ? 'Edit User' : 'Add User';
+                document.getElementById('userModal').classList.add('open');
+
+                const pwInput = document.getElementById('userPassword');
+                if (isEdit) {
+                    pwInput.removeAttribute('required');
+                    pwInput.placeholder = "Leave blank to keep current";
+                } else {
+                    pwInput.setAttribute('required', 'true');
+                    pwInput.placeholder = "Password (min 6 chars)";
+                }
+
+                if (!isEdit) {
+                    document.getElementById('userForm').reset();
+                    document.getElementById('userId').value = '';
+                }
+            },
+
+            closeModal: function () {
+                document.getElementById('userModal').classList.remove('open');
+            },
+
+            saveUser: async function () {
+                const id = document.getElementById('userId').value;
+                const isEdit = !!id;
+
+                const name = document.getElementById('modUserName').value;
+                const email = document.getElementById('userEmail').value;
+                const password = document.getElementById('userPassword').value;
+                const role = document.getElementById('userRole').value;
+
+                if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
+                    try {
+                        if (isEdit) {
+                            // Update logic (backend might need a user update endpoint, for now we skip or log)
+                            console.warn('[UserMgr]: Backend update not fully implemented, use registration for new users');
+                            App.showToast('Backend update coming soon!', 'info');
+                        } else {
+                            const result = await App.apiCall('/auth/register', 'POST', {
+                                email,
+                                password,
+                                firstName: name.split(' ')[0],
+                                lastName: name.split(' ').slice(1).join(' ') || 'User',
+                                role
+                            });
+
+                            if (result.success) {
+                                App.showToast('User created on permanent server!');
+                            }
+                        }
+                        await this.loadData();
+                        this.renderTable();
+                        this.closeModal();
+                        return;
+                    } catch (error) {
+                        App.showToast('Backend save failed: ' + error.message, 'error');
+                        return;
+                    }
+                }
+
+                // Local fallback
+                if (isEdit) {
+                    const index = this.data.findIndex(u => u.id?.toString() === id.toString());
+                    if (index !== -1) {
+                        this.data[index].name = name;
+                        this.data[index].email = email;
+                        this.data[index].role = role;
+                        if (password) this.data[index].password = password;
+                    }
+                } else {
+                    const newUser = {
+                        id: Date.now(),
+                        name: name,
+                        email: email,
+                        password: password,
+                        role: role
+                    };
+                    this.data.push(newUser);
+                }
+
+                localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
+                this.renderTable();
+                this.closeModal();
+                App.showToast('User saved successfully');
+            },
+
+            edit: function (id) {
+                const user = this.data.find(u => u.id?.toString() === id.toString());
+                if (user) {
+                    document.getElementById('userId').value = user.id;
+                    document.getElementById('modUserName').value = user.name;
+                    document.getElementById('userEmail').value = user.email;
+                    document.getElementById('userRole').value = user.role;
+                    document.getElementById('userPassword').value = '';
+                    this.openModal(true);
+                }
+            },
+
+            delete: async function (id) {
+                if (confirm('Are you sure?')) {
+                    if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
+                        try {
+                            const result = await App.apiCall('/auth/' + id, 'DELETE');
+                            if (result.success) {
+                                App.showToast('User deleted from database', 'success');
+                                await this.loadData();
+                                this.renderTable();
+                                return;
+                            }
+                        } catch (error) {
+                            App.showToast('Backend delete failed', 'error');
+                            return;
+                        }
+                    }
+
+                    // Local fallback
+                    this.data = this.data.filter(u => u.id?.toString() !== id.toString());
+                    localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
+                    this.renderTable();
+                    App.showToast('User deleted', 'error');
+                }
+            }
+        };
+
+        // Make UserMgr accessible to inline onclick="UserMgr.*" handlers
+        window.UserMgr = UserMgr;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            UserMgr.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>

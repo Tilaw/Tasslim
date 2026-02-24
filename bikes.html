@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bikes - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="bikes.html" class="nav-link active"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title" data-i18n="bikes">Bike Management</div>
+                </div>
+
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"
+                            style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #7f8c8d;"></i>
+                        <input type="text" id="bikeSearch" class="form-control"
+                            style="width: 250px; padding-left: 35px; height: 40px;"
+                            placeholder="Search by Plate, Category, Kind..." onkeyup="BikeMgr.filterBikes()"
+                            data-i18n="search">
+                    </div>
+                    <div
+                        style="display: flex; background: #ecf0f1; padding: 5px; border-radius: 8px; margin-right: 15px;">
+                        <button class="btn filter-btn active" id="btnAll" onclick="BikeMgr.setLocationFilter('')"
+                            style="padding: 5px 15px; border: none; background: transparent; cursor: pointer;"
+                            data-i18n="allCount">All</button>
+                        <button class="btn filter-btn" id="btnAjman" onclick="BikeMgr.setLocationFilter('Ajman')"
+                            style="padding: 5px 15px; border: none; background: transparent; cursor: pointer;"
+                            data-i18n="ajman">Ajman</button>
+                        <button class="btn filter-btn" id="btnSharjah" onclick="BikeMgr.setLocationFilter('Sharjah')"
+                            style="padding: 5px 15px; border: none; background: transparent; cursor: pointer;"
+                            data-i18n="sharjah">Sharjah</button>
+                    </div>
+                    <button class="btn" style="background-color: #3498db; color: white;"
+                        onclick="BikeMgr.downloadTemplate()">
+                        <i class="fas fa-download"></i> <span data-i18n="template">Template</span>
+                    </button>
+                    <button class="btn" style="background-color: #27ae60; color: white;"
+                        onclick="BikeMgr.triggerImport()">
+                        <i class="fas fa-file-excel"></i> <span data-i18n="import">Import Excel</span>
+                    </button>
+                    <input type="file" id="excelInput" accept=".xlsx, .xls" style="display: none;"
+                        onchange="BikeMgr.handleFileSelect(event)">
+                    <button class="btn btn-primary" onclick="BikeMgr.openModal()">
+                        <i class="fas fa-plus"></i> <span data-i18n="add">Add Bike</span>
+                    </button>
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th data-i18n="plate">Plate NO</th>
+                                <th data-i18n="plateCategory">Category</th>
+                                <th data-i18n="kind">Kind</th>
+                                <th data-i18n="location">Location</th>
+                                <th data-i18n="vehicleColor">Color</th>
+                                <th data-i18n="regRenew">Reg. Renew Date</th>
+                                <th data-i18n="regExp">Reg. Exp. Date</th>
+                                <th data-i18n="insExp">Ins. Exp. Date</th>
+                                <th data-i18n="actions">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bikeTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add/Edit Bike Modal -->
+    <div class="modal-overlay" id="bikeModal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="BikeMgr.closeModal()">&times;</span>
+            <h2 id="modalTitle">Add New Bike</h2>
+
+            <form id="bikeForm" style="margin-top: 20px;">
+                <input type="hidden" id="bikeId">
+
+                <!-- Section: Vehicle Identity -->
+                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                    <h3 style="font-size: 16px; color: #2c3e50; margin-bottom: 15px;"><i class="fas fa-info-circle"></i>
+                        <span data-i18n="vehicleIdentity">Vehicle Identity</span></h3>
+                    <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="plate">Plate Number</label>
+                            <input type="text" id="bikePlate" class="form-control" placeholder="12345" required>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="plateCategory">Plate Category</label>
+                            <select id="bikeCategory" class="form-control" required>
+                                <option value="Private">Private</option>
+                                <option value="Commercial">Commercial</option>
+                                <option value="Classic">Classic</option>
+                                <option value="Motorcycle">Motorcycle</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="kind">Kind</label>
+                            <input type="text" id="bikeKind" class="form-control" placeholder="SUV, Sedan, etc.">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="vehicleColor">Vehicle Color</label>
+                            <input type="text" id="bikeColor" class="form-control" placeholder="Red, Black, etc.">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Registration & Insurance -->
+                <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+                    <h3 style="font-size: 16px; color: #2c3e50; margin-bottom: 15px;"><i
+                            class="fas fa-calendar-alt"></i> <span data-i18n="regInsurance">Registration &
+                            Insurance</span></h3>
+                    <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="regRenew">Reg. Renew Date</label>
+                            <input type="date" id="bikeRegRenew" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="regExp">Reg. Exp. Date</label>
+                            <input type="date" id="bikeRegExp" class="form-control">
+                        </div>
+                    </div>
+                    <div class="row" style="display: flex; gap: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="insExp">Ins. Exp. Date</label>
+                            <input type="date" id="bikeInsExp" class="form-control">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <!-- Placeholder for balanced row -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section: Branch & Details -->
+                <div style="margin-bottom: 20px;">
+                    <h3 style="font-size: 16px; color: #2c3e50; margin-bottom: 15px;"><i
+                            class="fas fa-map-marker-alt"></i> <span data-i18n="branchDetails">Branch & Details</span>
+                    </h3>
+                    <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="location">Location / Branch</label>
+                            <select id="bikeLocation" class="form-control">
+                                <option value="" data-i18n="select">Select Location</option>
+                                <option value="Ajman" data-i18n="ajman">Ajman</option>
+                                <option value="Sharjah" data-i18n="sharjah">Sharjah</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label class="form-label" data-i18n="ownership">Ownership</label>
+                            <input type="text" id="bikeOwnership" class="form-control" placeholder="Owner name">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" data-i18n="accident">Accident Details</label>
+                        <textarea id="bikeAccident" class="form-control" style="height: 60px;"
+                            placeholder="Any minor/major accident details..."></textarea>
+                    </div>
+                </div>
+
+                <div style="text-align: right; margin-top: 20px; padding-top: 15px; border-top: 2px solid #eee;">
+                    <button type="button" class="btn" style="background: #95a5a6; color: white; margin-right: 10px;"
+                        onclick="BikeMgr.closeModal()" data-i18n="cancel">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-i18n="save">Save Bike</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script>
+        const BikeMgr = {
+            data: [],
+            currentLocationFilter: '',
+
+            init: function () {
+                this.loadData();
+                this.renderTable();
+
+                document.getElementById('bikeForm').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.saveBike();
+                });
+
+                document.getElementById('bikePlate').addEventListener('blur', (e) => {
+                    const val = e.target.value.trim();
+                    if (!val) return;
+                    const currentId = document.getElementById('bikeId').value;
+                    if (this.isDuplicate('plate', val, currentId)) {
+                        App.showToast(`Plate ${val} already in the system`, 'warning');
+                        e.target.classList.add('error');
+                    } else {
+                        e.target.classList.remove('error');
+                    }
+                });
+            },
+
+            isDuplicate: function (field, value, excludeId = null) {
+                return this.data.some(b => {
+                    if (excludeId && b.id?.toString() === excludeId.toString()) return false;
+                    return b[field]?.toString().toLowerCase() === value.toString().toLowerCase();
+                });
+            },
+
+            loadData: function () {
+                this.data = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+            },
+
+            setLocationFilter: function (location) {
+                this.currentLocationFilter = location;
+                // Update UI buttons
+                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
+                if (location === '') document.getElementById('btnAll').classList.add('active');
+                else if (location === 'Ajman') document.getElementById('btnAjman').classList.add('active');
+                else if (location === 'Sharjah') document.getElementById('btnSharjah').classList.add('active');
+
+                this.filterBikes();
+            },
+
+            filterBikes: function () {
+                const query = document.getElementById('bikeSearch').value.toLowerCase().trim();
+                const filtered = this.data.filter(b => {
+                    const matchesSearch = (b.plate || '').toLowerCase().includes(query) ||
+                        (b.category || '').toLowerCase().includes(query) ||
+                        (b.kind || '').toLowerCase().includes(query) ||
+                        (b.color || '').toLowerCase().includes(query) ||
+                        (b.location || '').toLowerCase().includes(query);
+
+                    const matchesLocation = !this.currentLocationFilter || b.location === this.currentLocationFilter;
+
+                    return matchesSearch && matchesLocation;
+                });
+                this.renderTable(filtered);
+            },
+
+            renderTable: function (items = this.data) {
+                const tbody = document.getElementById('bikeTable');
+                tbody.innerHTML = '';
+
+                if (items.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="8" class="text-center">${document.getElementById('bikeSearch').value ? 'No matching bikes found' : 'No bikes found'}</td></tr>`;
+                    return;
+                }
+
+                items.forEach(b => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td style="font-weight: bold;">${b.plate || '-'}</td>
+                        <td>${b.category || '-'}</td>
+                        <td>${b.kind || '-'}</td>
+                        <td>${b.location || '-'}</td>
+                        <td>${b.color || '-'}</td>
+                        <td>${b.regRenew || '-'}</td>
+                        <td>${b.regExp || '-'}</td>
+                        <td>${b.insExp || '-'}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; background: #3498db; color: white;" onclick="BikeMgr.edit('${b.id}')"><i class="fas fa-edit"></i></button>
+                            <button class="btn" style="padding: 5px 10px; background: #e74c3c; color: white;" onclick="BikeMgr.delete('${b.id}')"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            },
+
+            openModal: function (isEdit = false) {
+                document.getElementById('modalTitle').textContent = isEdit ? 'Edit Bike' : 'Add New Bike';
+                document.getElementById('bikeModal').classList.add('open');
+                if (!isEdit) {
+                    document.getElementById('bikeForm').reset();
+                    document.getElementById('bikeId').value = '';
+                }
+            },
+
+            closeModal: function () {
+                document.getElementById('bikeModal').classList.remove('open');
+            },
+
+            saveBike: async function () {
+                const id = document.getElementById('bikeId').value;
+                const isEdit = !!id;
+
+                const plate = document.getElementById('bikePlate').value.trim();
+                if (this.isDuplicate('plate', plate, id)) {
+                    App.showToast(`Plate "${plate}" is already in the system`, 'error');
+                    document.getElementById('bikePlate').classList.add('error');
+                    return;
+                }
+
+                const bike = {
+                    plate: plate,
+                    category: document.getElementById('bikeCategory').value,
+                    kind: document.getElementById('bikeKind').value,
+                    color: document.getElementById('bikeColor').value,
+                    regRenew: document.getElementById('bikeRegRenew').value,
+                    regExp: document.getElementById('bikeRegExp').value,
+                    insExp: document.getElementById('bikeInsExp').value,
+                    location: document.getElementById('bikeLocation').value,
+                    ownership: document.getElementById('bikeOwnership').value || '',
+                    accident: document.getElementById('bikeAccident').value || '',
+                    customer: '',
+                    phone: ''
+                };
+
+                try {
+                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+
+                    if (isMigrated) {
+                        const endpoint = isEdit ? `/bikes/${id}` : '/bikes';
+                        const method = isEdit ? 'PATCH' : 'POST';
+                        const result = await App.apiCall(endpoint, method, bike);
+
+                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
+
+                        // After successful API call, we need to refresh local data
+                        await App.loadData();
+                        this.loadData();
+                    } else {
+                        // Local-only mode
+                        const localBike = { ...bike, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
+                        if (isEdit) {
+                            const index = this.data.findIndex(b => b.id?.toString() === id.toString());
+                            if (index !== -1) this.data[index] = localBike;
+                        } else {
+                            this.data.push(localBike);
+                        }
+                        localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
+                    }
+
+                    this.renderTable();
+                    this.closeModal();
+                    App.showToast('Bike saved successfully');
+                } catch (error) {
+                    console.error('Save failed:', error);
+                    App.showToast(error.message || 'Failed to save bike', 'error');
+                }
+            },
+
+            edit: function (id) {
+                // Ensure we handle both Numeric and UUID IDs
+                const bike = this.data.find(b => b.id?.toString() === id.toString());
+                if (bike) {
+                    document.getElementById('bikeId').value = bike.id;
+                    document.getElementById('bikePlate').value = bike.plate || '';
+                    document.getElementById('bikeCategory').value = bike.category || 'Private';
+                    document.getElementById('bikeKind').value = bike.kind || '';
+                    document.getElementById('bikeColor').value = bike.color || '';
+                    document.getElementById('bikeRegRenew').value = bike.regRenew || '';
+                    document.getElementById('bikeRegExp').value = bike.regExp || '';
+                    document.getElementById('bikeInsExp').value = bike.insExp || '';
+                    document.getElementById('bikeLocation').value = bike.location || '';
+                    document.getElementById('bikeOwnership').value = bike.ownership || '';
+                    document.getElementById('bikeAccident').value = bike.accident || '';
+                    this.openModal(true);
+                }
+            },
+
+            delete: async function (id) {
+                if (confirm('Are you sure?')) {
+                    try {
+                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+
+                        if (isMigrated) {
+                            const result = await App.apiCall(`/bikes/${id}`, 'DELETE');
+                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
+
+                            await App.loadData();
+                            this.loadData();
+                        } else {
+                            this.data = this.data.filter(b => b.id?.toString() !== id.toString());
+                            localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
+                        }
+
+                        this.renderTable();
+                        App.showToast('Bike deleted', 'error');
+                    } catch (error) {
+                        console.error('Delete failed:', error);
+                        App.showToast(error.message || 'Failed to delete bike', 'error');
+                    }
+                }
+            },
+
+            downloadTemplate: function () {
+                const templateData = [
+                    {
+                        "PlateNo": "DXB-12345",
+                        "Category": "Private",
+                        "Kind": "SUV",
+                        "Color": "Red",
+                        "RegistrationRenewDate": "2025-12-31",
+                        "RegistrationExpiryDate": "2026-12-31",
+                        "InsuranceExpiryDate": "2026-12-31"
+                    }
+                ];
+
+                const ws = XLSX.utils.json_to_sheet(templateData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "Bikes Template");
+                XLSX.writeFile(wb, "Bikes_Template.xlsx");
+            },
+
+            triggerImport: function () {
+                document.getElementById('excelInput').click();
+            },
+
+            // Helper to find a key case-insensitively
+            findKey: function (row, candidates) {
+                const keys = Object.keys(row);
+                for (const candidate of candidates) {
+                    const found = keys.find(k => k.toLowerCase().trim() === candidate.toLowerCase());
+                    if (found) return row[found];
+                }
+                return null;
+            },
+
+            handleFileSelect: function (event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+
+                        // Get all rows as arrays to find the header
+                        const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
+                        if (rawRows.length === 0) {
+                            alert('Excel file is empty or invalid.');
+                            return;
+                        }
+
+                        // Find the header row (searching for "Plate")
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+                            const row = rawRows[i];
+                            if (row && row.some(cell => cell && cell.toString().toLowerCase().includes('plate'))) {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex === -1) {
+                            const foundKeys = rawRows[0]?.join(', ') || 'none';
+                            alert(`No valid bike data found.\n\nCould not find a header row containing "Plate".\nFound in first row: ${foundKeys}\n\nPlease use the 'Download Template' button to get the correct format.`);
+                            return;
+                        }
+
+                        // Parse the sheet starting from the detected header row
+                        const jsonData = XLSX.utils.sheet_to_json(firstSheet, { range: headerRowIndex });
+
+                        let addedCount = 0;
+                        let duplicateCount = 0;
+
+                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+
+                        for (const row of jsonData) {
+                            const plateVal = this.findKey(row, ['PlateNo', 'Plate NO', 'plate', 'Plate Number', 'Plate', 'Number', 'Reg No']);
+                            const plate = (plateVal || '').toString().trim();
+
+                            if (!plate) continue;
+
+                            if (this.isDuplicate('plate', plate)) {
+                                duplicateCount++;
+                                continue;
+                            }
+
+                            const bike = {
+                                plate: plate,
+                                category: this.findKey(row, ['Category', 'Plate Category', 'category']) || 'Private',
+                                kind: this.findKey(row, ['Kind', 'kind', 'type']) || '',
+                                color: this.findKey(row, ['Color', 'Vehicle Color', 'color']) || '',
+                                regRenew: this.findKey(row, ['RegistrationRenewDate', 'regRenew', 'renew date']) || '',
+                                regExp: this.findKey(row, ['RegistrationExpiryDate', 'Reg Exp Date', 'regExp']) || '',
+                                insExp: this.findKey(row, ['InsuranceExpiryDate', 'Insurance Exp Date', 'insExp']) || '',
+                                location: this.findKey(row, ['Location', 'location', 'emirate', 'Branch']) || '',
+                                ownership: '',
+                                accident: ''
+                            };
+
+                            if (isMigrated) {
+                                try {
+                                    const res = await App.apiCall('/bikes', 'POST', bike);
+                                    if (res.success) addedCount++;
+                                } catch (err) {
+                                    console.error('Import row failed:', err);
+                                }
+                            } else {
+                                this.data.push({ ...bike, id: Date.now() + Math.floor(Math.random() * 1000) });
+                                addedCount++;
+                            }
+                        }
+
+                        if (addedCount > 0) {
+                            if (!isMigrated) localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
+                            else await App.loadData(); // Sync from server
+
+                            this.loadData();
+                            this.renderTable();
+                            let msg = `Successfully imported ${addedCount} bikes.`;
+                            if (duplicateCount > 0) msg += ` (${duplicateCount} duplicates skipped)`;
+                            App.showToast(msg);
+                        } else if (duplicateCount > 0) {
+                            alert(`No new bikes added. All ${duplicateCount} entries in the file were already in the system.`);
+                        } else {
+                            alert(`No valid bike data found in the detected row.\n\nExpected headers include: PlateNo, Category, Kind, etc.\n\nPlease check your file or download a fresh template.`);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing Excel:', error);
+                        alert('Error processing file. Please ensure it is a valid Excel file.');
+                    }
+                    // Reset input
+                    event.target.value = '';
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        };
+
+        // Make BikeMgr accessible to inline onclick="BikeMgr.*" handlers
+        window.BikeMgr = BikeMgr;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            BikeMgr.init();
+
+            // Header User Info (with safety checks)
+            const user = App.getCurrentUser();
+            if (user) {
+                const displayName = user.name || user.firstName || user.email || 'User';
+                const fullName = displayName + (user.lastName ? ' ' + user.lastName : '');
+                const userNameEl = document.getElementById('userName');
+                const userInitialsEl = document.getElementById('userInitials');
+
+                if (userNameEl) userNameEl.textContent = displayName;
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+            }
+        });
+    </script>
+</body>
+
+</html>
