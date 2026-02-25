@@ -1403,9 +1403,13 @@
                 } else {
                     history.forEach(m => {
                         const row = document.createElement('tr');
+                        // Use a helper to format date consistently
+                        const mappingDate = m.pickedDate ? new Date(m.pickedDate) : new Date(m.date);
+                        const loggedDate = new Date(m.date);
+
                         row.innerHTML = `
-                            <td>${m.pickedDate ? new Date(m.pickedDate).toLocaleDateString() : new Date(m.date).toLocaleDateString()}</td>
-                            <td>${new Date(m.date).toLocaleString()}</td>
+                            <td>${isNaN(mappingDate.getTime()) ? 'Invalid' : mappingDate.toLocaleDateString()}</td>
+                            <td>${isNaN(loggedDate.getTime()) ? 'Invalid' : loggedDate.toLocaleString()}</td>
                             <td>${m.issueId || '-'}</td>
                             <td>${m.productName}</td>
                             <td>${m.mechanicName}</td>
@@ -1439,14 +1443,20 @@
                 let itemsToIssue = [];
 
                 if (isBulk) {
-                    itemsToIssue = this.cart.map(c => ({
-                        productId: c.id,
-                        name: c.name,
-                        sku: c.sku,
-                        qty: c.qty,
-                        price: c.price || 0,
-                        total: (c.price || 0) * c.qty
-                    }));
+                    itemsToIssue = this.cart.map(c => {
+                        // CONSTRAINT: Quantity must be >= number of selected bikes
+                        if (c.qty < selectedPlates.length) {
+                            throw new Error(`Constraint Error: Quantity (${c.qty}) for part '${c.name}' must be at least the number of selected bikes (${selectedPlates.length}).`);
+                        }
+                        return {
+                            productId: c.id,
+                            name: c.name,
+                            sku: c.sku,
+                            qty: c.qty,
+                            price: c.price || 0,
+                            total: (c.price || 0) * c.qty
+                        };
+                    });
                 } else {
                     const productId = document.getElementById('pickProductId').value;
                     const quantity = parseInt(document.getElementById('pickQuantity').value);
@@ -1454,6 +1464,12 @@
 
                     if (!productId || isNaN(quantity)) {
                         alert('Please select a product.');
+                        return;
+                    }
+
+                    // CONSTRAINT: Quantity must be >= number of selected bikes
+                    if (quantity < selectedPlates.length) {
+                        alert(`Constraint Error: Quantity (${quantity}) must be at least the number of selected bikes (${selectedPlates.length}).`);
                         return;
                     }
 
@@ -1465,6 +1481,15 @@
                         price: prod ? prod.price : 0,
                         total: (prod ? prod.price : 0) * quantity
                     }];
+                }
+
+                // DATE SYNC: Combine selected date with current system time
+                let pickedDateTime = new Date().toISOString();
+                if (pickedDateVal) {
+                    const selected = new Date(pickedDateVal);
+                    const now = new Date();
+                    selected.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+                    pickedDateTime = selected.toISOString();
                 }
 
                 try {
@@ -1496,7 +1521,7 @@
                             mechanicName: mechanicName,
                             bikePlate: bikePlateString,
                             quantity: item.qty,
-                            pickedDate: pickedDateVal,
+                            pickedDate: pickedDateTime,
                             date: new Date().toISOString()
                         });
 
@@ -1514,7 +1539,7 @@
                                     mechanicId: mech ? mech.id : null,
                                     bikeId: bike ? bike.id : null,
                                     referenceId: issueId,
-                                    date: pickedDateVal ? new Date(pickedDateVal).toISOString() : new Date().toISOString(),
+                                    date: pickedDateTime,
                                     notes: `Issued to ${mechanicName} for bike ${bikePlateString}`
                                 });
                             } catch (apiError) { console.warn('Sync failed:', apiError); }
@@ -1522,10 +1547,10 @@
                     }
 
                     // 3. Record Sales
-                    const saleDate = pickedDateVal ? new Date(pickedDateVal) : new Date();
+                    const saleDateStr = pickedDateTime;
                     this.sales.push({
                         id: Date.now(),
-                        date: isNaN(saleDate.getTime()) ? new Date().toISOString() : saleDate.toISOString(),
+                        date: saleDateStr,
                         type: 'issue',
                         items: itemsToIssue,
                         total: itemsToIssue.reduce((sum, it) => sum + it.total, 0),
