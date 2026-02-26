@@ -23,8 +23,14 @@
                             data-i18n="dashboard">Dashboard</span></a></li>
                 <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
                             data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
                             data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
@@ -33,6 +39,8 @@
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
                             data-i18n="bikes">Bikes</span></a></li>
                 <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
@@ -51,13 +59,11 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center;">
-                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                    <div class="page-title" data-i18n="dashboard">Dashboard</div>
-                </div>
+            <header class="top-bar">
+                <button class="menu-toggle" onclick="App.toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="page-title" data-i18n="dashboard">Dashboard</div>
 
                 <!-- Migration Alert -->
                 <div id="migrationAlert"
@@ -70,7 +76,7 @@
                     </button>
                 </div>
 
-                <div style="display: flex; gap: 15px; align-items: center;">
+                <div class="header-actions hide-on-mobile" style="display: flex; gap: 15px; align-items: center;">
                     <button class="btn" style="background: #f39c12; color: white; padding: 10px 20px;"
                         onclick="window.location.href='issue-part.html'">
                         <i class="fas fa-hand-holding"></i> <span data-i18n="pickItem">Issue Part / Mapping</span>
@@ -140,7 +146,7 @@
                     <!-- Recent Sales -->
                     <div class="card">
                         <h3 class="mb-20" data-i18n="recentSales">Recent Sales</h3>
-                        <div class="table-container">
+                        <div class="table-container desktop-only-table">
                             <table>
                                 <thead>
                                     <tr>
@@ -155,6 +161,7 @@
                                 </tbody>
                             </table>
                         </div>
+                        <div id="recentSalesMobile" class="mobile-data-list"></div>
                     </div>
 
                     <!-- Low Stock Alerts -->
@@ -178,7 +185,7 @@
                                     onkeyup="Dashboard.filterAdditions()">
                             </div>
                         </div>
-                        <div class="table-container" style="flex: 1; overflow-y: auto;">
+                        <div class="table-container desktop-only-table" style="flex: 1; overflow-y: auto;">
                             <table>
                                 <thead>
                                     <tr>
@@ -195,6 +202,7 @@
                                 </tbody>
                             </table>
                         </div>
+                        <div id="recentAdditionsMobile" class="mobile-data-list"></div>
                     </div>
 
                     <!-- New Card: Inventory Status Breakdown (Grid of Cards) -->
@@ -301,6 +309,7 @@
                 const last5 = sales.slice(-5).reverse();
                 if (last5.length === 0) {
                     recentSalesTable.innerHTML = '<tr><td colspan="4" class="text-center">No recent sales</td></tr>';
+                    this.renderRecentSalesMobile([]);
                     return;
                 }
                 recentSalesTable.innerHTML = last5.map(sale => `
@@ -310,6 +319,22 @@
                         <td>${(sale.items || []).length}</td>
                         <td>${App.formatCurrency(sale.total)}</td>
                     </tr>
+                `).join('');
+
+                this.renderRecentSalesMobile(last5);
+            },
+
+            renderRecentSalesMobile: function (sales) {
+                const container = document.getElementById('recentSalesMobile');
+                if (!container) return;
+                container.innerHTML = sales.map(sale => `
+                    <div class="mobile-data-card">
+                        <div class="mobile-data-info">
+                            <h4>Transaction #${sale.id.toString().slice(-6)}</h4>
+                            <p>${new Date(sale.date).toLocaleDateString()} • ${(sale.items || []).length} items</p>
+                        </div>
+                        <div class="mobile-data-value">${App.formatCurrency(sale.total)}</div>
+                    </div>
                 `).join('');
             },
 
@@ -331,6 +356,7 @@
                 const recentAdditionsTable = document.getElementById('recentAdditionsTable');
                 if (!additions || additions.length === 0) {
                     recentAdditionsTable.innerHTML = '<tr><td colspan="4" class="text-center">No recent stock additions found</td></tr>';
+                    this.renderRecentAdditionsMobile([]);
                     return;
                 }
                 recentAdditionsTable.innerHTML = '';
@@ -345,6 +371,28 @@
                             <td><span style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">${product ? product.stock : 'N/A'}</span></td>
                         `;
                         recentAdditionsTable.appendChild(row);
+                    });
+                });
+
+                this.renderRecentAdditionsMobile(additions);
+            },
+
+            renderRecentAdditionsMobile: function (additions) {
+                const container = document.getElementById('recentAdditionsMobile');
+                if (!container) return;
+                container.innerHTML = '';
+                additions.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(add => {
+                    (add.items || []).forEach(it => {
+                        const card = document.createElement('div');
+                        card.className = 'mobile-data-card';
+                        card.innerHTML = `
+                            <div class="mobile-data-info">
+                                <h4>${it.name}</h4>
+                                <p>${new Date(add.date).toLocaleDateString()}</p>
+                            </div>
+                            <div class="mobile-data-value" style="color: #10b981;">+${it.qty}</div>
+                        `;
+                        container.appendChild(card);
                     });
                 });
             },

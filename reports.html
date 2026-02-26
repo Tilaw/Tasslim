@@ -33,12 +33,32 @@
 
         @media screen and (min-width: 1200px) {
             .grid-2-col {
-                grid-template-columns: 1.6fr 1fr;
+                grid-template-columns: 1.5fr 1fr;
+            }
+
+            .grid-stats {
+                grid-template-columns: repeat(4, 1fr);
             }
 
             .grid-3-col {
                 grid-template-columns: repeat(3, 1fr);
             }
+        }
+
+        .grid-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            border-radius: var(--radius) !important;
+            transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.2s ease !important;
+            padding: 15px !important;
+            display: flex;
+            align-items: center;
+            gap: 15px;
         }
 
         .stat-card {
@@ -508,8 +528,14 @@
                             data-i18n="dashboard">Dashboard</span></a></li>
                 <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
                             data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
                             data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
@@ -518,6 +544,8 @@
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
                             data-i18n="bikes">Bikes</span></a></li>
                 <li><a href="reports.html" class="nav-link active"><i class="fas fa-chart-line"></i> <span
@@ -543,199 +571,199 @@
                 <p id="printMeta" style="margin-top: 15px; font-size: 14px;"></p>
             </div>
 
-            <header class="top-bar"
-                style="height: auto; padding: 25px 30px; flex-direction: column; align-items: flex-start; gap: 20px;">
-                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                    <div style="display: flex; align-items: center; gap: 15px;">
-                        <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin: 0;">
-                            <i class="fas fa-bars"></i>
-                        </button>
-                        <div class="page-title" data-i18n="reports" style="font-size: 1.8rem; letter-spacing: -0.5px;">
-                            Analytics & Reports</div>
+            <header class="top-bar">
+                <button class="menu-toggle" onclick="App.toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="page-title" data-i18n="reports">Analytics & Reports</div>
+                <div class="header-actions hide-on-mobile" style="display: flex; gap: 12px; align-items: center;">
+                    <div class="user-profile">
+                        <div class="user-avatar" id="userInitials">AU</div>
+                        <span id="userName">Admin User</span>
                     </div>
-                    <div style="display: flex; gap: 15px; align-items: center;">
-                        <button class="btn btn-secondary" onclick="window.print()">
-                            <i class="fas fa-print"></i> Full Report
-                        </button>
-                        <div class="user-profile">
-                            <div class="user-avatar" id="userInitials">AU</div>
-                            <span id="userName">Admin User</span>
-                        </div>
-                    </div>
+                    <button class="btn btn-secondary" onclick="window.print()"
+                        style="padding: 8px 15px; font-size: 13px;">
+                        <i class="fas fa-print"></i>
+                    </button>
                 </div>
+            </header>
 
-                <div class="filter-row" style="width: 100%; margin-bottom: 0;">
-                    <div class="filter-group">
-                        <label>Search Item</label>
-                        <select id="itemFilter" class="form-control" onchange="Reports.generate()">
-                            <option value="">All Items</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>Mechanic</label>
-                        <select id="mechFilter" class="form-control" onchange="Reports.generate()">
-                            <option value="">All Mechanics</option>
-                        </select>
-                    </div>
-                    <div class="filter-group">
-                        <label>Start Date</label>
-                        <input type="date" id="startDate" class="form-control" onchange="Reports.generate()">
-                    </div>
-                    <div class="filter-group">
-                        <label>End Date</label>
-                        <input type="date" id="endDate" class="form-control" onchange="Reports.generate()">
-                    </div>
-                    <div class="filter-group">
-                        <label>Bike Plate</label>
-                        <select id="bikeFilter" class="form-control" onchange="Reports.generate()">
-                            <option value="">All Bikes</option>
-                        </select>
-                    </div>
+            <div class="filter-row card"
+                style="width: 100%; margin: 10px 0 20px 0; padding: 15px; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); border-radius: 20px; border: 1px dashed var(--border-color);">
+                <div class="filter-group" style="position: relative;">
+                    <label>Search Item</label>
+                    <input type="text" id="itemSearchInput" class="form-control" placeholder="Type part name..."
+                        onkeyup="Reports.searchItemsFilter()">
+                    <input type="hidden" id="itemFilter" value="">
+                    <div id="itemFilterResults" class="search-results" style="top: 65px;"></div>
                 </div>
-                <div class="filter-group" style="justify-content: flex-end; display: flex;">
+                <div class="filter-group">
+                    <label>Mechanic</label>
+                    <select id="mechFilter" class="form-control" onchange="Reports.generate()">
+                        <option value="">All Mechanics</option>
+                    </select>
+                </div>
+                <div class="filter-group" style="position: relative;">
+                    <label>Bike Plate</label>
+                    <input type="text" id="bikeSearchInput" class="form-control" placeholder="Type plate number..."
+                        onkeyup="Reports.searchBikesFilter()">
+                    <input type="hidden" id="bikeFilter" value="">
+                    <div id="bikeFilterResults" class="search-results" style="top: 65px;"></div>
+                </div>
+                <div class="filter-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate" class="form-control" onchange="Reports.generate()">
+                </div>
+                <div class="filter-group">
+                    <label>End Date</label>
+                    <input type="date" id="endDate" class="form-control" onchange="Reports.generate()">
+                </div>
+                <div style="display: flex; align-items: flex-end;">
                     <button class="btn btn-primary" onclick="Reports.generate()"
-                        style="height: 40px; padding: 0 20px; font-size: 13px;">
+                        style="height: 40px; width: 100%; font-size: 13px;">
                         <i class="fas fa-filter"></i> Apply
                     </button>
                 </div>
-    </div>
-    </header>
-
-    <div class="grid-2-col" style="grid-template-columns: repeat(2, 400px); gap: 15px; margin-bottom: 20px;">
-        <div class="card stat-card"
-            style="background: linear-gradient(135deg, #4f46e5, #818cf8); color: white; border: none; padding: 15px;">
-            <div class="stat-icon"
-                style="background: rgba(255,255,255,0.2); color: white; width: 45px; height: 45px; font-size: 1.2rem;">
-                <i class="fas fa-shopping-cart"></i>
             </div>
-            <div class="stat-info">
-                <div class="stat-value" id="totalSalesCount" style="font-size: 1.5rem;">0</div>
-                <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.85rem;">Transactions Logged
+            </header>
+
+            <div class="grid-stats" style="margin-top: 20px;">
+                <div class="card stat-card"
+                    style="background: linear-gradient(135deg, #4f46e5, #818cf8); color: white; border: none;">
+                    <div class="stat-icon"
+                        style="background: rgba(255,255,255,0.2); color: white; width: 40px; height: 40px; font-size: 1.1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-shopping-cart"></i>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="totalSalesCount" style="font-size: 1.3rem;">0</div>
+                        <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.75rem;">Transactions
+                        </div>
+                    </div>
+                </div>
+                <div class="card stat-card"
+                    style="background: linear-gradient(135deg, #059669, #34d399); color: white; border: none;">
+                    <div class="stat-icon"
+                        style="background: rgba(255,255,255,0.2); color: white; width: 40px; height: 40px; font-size: 1.1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="totalRevenue" style="font-size: 1.3rem;">AED 0.00</div>
+                        <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.75rem;">Sales Revenue
+                        </div>
+                    </div>
+                </div>
+                <div class="card stat-card" style="background: #fff; border: 1px solid #e2e8f0;">
+                    <div class="stat-icon"
+                        style="background: #f1f5f9; color: #64748b; width: 40px; height: 40px; font-size: 1.1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-tags"></i>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="totalCostValue" style="font-size: 1.3rem; color: #1e293b;">AED 0.00
+                        </div>
+                        <div class="stat-label" style="font-size: 0.75rem;">Stock Cost</div>
+                    </div>
+                </div>
+                <div class="card stat-card" style="background: #fff; border: 1px solid #e2e8f0;">
+                    <div class="stat-icon"
+                        style="background: #f1f5f9; color: #64748b; width: 40px; height: 40px; font-size: 1.1rem; border-radius: 12px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <div class="stat-value" id="potentialProfit" style="font-size: 1.3rem; color: #10b981;">AED 0.00
+                        </div>
+                        <div class="stat-label" style="font-size: 0.75rem;">Potential Profit</div>
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="card stat-card"
-            style="background: linear-gradient(135deg, #059669, #34d399); color: white; border: none; padding: 15px;">
-            <div class="stat-icon"
-                style="background: rgba(255,255,255,0.2); color: white; width: 45px; height: 45px; font-size: 1.2rem;">
-                <i class="fas fa-coins"></i>
-            </div>
-            <div class="stat-info">
-                <div class="stat-value" id="totalRevenue" style="font-size: 1.5rem;">AED 0.00</div>
-                <div class="stat-label" style="color: rgba(255,255,255,0.8); font-size: 0.85rem;"
-                    data-i18n="totalRevenue">Revenue
-                    (Sales Only)</div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Mechanic Report Section (Shrunk) -->
-    <div style="margin-top: 20px;">
-        <div class="card" style="display: flex; flex-direction: column; margin: 0; padding: 15px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 style="margin: 0; font-size: 1rem; color: #1e293b; font-weight: 800;">
-                    <i class="fas fa-wrench" style="margin-right: 10px; color: #6366f1; font-size: 0.9rem;"></i>
-                    WORKSHOP CONSUMPTION
-                </h3>
-                <button class="btn btn-primary" onclick="Reports.openBuilderModal()"
-                    style="padding: 7px 15px; font-size: 13px;">
-                    <i class="fas fa-file-invoice"></i> Create Invoice
-                </button>
-            </div>
-            <div class="table-container" style="flex: 1; max-height: 350px;">
-                <table style="font-size: 12px;">
-                    <thead>
-                        <tr>
-                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Date</th>
-                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Mechanic</th>
-                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Bike Plate</th>
-                            <th style="padding: 10px 15px !important;">Items</th>
-                            <th class="hide-column-for-custom" style="padding: 10px 15px !important;">Total Items</th>
-                            <th class="action-column" style="padding: 10px 15px !important;">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mechTable">
-                        <!-- Populated by JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    </div>
-
-    <!-- ULTRA-COMPACT BOTTOM GRID -->
-    <div class="grid-2-col" style="margin-top: 15px; grid-template-columns: 1fr 1fr; gap: 15px;">
-
-        <!-- Transaction History (Compact) -->
-        <div class="card" style="margin: 0; padding: 15px;">
-            <h3
-                style="margin-bottom: 12px; font-size: 0.9rem; color: #1e293b; display: flex; align-items: center; font-weight: 800;">
-                <i class="fas fa-history" style="margin-right: 8px; color: #f59e0b; font-size: 0.8rem;"></i>
-                RECENT TRANSACTIONS
-            </h3>
-            <div class="table-container" style="max-height: 220px; overflow-y: auto;">
-                <table style="font-size: 12px;">
-                    <thead>
-                        <tr>
-                            <th style="padding: 10px 12px !important; font-size: 10px;">DATE</th>
-                            <th style="padding: 10px 12px !important; font-size: 10px;">ITEMS</th>
-                            <th style="padding: 10px 12px !important; font-size: 10px; text-align: right;">TOTAL</th>
-                            <th style="width: 30px;"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="salesTable"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Inventory Value (Horizontal Row) -->
-        <div class="card" style="margin: 0; padding: 15px;">
-            <h3 style="margin-bottom: 12px; font-size: 0.9rem; color: #1e293b; font-weight: 800;">
-                <i class="fas fa-chart-pie" style="margin-right: 8px; color: #10b981; font-size: 0.8rem;"></i>
-                INVENTORY VALUATION
-            </h3>
-            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-                <div
-                    style="background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03); text-align: center;">
-                    <small
-                        style="color: #64748b; text-transform: uppercase; font-size: 9px; font-weight: 700; display: block;">COST</small>
-                    <div id="totalCostValue"
-                        style="color: #1e293b; font-size: 1.1rem; font-weight: 800; margin-top: 4px;">AED 0.00</div>
+            <div class="grid-2-col" style="gap: 20px;">
+                <!-- Main Workshop Report -->
+                <div>
+                    <div class="card" style="margin: 0; padding: 15px; height: 100%;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3
+                                style="margin: 0; font-size: 0.9rem; color: #1e293b; font-weight: 800; display: flex; align-items: center;">
+                                <i class="fas fa-wrench" style="margin-right: 8px; color: #6366f1;"></i> Workshop
+                                Consumption
+                            </h3>
+                            <button class="btn btn-primary" onclick="Reports.openBuilderModal()"
+                                style="padding: 5px 12px; font-size: 11px;">
+                                <i class="fas fa-plus"></i> Invoice
+                            </button>
+                        </div>
+                        <div class="table-container desktop-only-table" style="max-height: 500px;">
+                            <table style="font-size: 11.5px;">
+                                <thead>
+                                    <tr>
+                                        <th class="hide-column-for-custom">Date</th>
+                                        <th class="hide-column-for-custom">Mechanic</th>
+                                        <th class="hide-column-for-custom">Bike</th>
+                                        <th>Items</th>
+                                        <th class="action-column"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mechTable"></tbody>
+                            </table>
+                        </div>
+                        <div id="mechMobileList" class="mobile-data-list"></div>
+                    </div>
                 </div>
-                <div
-                    style="background: #f8fafc; padding: 12px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.03); text-align: center;">
-                    <small
-                        style="color: #64748b; text-transform: uppercase; font-size: 9px; font-weight: 700; display: block;">RETAIL</small>
-                    <div id="totalRetailValue"
-                        style="color: #1e293b; font-size: 1.1rem; font-weight: 800; margin-top: 4px;">AED 0.00</div>
-                </div>
-                <div
-                    style="background: rgba(16, 185, 129, 0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(16, 185, 129, 0.1); text-align: center;">
-                    <small
-                        style="color: #059669; text-transform: uppercase; font-size: 9px; font-weight: 800; display: block;">PROFIT</small>
-                    <div id="potentialProfit"
-                        style="color: #059669; font-size: 1.3rem; font-weight: 900; margin-top: 2px;">AED 0.00</div>
+
+                <!-- Transaction & Valuation Side -->
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="card" style="margin: 0; padding: 15px;">
+                        <h3
+                            style="margin-bottom: 12px; font-size: 0.9rem; color: #1e293b; font-weight: 800; display: flex; align-items: center;">
+                            <i class="fas fa-history" style="margin-right: 8px; color: #f59e0b;"></i> Recent
+                            Transactions
+                        </h3>
+                        <div class="table-container desktop-only-table" style="max-height: 250px;">
+                            <table style="font-size: 11px;">
+                                <thead>
+                                    <tr>
+                                        <th style="padding: 8px !important;">Date</th>
+                                        <th style="padding: 8px !important;">Total</th>
+                                        <th style="width: 30px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="salesTable"></tbody>
+                            </table>
+                        </div>
+                        <div id="salesMobileList" class="mobile-data-list"></div>
+                    </div>
+
+                    <div class="card"
+                        style="margin: 0; padding: 15px; background: #fdfdfd; border-style: dashed !important;">
+                        <h3
+                            style="margin-bottom: 12px; font-size: 0.85rem; color: #64748b; font-weight: 800; display: flex; align-items: center;">
+                            <i class="fas fa-calculator" style="margin-right: 8px;"></i> Valuation Breakdown
+                        </h3>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                                <span>Total Retail Value:</span>
+                                <span id="totalRetailValue" style="font-weight: 700;">AED 0.00</span>
+                            </div>
+                            <div style="height: 1px; background: #f1f5f9;"></div>
+                            <p style="font-size: 10px; color: #94a3b8; margin: 0; text-align: center;">
+                                <i class="fas fa-info-circle"></i> Values based on current inventory stock levels.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div
-                style="margin-top: 15px; padding: 10px; background: #fffbeb; border: 1px dashed #f59e0b; border-radius: 12px; font-size: 11px; color: #b45309; text-align: center;">
-                <i class="fas fa-info-circle" style="margin-right: 5px;"></i> Values calculated from current stock
-                levels.
+        </main>
+
+        <div class="print-footer">
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <div>Technician Signature</div>
+            </div>
+            <div class="signature-box">
+                <div class="signature-line"></div>
+                <div>Workshop Supervisor</div>
             </div>
         </div>
-    </div>
-    </main>
-
-    <div class="print-footer">
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <div>Technician Signature</div>
-        </div>
-        <div class="signature-box">
-            <div class="signature-line"></div>
-            <div>Workshop Supervisor</div>
-        </div>
-    </div>
     </div>
 
     <div id="builderModal" class="modal">
@@ -908,28 +936,71 @@
                         mechSelect.appendChild(opt);
                     });
                 }
+            },
 
-                const bikeSelect = document.getElementById('bikeFilter');
-                if (bikeSelect && bikeSelect.options.length <= 1) {
-                    const saleBikes = [...new Set(this.sales.map(s => s.bike).filter(b => b))];
-                    const allBikes = [...new Set([...this.bikes.map(b => b.plate), ...saleBikes])];
-                    allBikes.sort().forEach(b => {
-                        const opt = document.createElement('option');
-                        opt.value = b;
-                        opt.textContent = b;
-                        bikeSelect.appendChild(opt);
-                    });
+            searchItemsFilter: function () {
+                const query = (document.getElementById('itemSearchInput')?.value || '').toLowerCase().trim();
+                const resultsCont = document.getElementById('itemFilterResults');
+
+                if (!query) {
+                    resultsCont.style.display = 'none';
+                    document.getElementById('itemFilter').value = '';
+                    this.generate(); // Reset filter
+                    return;
                 }
 
-                const itemSelect = document.getElementById('itemFilter');
-                if (itemSelect && itemSelect.options.length <= 1) {
-                    this.inventory.sort((a, b) => a.name.localeCompare(b.name)).forEach(i => {
-                        const opt = document.createElement('option');
-                        opt.value = i.name;
-                        opt.textContent = i.name;
-                        itemSelect.appendChild(opt);
-                    });
+                const matches = (this.inventory || []).filter(item =>
+                    (item.name || '').toLowerCase().includes(query) ||
+                    (item.sku || '').toLowerCase().includes(query)
+                ).slice(0, 8);
+
+                if (matches.length === 0) {
+                    resultsCont.innerHTML = '<div class="search-item" style="color:#94a3b8; cursor:default;">No matches</div>';
+                } else {
+                    resultsCont.innerHTML = matches.map(item => `
+                        <div class="search-item" onclick="Reports.selectItemFilter('${item.name.replace(/'/g, "\\'")}')">
+                            <div style="font-weight:600;">${item.name}</div>
+                            <div style="font-size:10px; color:#94a3b8;">SKU: ${item.sku || 'N/A'}</div>
+                        </div>
+                    `).join('');
                 }
+                resultsCont.style.display = 'block';
+            },
+
+            selectItemFilter: function (name) {
+                document.getElementById('itemSearchInput').value = name;
+                document.getElementById('itemFilter').value = name;
+                document.getElementById('itemFilterResults').style.display = 'none';
+                this.generate();
+            },
+
+            searchBikesFilter: function () {
+                const query = (document.getElementById('bikeSearchInput')?.value || '').toLowerCase().trim();
+                const resultsCont = document.getElementById('bikeFilterResults');
+
+                if (!query) {
+                    resultsCont.style.display = 'none';
+                    document.getElementById('bikeFilter').value = '';
+                    this.generate(); // Reset filter
+                    return;
+                }
+
+                const allBikes = this.getAllBikePlates();
+                const matches = allBikes.filter(p => p.toLowerCase().includes(query));
+
+                if (matches.length === 0) {
+                    resultsCont.innerHTML = '<div class="search-item" style="color:#94a3b8; cursor:default;">No matches</div>';
+                } else {
+                    resultsCont.innerHTML = matches.map(m => `<div class="search-item" onclick="Reports.selectBikeFilter('${m.replace(/'/g, "\\'")}')">${m}</div>`).join('');
+                }
+                resultsCont.style.display = 'block';
+            },
+
+            selectBikeFilter: function (plate) {
+                document.getElementById('bikeSearchInput').value = plate;
+                document.getElementById('bikeFilter').value = plate;
+                document.getElementById('bikeFilterResults').style.display = 'none';
+                this.generate();
             },
 
             generate: function () {
@@ -1008,6 +1079,28 @@
                 }
 
                 this.updatePrintMeta();
+                this.renderMechMobileList(issueTransactions);
+            },
+
+            renderMechMobileList: function (transactions) {
+                const container = document.getElementById('mechMobileList');
+                if (!container) return;
+                container.innerHTML = transactions.map(s => `
+                    <div class="mobile-data-card" onclick="Reports.printSingleInvoice('${s.id}')">
+                        <div class="mobile-data-info">
+                            <h4>${s.mechanic || 'N/A'}</h4>
+                            <p>${new Date(s.date).toLocaleDateString()} • ${s.bike || 'N/A'}</p>
+                            <div style="margin-top: 5px;">
+                                ${(s.items || []).map(i => `<span class="badge" style="background:#f1f5f9; color:#475569; padding:2px 6px; font-size:10px;">${i.qty}x ${i.name}</span>`).join(' ')}
+                            </div>
+                        </div>
+                        <div class="mobile-data-value">
+                            <button class="btn btn-sm" style="color:#dc2626;" onclick="event.stopPropagation(); Reports.deleteTransaction('${s.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `).join('');
             },
 
             deleteTransaction: function (id) {
@@ -1327,6 +1420,15 @@
                 const total = Array.from(this.builderSelectedParts.values()).reduce((sum, p) => sum + (Number(p.qty) || 0), 0);
                 const el = document.getElementById('builderTotalItems');
                 if (el) el.textContent = total;
+            },
+
+            getAllBikePlates: function () {
+                const saleBikes = [...new Set(this.sales.map(s => s.bike).filter(b => b))];
+                return [...new Set([...this.bikes.map(b => b.plate), ...saleBikes])].sort();
+            },
+
+            getAllMechanicNames: function () {
+                return [...new Set(this.mechanics.map(m => m.name))].sort();
             },
 
             generateInvoiceFromBuilder: function () {
@@ -1663,6 +1765,8 @@
 
                 // Table (supports printing either transactions OR part lines)
                 const isTransaction = Array.isArray(items) && items.length > 0 && Array.isArray(items[0]?.items);
+                const user = App.getCurrentUser();
+                const isStaff = user && user.role === 'staff';
 
                 const table = doc.createElement('table');
                 table.innerHTML = `<thead><tr></tr></thead><tbody></tbody>`;
@@ -1675,16 +1779,22 @@
                         <th>Mechanic</th>
                         <th>Bike Plate</th>
                         <th>Items / Spare Parts</th>
+                        ${!isStaff ? '<th>Total</th>' : ''}
                     `;
 
                     (items || []).forEach(s => {
-                        const itemsSummary = (s.items || []).map(i => `${i.qty}x ${i.name}`).join(', ');
+                        const itemsSummary = (s.items || []).map(i => {
+                            // Strip quantity for staff: "2x Brake Pad" -> "Brake Pad"
+                            return isStaff ? (i.name || '').replace(/^\d+x\s*/, '') : `${i.qty}x ${i.name}`;
+                        }).join(', ');
+
                         const tr = doc.createElement('tr');
                         tr.innerHTML = `
                             <td>${new Date(s.date).toLocaleDateString()}</td>
                             <td>${s.mechanic || 'N/A'}</td>
                             <td>${s.bike || 'N/A'}</td>
                             <td>${itemsSummary || '—'}</td>
+                            ${!isStaff ? `<td>${App.formatCurrency(s.total)}</td>` : ''}
                         `;
                         tbody.appendChild(tr);
                     });
@@ -1692,7 +1802,7 @@
                     theadRow.innerHTML = `
                         <th>Bike Plate</th>
                         <th>Part Name / SKU</th>
-                        <th style="text-align:right;">Qty</th>
+                        ${!isStaff ? '<th style="text-align:right;">Qty</th>' : ''}
                     `;
 
                     (items || []).forEach(p => {
@@ -1700,7 +1810,7 @@
                         tr.innerHTML = `
                             <td style="font-family: monospace; font-weight: 600;">${p?.bikePlate || '—'}</td>
                             <td>${p?.name || '—'}</td>
-                            <td style="text-align:right; font-weight: 700;">${Number(p?.qty) || 0}</td>
+                            ${!isStaff ? `<td style="text-align:right; font-weight: 700;">${Number(p?.qty) || 0}</td>` : ''}
                         `;
                         tbody.appendChild(tr);
                     });
@@ -1859,6 +1969,24 @@
                     `;
                     tbody.appendChild(row);
                 });
+
+                this.renderSalesMobileList(sorted);
+            },
+
+            renderSalesMobileList: function (sales) {
+                const container = document.getElementById('salesMobileList');
+                if (!container) return;
+                container.innerHTML = sales.map(s => `
+                    <div class="mobile-data-card" onclick="Reports.printSingleInvoice('${s.id}')">
+                        <div class="mobile-data-info">
+                            <h4>Invoice #${s.id.toString().slice(-6)}</h4>
+                            <p>${new Date(s.date).toLocaleDateString()} • ${s.user}</p>
+                        </div>
+                        <div class="mobile-data-value" style="font-weight:700; color:#10b981;">
+                            ${App.formatCurrency(s.total)}
+                        </div>
+                    </div>
+                `).join('');
             },
 
             printSingleInvoice: function (id) {
@@ -1879,8 +2007,8 @@
             },
 
             renderInventoryStats: function (inventory) {
-                const totalCost = inventory.reduce((sum, i) => sum + (i.cost * i.stock), 0);
-                const totalRetail = inventory.reduce((sum, i) => sum + (i.price * i.stock), 0);
+                const totalCost = inventory.reduce((sum, i) => sum + (Number(i.cost || 0) * Number(i.stock || 0)), 0);
+                const totalRetail = inventory.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.stock || 0)), 0);
                 const profit = totalRetail - totalCost;
 
                 const costEl = document.getElementById('totalCostValue');

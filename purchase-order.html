@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase Order - Spare Parts Inventory System</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .po-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding-bottom: 50px;
+        }
+
+        .upload-zone {
+            border: 2px dashed #cbd5e1;
+            border-radius: 20px;
+            padding: 40px;
+            text-align: center;
+            background: #f8fafc;
+            transition: all 0.3s;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+
+        .upload-zone:hover {
+            border-color: var(--primary-color);
+            background: #f0f9ff;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #94a3b8;
+            margin-bottom: 15px;
+        }
+
+        .preview-card {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            padding: 25px;
+            margin-bottom: 30px;
+            display: none;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-warning {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .status-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* Newly Added Card */
+        #successCard {
+            display: none;
+            background: white;
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            margin: 20px auto;
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translateY(50px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .success-header {
+            background: #22c55e;
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .success-body {
+            padding: 30px;
+        }
+
+        .success-footer {
+            padding: 20px 30px;
+            background: #f8fafc;
+            text-align: center;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .manual-entry-zone {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            margin-bottom: 30px;
+        }
+
+        .search-container {
+            position: relative;
+            flex: 2;
+        }
+
+        .suggestions-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            z-index: 100;
+            max-height: 250px;
+            overflow-y: auto;
+            display: none;
+            border: 1px solid #e2e8f0;
+        }
+
+        .suggestion-item {
+            padding: 12px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .suggestion-item:hover {
+            background: #f8fafc;
+        }
+
+        .suggestion-item .item-sku {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+
+            #successCard,
+            #successCard * {
+                visibility: visible;
+            }
+
+            #successCard {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                box-shadow: none;
+                margin: 0;
+            }
+
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i>
+                        <span>Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span>Inventory</span></a>
+                </li>
+                <li><a href="purchase-order.html" class="nav-link active"><i class="fas fa-shopping-cart"></i>
+                        <span>Purchase Order</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span>Issue Part
+                            (Mapping)</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span>Oil
+                            Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span>Bike
+                            History</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span>Suppliers</span></a>
+                </li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span>Mechanics</span></a>
+                </li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span>Mechanic
+                            History</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span>Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span>Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span>Reports</span></a>
+                </li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span>Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <button class="menu-toggle" onclick="App.toggleSidebar()"><i class="fas fa-bars"></i></button>
+                <div class="page-title">Purchase Order (Restocking)</div>
+            </header>
+
+            <div class="po-container">
+                <!-- Step 1: Entry Options -->
+                <div id="uploadStep">
+                    <!-- Manual Entry Action -->
+                    <div style="margin-bottom: 30px; text-align: center;">
+                        <button class="btn btn-primary"
+                            style="padding: 15px 40px; border-radius: 18px; font-size: 1.1rem; box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);"
+                            onclick="PurchaseOrder.openManualModal()">
+                            <i class="fas fa-plus-circle"></i> Add Part Manually
+                        </button>
+                    </div>
+
+                    <!-- Mini Queue for manual items before full preview -->
+                    <div id="manualQueue" class="card"
+                        style="margin-bottom: 30px; display: none; background: #f8fafc; border: 1px dashed #cbd5e1;">
+                        <h4 style="font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 15px;">
+                            Pending Manual Items</h4>
+                        <div id="queueList"></div>
+                        <div style="text-align: right; margin-top: 15px;">
+                            <button class="btn btn-success" onclick="PurchaseOrder.confirmManualQueue()">
+                                Confirm Queue & Preview <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Manual Restock Modal -->
+                    <div class="modal-overlay" id="manualModal">
+                        <div class="modal-content-premium">
+                            <div class="modal-header-premium">
+                                <h2 style="margin: 0; font-size: 1.25rem;">Add Part to Restock</h2>
+                                <i class="fas fa-times" onclick="PurchaseOrder.closeManualModal()"
+                                    style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;"></i>
+                            </div>
+
+                            <div class="modal-body-premium">
+                                <div class="premium-input-group">
+                                    <label class="premium-label">Search Part (Name or SKU)</label>
+                                    <div class="search-container">
+                                        <input type="text" id="manualSearch" class="premium-input"
+                                            placeholder="Type to search parts..."
+                                            oninput="PurchaseOrder.handleSearch(this.value)">
+                                        <div id="searchSuggestions" class="suggestions-box"></div>
+                                    </div>
+                                </div>
+
+                                <div id="selectedPartDetails"
+                                    style="display: none; background: #f1f5f9; padding: 20px; border-radius: 16px; margin-bottom: 25px; border: 1px solid #e2e8f0;">
+                                    <div class="grid-2-col" style="margin-bottom: 0; gap: 15px;">
+                                        <div>
+                                            <label class="premium-label" style="font-size: 0.65rem;">Description</label>
+                                            <div id="displayPartName" style="font-weight: 700; color: #1e293b;">-</div>
+                                        </div>
+                                        <div>
+                                            <label class="premium-label" style="font-size: 0.65rem;">Current
+                                                Stock</label>
+                                            <div id="displayPartStock" style="font-weight: 700; color: #1e293b;">-</div>
+                                        </div>
+                                    </div>
+                                    <div style="margin-top: 10px;">
+                                        <label class="premium-label" style="font-size: 0.65rem;">SI NO / CODE</label>
+                                        <div id="displayPartSku"
+                                            style="font-family: monospace; font-weight: 600; color: #64748b;">-</div>
+                                    </div>
+                                </div>
+
+                                <div class="premium-input-group">
+                                    <label class="premium-label">Quantity to Add</label>
+                                    <input type="number" id="manualQty" class="premium-input" min="1" value="1">
+                                </div>
+                            </div>
+
+                            <div class="modal-footer-premium">
+                                <button type="button" class="btn btn-secondary"
+                                    onclick="PurchaseOrder.closeManualModal()">Cancel</button>
+                                <button type="button" class="btn btn-primary" style="padding: 10px 30px;"
+                                    onclick="PurchaseOrder.addManualItem()">
+                                    <i class="fas fa-plus"></i> Add to Batch
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px;">
+                            <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
+                            <span style="color: #94a3b8; font-size: 0.8rem; font-weight: 700;">OR UPLOAD EXCEL</span>
+                            <div style="flex: 1; height: 1px; background: #e2e8f0;"></div>
+                        </div>
+
+                        <h3>Batch Restock via Excel</h3>
+                        <p style="color: #64748b; margin-bottom: 20px;">Upload an Excel file with <b>SKU</b> and
+                            <b>Quantity</b> to automatically update your inventory levels.
+                        </p>
+
+                        <div class="upload-zone" onclick="document.getElementById('excelFile').click()">
+                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                            <h4>Click or Drag Excel File Here</h4>
+                            <p style="color: #94a3b8;">Supports .xlsx and .xls</p>
+                        </div>
+                        <input type="file" id="excelFile" accept=".xlsx, .xls" style="display: none;"
+                            onchange="PurchaseOrder.handleFile(event)">
+
+                        <div style="text-align: center;">
+                            <button class="btn btn-outline" onclick="PurchaseOrder.downloadTemplate()">
+                                <i class="fas fa-download"></i> Download Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Preview -->
+                <div id="previewStep" class="preview-card">
+                    <div class="d-flex justify-between align-center mb-20">
+                        <h3>Import Preview</h3>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-secondary" onclick="PurchaseOrder.reset()">Cancel</button>
+                            <button class="btn btn-primary" onclick="PurchaseOrder.processImport()">
+                                <i class="fas fa-check"></i> Confirm & Restock
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>SKU / CODE</th>
+                                    <th>Item Name</th>
+                                    <th style="text-align: center;">Current Stock</th>
+                                    <th style="text-align: center;">New Addition</th>
+                                    <th style="text-align: center;">Final Stock</th>
+                                    <th style="text-align: right;">Price</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewTable"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Step 3: Success & Print -->
+                <div id="successCard">
+                    <div class="success-header">
+                        <i class="fas fa-check-circle" style="font-size: 4rem; margin-bottom: 15px;"></i>
+                        <h2>Stock Updated Successfully!</h2>
+                        <p id="successDate"></p>
+                    </div>
+                    <div class="success-body">
+                        <h4
+                            style="margin-bottom: 15px; color: #64748b; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">
+                            Items Restocked</h4>
+                        <div id="succesItemList"></div>
+
+                        <div
+                            style="margin-top: 25px; padding: 15px; background: #f0fdf4; border-radius: 12px; border: 1px dashed #22c55e;">
+                            <div class="d-flex justify-between">
+                                <span>Total Items:</span>
+                                <span id="totalItemsCount" style="font-weight: 700;">0</span>
+                            </div>
+                            <div class="d-flex justify-between" style="margin-top: 5px;">
+                                <span>Batch Reference:</span>
+                                <span id="batchRef" style="font-weight: 700; font-family: monospace;">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="success-footer no-print">
+                        <button class="btn btn-success" style="width: 100%; padding: 15px; font-weight: 700;"
+                            onclick="window.print()">
+                            <i class="fas fa-print"></i> PRINT RESTOCK REPORT
+                        </button>
+                        <button class="btn"
+                            style="margin-top: 10px; color: #64748b; background: none; border: none; cursor: pointer;"
+                            onclick="PurchaseOrder.reset()">
+                            Create New Purchase Order
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        const PurchaseOrder = {
+            inventory: [],
+            pendingItems: [],
+            manualQueue: [],
+            selectedPart: null,
+
+            init: function () {
+                this.loadInventory();
+
+                // Close suggestions on outside click
+                document.addEventListener('click', (e) => {
+                    if (!e.target.closest('.search-container')) {
+                        const box = document.getElementById('searchSuggestions');
+                        if (box) box.style.display = 'none';
+                    }
+                });
+
+                // Initialize success card hiding
+                const succ = document.getElementById('successCard');
+                if (succ) succ.style.display = 'none';
+            },
+
+            openManualModal: function () {
+                document.getElementById('manualModal').classList.add('open');
+                document.getElementById('manualSearch').focus();
+            },
+
+            closeManualModal: function () {
+                document.getElementById('manualModal').classList.remove('open');
+                this.clearManualForm();
+            },
+
+            clearManualForm: function () {
+                this.selectedPart = null;
+                document.getElementById('manualSearch').value = '';
+                document.getElementById('manualQty').value = '1';
+                document.getElementById('selectedPartDetails').style.display = 'none';
+                document.getElementById('searchSuggestions').style.display = 'none';
+            },
+
+            loadInventory: function () {
+                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+            },
+
+            handleSearch: function (query) {
+                const box = document.getElementById('searchSuggestions');
+                if (!query || query.length < 2) {
+                    box.style.display = 'none';
+                    return;
+                }
+
+                const results = this.inventory.filter(p =>
+                    p.name.toLowerCase().includes(query.toLowerCase()) ||
+                    p.sku.toLowerCase().includes(query.toLowerCase())
+                ).slice(0, 10);
+
+                if (results.length === 0) {
+                    box.style.display = 'none';
+                    return;
+                }
+
+                box.innerHTML = results.map(p => `
+                    <div class="suggestion-item" onclick="PurchaseOrder.selectPart('${p.sku}')">
+                        <div>
+                            <div style="font-weight: 600;">${p.name}</div>
+                            <div class="item-sku">${p.sku}</div>
+                        </div>
+                        <div style="font-size: 0.7rem; color: #22c55e;">Stock: ${p.stock}</div>
+                    </div>
+                `).join('');
+                box.style.display = 'block';
+            },
+
+            selectPart: function (sku) {
+                const p = this.inventory.find(item => item.sku === sku);
+                if (p) {
+                    this.selectedPart = p;
+                    document.getElementById('manualSearch').value = p.name;
+                    document.getElementById('searchSuggestions').style.display = 'none';
+
+                    // Show details
+                    document.getElementById('displayPartName').textContent = p.name;
+                    document.getElementById('displayPartSku').textContent = p.sku;
+                    document.getElementById('displayPartStock').textContent = p.stock + ' ' + (p.unit || 'pc');
+                    document.getElementById('selectedPartDetails').style.display = 'block';
+                }
+            },
+
+            addManualItem: function () {
+                const qtyInput = document.getElementById('manualQty');
+                const qty = parseInt(qtyInput.value);
+
+                if (!this.selectedPart) {
+                    App.showToast('Please select a part first.', 'warning');
+                    return;
+                }
+                if (isNaN(qty) || qty <= 0) {
+                    App.showToast('Invalid quantity.', 'warning');
+                    return;
+                }
+
+                const existingIdx = this.manualQueue.findIndex(i => i.sku === this.selectedPart.sku);
+                if (existingIdx !== -1) {
+                    this.manualQueue[existingIdx].qty += qty;
+                } else {
+                    this.manualQueue.push({
+                        sku: this.selectedPart.sku,
+                        name: this.selectedPart.name,
+                        qty: qty,
+                        oldStock: this.selectedPart.stock
+                    });
+                }
+
+                this.renderQueue();
+                this.closeManualModal();
+                App.showToast(`Added ${this.selectedPart.name} to batch.`);
+            },
+
+            renderQueue: function () {
+                const container = document.getElementById('manualQueue');
+                const list = document.getElementById('queueList');
+
+                if (this.manualQueue.length === 0) {
+                    container.style.display = 'none';
+                    return;
+                }
+
+                container.style.display = 'block';
+                list.innerHTML = this.manualQueue.map((item, idx) => `
+                    <div style="display: flex; justify-content: space-between; align-items: center; background: #f8fafc; padding: 10px 15px; border-radius: 12px; margin-bottom: 8px;">
+                        <div>
+                            <span style="font-weight: 700; color: var(--primary-color);">${item.qty}x</span> 
+                            <span style="margin-left: 10px; font-weight: 600;">${item.name}</span>
+                            <small style="color: #94a3b8; margin-left:10px;">(${item.sku})</small>
+                        </div>
+                        <button class="btn btn-sm" style="color: #ef4444; background: none;" onclick="PurchaseOrder.removeFromQueue(${idx})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                `).join('');
+            },
+
+            removeFromQueue: function (idx) {
+                this.manualQueue.splice(idx, 1);
+                this.renderQueue();
+            },
+
+            confirmManualQueue: function () {
+                const dataForPreview = this.manualQueue.map(item => ({
+                    SKU: item.sku,
+                    Quantity: item.qty
+                }));
+                this.preparePreview(dataForPreview);
+                this.manualQueue = [];
+                this.renderQueue();
+            },
+
+            handleFile: function (e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+                    this.preparePreview(json);
+                };
+                reader.readAsArrayBuffer(file);
+            },
+
+            preparePreview: function (data) {
+                this.pendingItems = [];
+                const tbody = document.getElementById('previewTable');
+                tbody.innerHTML = '';
+
+                data.forEach(row => {
+                    // Normalize keys
+                    const sku = (row.SKU || row.sku || row.CODE || row.Code || '').toString().trim();
+                    const qty = parseInt(row.Quantity || row.quantity || row.QTY || row.Qty || 0);
+
+                    if (!sku || isNaN(qty) || qty <= 0) return;
+
+                    const existing = this.inventory.find(p => p.sku === sku);
+                    const status = existing ? 'success' : 'danger';
+                    const statusText = existing ? 'Found' : 'Not Found';
+
+                    this.pendingItems.push({
+                        sku,
+                        qty,
+                        name: existing ? existing.name : 'Unknown Item',
+                        price: existing ? (existing.price || 0) : 0,
+                        oldStock: existing ? existing.stock : 0,
+                        isValid: !!existing
+                    });
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight: 700;">${sku}</td>
+                        <td>${existing ? existing.name : '<span style="color: #ef4444;">SKU not in inventory</span>'}</td>
+                        <td style="text-align: center;">${existing ? existing.stock : '-'}</td>
+                        <td style="text-align: center; color: #22c55e; font-weight: 800;">+${qty}</td>
+                        <td style="text-align: center; font-weight: 800;">${existing ? (existing.stock + qty) : '-'}</td>
+                        <td style="text-align: right;">${existing ? App.formatCurrency(existing.price) : '-'}</td>
+                        <td><span class="status-badge status-${status}">${statusText}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                if (this.pendingItems.length > 0) {
+                    document.getElementById('uploadStep').style.display = 'none';
+                    document.getElementById('previewStep').style.display = 'block';
+                } else {
+                    App.showToast('No valid items found in file.', 'error');
+                }
+            },
+
+            processImport: function () {
+                const validItems = this.pendingItems.filter(i => i.isValid);
+                if (validItems.length === 0) {
+                    App.showToast('No valid items to process.', 'error');
+                    return;
+                }
+
+                // Update Local Storage
+                validItems.forEach(item => {
+                    const idx = this.inventory.findIndex(p => p.sku === item.sku);
+                    if (idx !== -1) {
+                        this.inventory[idx].stock += item.qty;
+                    }
+                });
+
+                localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+                this.showSuccess(validItems);
+            },
+
+            showSuccess: function (items) {
+                document.getElementById('previewStep').style.display = 'none';
+                document.getElementById('successCard').style.display = 'block';
+
+                const now = new Date();
+                document.getElementById('successDate').textContent = now.toLocaleString();
+                document.getElementById('totalItemsCount').textContent = items.length;
+                document.getElementById('batchRef').textContent = 'PO-' + now.getTime().toString().slice(-6);
+
+                const list = document.getElementById('succesItemList');
+                list.innerHTML = items.map(i => `
+                    <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px dotted #e2e8f0;">
+                        <div>
+                            <div style="font-weight: 600; font-size: 0.9rem;">${i.name}</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8;">SKU: ${i.sku} | Price: ${App.formatCurrency(i.price)}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 800; color: #22c55e;">+${i.qty}</div>
+                            <div style="font-size: 0.7rem; color: #64748b;">New Total: ${i.oldStock + i.qty}</div>
+                        </div>
+                    </div>
+                `).join('');
+
+                App.showToast('Inventory updated successfully!');
+            },
+
+            reset: function () {
+                document.getElementById('uploadStep').style.display = 'block';
+                document.getElementById('previewStep').style.display = 'none';
+                document.getElementById('successCard').style.display = 'none';
+                document.getElementById('excelFile').value = '';
+                this.loadInventory();
+            },
+
+            downloadTemplate: function () {
+                const data = [
+                    { "SKU": "BRK-001", "Quantity": 10 },
+                    { "SKU": "FIL-002", "Quantity": 25 }
+                ];
+                const ws = XLSX.utils.json_to_sheet(data);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, "RestockTemplate");
+                XLSX.writeFile(wb, "Restock_Template.xlsx");
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            await App.init();
+            PurchaseOrder.init();
+        });
+    </script>
+</body>
+
+</html>

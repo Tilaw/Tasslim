@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oil Change - Tasslim Parts Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-green {
+            background-color: #27ae60;
+        }
+
+        .status-red {
+            background-color: #e74c3c;
+        }
+
+        .mileage-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .mileage-good {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .mileage-bad {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .bike-item:hover {
+            background-color: #f8fafc;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="oil-change.html" class="nav-link active"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title">Oil Change Management</div>
+                </div>
+                <div class="user-profile">
+                    <div class="user-avatar" id="userInitials">U</div>
+                    <span id="userName">User</span>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3>Record New Oil Change</h3>
+                </div>
+                <form id="oilChangeForm">
+                    <div class="row" style="margin-bottom: 15px;">
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Bike Selection</label>
+                            <button type="button" class="btn"
+                                style="background: #34495e; color: white; width: 100%; height: 40px;"
+                                onclick="OilManager.openBikeSelector()">
+                                <i class="fas fa-search"></i> <span id="bikeBtnText">Select Bike(s)</span>
+                            </button>
+                            <div id="selectedBikesDisplay"
+                                style="margin-top: 8px; font-size: 0.85rem; color: #6366f1; font-weight: 600;">
+                                No bikes selected
+                            </div>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Rider Name</label>
+                            <input type="text" id="riderName" class="form-control" placeholder="e.g. John Doe"
+                                list="riderSuggestions">
+                            <datalist id="riderSuggestions"></datalist>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Rider Number</label>
+                            <input type="text" id="riderPhone" class="form-control" placeholder="e.g. 0244000000">
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Mechanic</label>
+                            <select id="mechanicId" class="form-control" required>
+                                <option value="">Select Mechanic...</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Date</label>
+                            <input type="date" id="changeDate" class="form-control" required>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Oil Used</label>
+                            <input type="text" id="oilType" class="form-control" placeholder="e.g. 10W-40" required>
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label class="form-label">Current Mileage (km)</label>
+                            <input type="number" id="mileage" class="form-control" placeholder="Mileage" required
+                                oninput="OilManager.calculateDiff()">
+                        </div>
+                        <div class="form-group col-md-3" style="display: flex; align-items: flex-end;">
+                            <button type="submit" class="btn btn-primary" style="width: 100%; height: 40px;">
+                                <i class="fas fa-save"></i> Save Oil Change
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div id="mileageStatus" style="margin-top: 10px; font-weight: 600; display: none;">
+                    <!-- Calculation status injected here -->
+                </div>
+            </div>
+
+            <div class="card" style="margin-top: 20px;">
+                <div class="card-header"
+                    style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                    <h3 style="margin: 0;">Recent Oil Changes</h3>
+                    <div style="display: flex; gap: 10px; flex: 1; min-width: 300px; justify-content: flex-end;">
+                        <div class="search-container" style="max-width: 300px; flex: 1;">
+                            <input type="text" id="recordSearch" class="form-control"
+                                placeholder="Search plate, rider, mechanic..." oninput="OilManager.filterRecords()">
+                        </div>
+                        <button class="btn btn-success" onclick="OilManager.openHistoryReport()">
+                            <i class="fas fa-print"></i> Bike History Report
+                        </button>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Bike</th>
+                                <th>Rider</th>
+                                <th>Mechanic</th>
+                                <th>Oil Type</th>
+                                <th>Mileage</th>
+                                <th>Diff</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="oilChangeTable">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Bike Selector Modal -->
+    <div class="modal-overlay" id="bikeSelectorModal">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close-modal" onclick="OilManager.closeBikeSelector()">&times;</span>
+            <h3 style="margin-bottom: 20px;"><i class="fas fa-motorcycle"></i> Select Bike(s)</h3>
+
+            <div class="form-group">
+                <input type="text" id="bikeSearchInput" class="form-control" placeholder="Search plate or model..."
+                    onkeyup="OilManager.filterBikes()">
+            </div>
+
+            <div id="bikeListContainer"
+                style="max-height: 400px; overflow-y: auto; margin-top: 15px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                <!-- List items populated by JS -->
+            </div>
+
+            <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 0.9rem; color: #64748b;">
+                    <span id="selectedCount">0</span> bikes selected
+                </div>
+                <button class="btn btn-primary" onclick="OilManager.confirmBikeSelection()">
+                    Confirm Selection
+                </button>
+            </div>
+        </div>
+        <!-- History Report Modal -->
+        <div class="modal-overlay" id="historyReportModal">
+            <div class="modal-content-premium" style="max-width: 700px;">
+                <div class="modal-header-premium">
+                    <h2 style="margin: 0; font-size: 1.25rem;"><i class="fas fa-history"></i> Bike Oil Change History
+                    </h2>
+                    <i class="fas fa-times" onclick="OilManager.closeHistoryReport()"
+                        style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;"></i>
+                </div>
+
+                <div class="modal-body-premium">
+                    <div class="row" style="margin-bottom: 20px;">
+                        <div class="form-group col-md-6">
+                            <label class="premium-label">Select Bike</label>
+                            <select id="reportBikeId" class="premium-input" onchange="OilManager.generateReport()">
+                                <option value="">Select a bike...</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label class="premium-label">Period</label>
+                            <select id="reportPeriod" class="premium-input" onchange="OilManager.generateReport()">
+                                <option value="month">This Month</option>
+                                <option value="year">This Year</option>
+                                <option value="all">All Time</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="reportContent"
+                        style="background: #f8fafc; padding: 25px; border-radius: 20px; border: 1px solid #e2e8f0; min-height: 200px;">
+                        <div style="text-align: center; color: #94a3b8; padding: 40px;">
+                            <i class="fas fa-chart-bar"
+                                style="font-size: 3rem; margin-bottom: 15px; display: block; opacity: 0.3;"></i>
+                            Select a bike to view its oil change frequency
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer-premium no-print">
+                    <button type="button" class="btn btn-secondary"
+                        onclick="OilManager.closeHistoryReport()">Close</button>
+                    <button type="button" class="btn btn-primary" onclick="OilManager.printHistory()">
+                        <i class="fas fa-print"></i> Print Report
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script src="js/app.js"></script>
+        <script>
+            const OilManager = {
+                bikes: [],
+                mechanics: [],
+                changes: [],
+                selectedBikeIds: [],
+                lastBikeRecord: null,
+                allFilteredChanges: [],
+
+                init: function () {
+                    this.loadData();
+                    this.renderMechanics();
+                    this.renderTable();
+
+                    // Set default date to today
+                    document.getElementById('changeDate').value = new Date().toISOString().split('T')[0];
+
+                    document.getElementById('oilChangeForm').addEventListener('submit', (e) => {
+                        e.preventDefault();
+                        this.saveRecord();
+                    });
+                },
+
+                loadData: function () {
+                    this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                    this.changes = JSON.parse(localStorage.getItem(App.KEYS.OIL_CHANGES)) || [];
+                    this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                    this.populateRiderSuggestions();
+                },
+
+                populateRiderSuggestions: function () {
+                    const dl = document.getElementById('riderSuggestions');
+                    if (!dl) return;
+
+                    const riders = new Set();
+                    this.changes.forEach(r => {
+                        if (r.riderName) riders.add(r.riderName);
+                    });
+                    this.bikes.forEach(b => {
+                        if (b.owner) riders.add(b.owner);
+                    });
+
+                    dl.innerHTML = Array.from(riders).map(r => `<option value="${r}">`).join('');
+                },
+
+                renderMechanics: function () {
+                    const select = document.getElementById('mechanicId');
+                    select.innerHTML = '<option value="">Select Mechanic...</option>';
+                    this.mechanics.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.id;
+                        opt.textContent = m.name;
+                        select.appendChild(opt);
+                    });
+
+                    // Also populate report bike selector
+                    const reportSelect = document.getElementById('reportBikeId');
+                    if (reportSelect) {
+                        reportSelect.innerHTML = '<option value="">Select a bike...</option>';
+                        this.bikes.forEach(b => {
+                            const opt = document.createElement('option');
+                            opt.value = b.id;
+                            opt.textContent = `${b.plate} (${b.owner || 'No Owner'})`;
+                            reportSelect.appendChild(opt);
+                        });
+                    }
+                },
+
+                openBikeSelector: function () {
+                    document.getElementById('bikeSelectorModal').classList.add('open');
+                    this.renderBikeList();
+                    document.getElementById('bikeSearchInput').focus();
+                },
+
+                closeBikeSelector: function () {
+                    document.getElementById('bikeSelectorModal').classList.remove('open');
+                },
+
+                renderBikeList: function () {
+                    const container = document.getElementById('bikeListContainer');
+                    container.innerHTML = '';
+
+                    if (this.bikes.length === 0) {
+                        container.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">No bikes found in system.</div>';
+                        return;
+                    }
+
+                    this.bikes.forEach(bike => {
+                        const isChecked = this.selectedBikeIds.includes(bike.id.toString());
+                        const div = document.createElement('div');
+                        div.className = 'bike-item';
+                        div.style.padding = '12px 15px';
+                        div.style.borderBottom = '1px solid #f1f5f9';
+                        div.style.display = 'flex';
+                        div.style.alignItems = 'center';
+                        div.style.cursor = 'pointer';
+                        div.onclick = (e) => {
+                            if (e.target.type !== 'checkbox') {
+                                const cb = div.querySelector('input');
+                                cb.checked = !cb.checked;
+                                this.updateCount();
+                            } else {
+                                this.updateCount();
+                            }
+                        };
+
+                        div.innerHTML = `
+                        <input type="checkbox" value="${bike.id}" class="bike-cb" ${isChecked ? 'checked' : ''} style="width: 18px; height: 18px; margin-right: 15px; cursor: pointer;">
+                        <div style="flex: 1;">
+                            <div style="font-weight: 700; color: #1e293b;">${bike.plate}</div>
+                            <div style="font-size: 0.8rem; color: #64748b;">${bike.model || 'Unknown Model'} | ${bike.owner || 'No Owner'}</div>
+                        </div>
+                    `;
+                        container.appendChild(div);
+                    });
+                    this.updateCount();
+                },
+
+                filterBikes: function () {
+                    const q = document.getElementById('bikeSearchInput').value.toLowerCase();
+                    const items = document.querySelectorAll('.bike-item');
+                    items.forEach(item => {
+                        const text = item.textContent.toLowerCase();
+                        item.style.display = text.includes(q) ? 'flex' : 'none';
+                    });
+                },
+
+                updateCount: function () {
+                    const cbs = document.querySelectorAll('.bike-cb:checked');
+                    document.getElementById('selectedCount').textContent = cbs.length;
+                },
+
+                confirmBikeSelection: function () {
+                    const cbs = document.querySelectorAll('.bike-cb:checked');
+                    this.selectedBikeIds = Array.from(cbs).map(cb => cb.value);
+
+                    const display = document.getElementById('selectedBikesDisplay');
+                    if (this.selectedBikeIds.length === 0) {
+                        display.textContent = 'No bikes selected';
+                        document.getElementById('bikeBtnText').textContent = 'Select Bike(s)';
+                    } else if (this.selectedBikeIds.length === 1) {
+                        const bike = this.bikes.find(b => b.id.toString() === this.selectedBikeIds[0]);
+                        display.textContent = `Selected: ${bike.plate}`;
+                        document.getElementById('bikeBtnText').textContent = 'Change Bike';
+
+                        // Suggest/Auto-fill Rider Details
+                        const bikeChanges = this.changes.filter(c => c.bikeId.toString() === bike.id.toString())
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                        const riderInput = document.getElementById('riderName');
+                        const phoneInput = document.getElementById('riderPhone');
+
+                        if (bikeChanges.length > 0) {
+                            // Prefer most recent rider from history
+                            if (!riderInput.value) riderInput.value = bikeChanges[0].riderName || '';
+                            if (!phoneInput.value) phoneInput.value = bikeChanges[0].riderPhone || '';
+                        } else if (bike.owner) {
+                            // Fallback to bike owner
+                            if (!riderInput.value) riderInput.value = bike.owner;
+                        }
+                    } else {
+                        display.textContent = `${this.selectedBikeIds.length} bikes selected`;
+                        document.getElementById('bikeBtnText').textContent = 'Change Selection';
+                    }
+
+                    this.closeBikeSelector();
+                    this.checkLastMileage();
+                },
+
+                checkLastMileage: function () {
+                    const statusDiv = document.getElementById('mileageStatus');
+
+                    if (this.selectedBikeIds.length === 0) {
+                        statusDiv.style.display = 'none';
+                        return;
+                    }
+
+                    if (this.selectedBikeIds.length > 1) {
+                        statusDiv.innerHTML = "Multi-bike mode: Recording oil change for all selected bikes.";
+                        statusDiv.style.display = 'block';
+                        this.lastBikeRecord = null;
+                        return;
+                    }
+
+                    // Single bike logic
+                    const bikeId = this.selectedBikeIds[0];
+                    const bikeChanges = this.changes
+                        .filter(c => c.bikeId.toString() === bikeId.toString())
+                        .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    if (bikeChanges.length > 0) {
+                        this.lastBikeRecord = bikeChanges[0];
+                        statusDiv.innerHTML = `Last Mileage: ${this.lastBikeRecord.mileage} km (on ${new Date(this.lastBikeRecord.date).toLocaleDateString()})`;
+                    } else {
+                        this.lastBikeRecord = null;
+                        statusDiv.innerHTML = "First oil change record for this bike.";
+                    }
+                    statusDiv.style.display = 'block';
+                    this.calculateDiff();
+                },
+
+                filterRecords: function () {
+                    const q = document.getElementById('recordSearch').value.toLowerCase();
+                    const tbody = document.getElementById('oilChangeTable');
+                    const filtered = this.changes.filter(r =>
+                        r.bikePlate.toLowerCase().includes(q) ||
+                        (r.riderName || '').toLowerCase().includes(q) ||
+                        (r.riderPhone || '').toLowerCase().includes(q) ||
+                        (r.mechanicName || '').toLowerCase().includes(q)
+                    );
+                    this.renderTable(filtered);
+                },
+
+                calculateDiff: function () {
+                    const current = parseInt(document.getElementById('mileage').value);
+                    const statusDiv = document.getElementById('mileageStatus');
+
+                    if (!current || !this.lastBikeRecord) return;
+
+                    const diff = current - this.lastBikeRecord.mileage;
+                    const isOver = diff >= 1000;
+
+                    let html = `Last Mileage: ${this.lastBikeRecord.mileage} km | `;
+                    html += `<span style="color: ${isOver ? '#e74c3c' : '#27ae60'}">Travelled: ${diff} km `;
+                    html += isOver ? '(OVERDUE)' : '(OK)';
+                    html += '</span>';
+
+                    statusDiv.innerHTML = html;
+                },
+
+                saveRecord: async function () {
+                    if (this.selectedBikeIds.length === 0) {
+                        App.showToast('Please select at least one bike', 'warning');
+                        return;
+                    }
+
+                    const mechanicId = document.getElementById('mechanicId').value;
+                    const date = document.getElementById('changeDate').value;
+                    const oilType = document.getElementById('oilType').value;
+                    const mileage = parseInt(document.getElementById('mileage').value);
+
+                    if (!mechanicId || !date || !oilType || isNaN(mileage)) {
+                        App.showToast('Please fill in all fields', 'warning');
+                        return;
+                    }
+
+                    const mechanic = this.mechanics.find(m => m.id.toString() === mechanicId.toString());
+
+                    for (const bikeId of this.selectedBikeIds) {
+                        const bike = this.bikes.find(b => b.id.toString() === bikeId.toString());
+
+                        let lastRec = null;
+                        const bikeChanges = this.changes
+                            .filter(c => c.bikeId.toString() === bikeId.toString())
+                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+                        if (bikeChanges.length > 0) lastRec = bikeChanges[0];
+
+                        const diff = lastRec ? (mileage - lastRec.mileage) : 0;
+
+                        const newRecord = {
+                            id: Date.now() + Math.random(),
+                            bikeId: bikeId,
+                            bikePlate: bike ? bike.plate : 'Unknown',
+                            riderName: document.getElementById('riderName').value,
+                            riderPhone: document.getElementById('riderPhone').value,
+                            mechanicId: mechanicId,
+                            mechanicName: mechanic ? mechanic.name : 'Unknown',
+                            oilType: oilType,
+                            mileage: mileage,
+                            diff: diff,
+                            date: new Date(date).toISOString(),
+                            status: (diff >= 1000 && lastRec) ? 'overdue' : 'good'
+                        };
+
+                        this.changes.push(newRecord);
+                    }
+
+                    localStorage.setItem(App.KEYS.OIL_CHANGES, JSON.stringify(this.changes));
+
+                    App.showToast(`Saved oil change for ${this.selectedBikeIds.length} bike(s)`);
+                    document.getElementById('oilChangeForm').reset();
+                    document.getElementById('changeDate').value = new Date().toISOString().split('T')[0];
+                    this.selectedBikeIds = [];
+                    this.lastBikeRecord = null;
+                    document.getElementById('selectedBikesDisplay').textContent = 'No bikes selected';
+                    document.getElementById('bikeBtnText').textContent = 'Select Bike(s)';
+                    document.getElementById('mileageStatus').style.display = 'none';
+
+                    this.populateRiderSuggestions();
+                    this.renderTable();
+                },
+
+                renderTable: function (data = null) {
+                    const tbody = document.getElementById('oilChangeTable');
+                    tbody.innerHTML = '';
+
+                    const source = data || this.changes;
+                    const sorted = [...source].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50);
+
+                    if (sorted.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">No records found</td></tr>';
+                        return;
+                    }
+
+                    sorted.forEach(record => {
+                        const row = document.createElement('tr');
+                        const isOver = record.diff >= 1000 && record.diff > 0;
+
+                        row.innerHTML = `
+                        <td>${new Date(record.date).toLocaleDateString()}</td>
+                        <td><strong>${record.bikePlate}</strong></td>
+                        <td>
+                            <div style="font-weight: 600;">${record.riderName || '-'}</div>
+                            <div style="font-size: 0.75rem; color: #94a3b8;">${record.riderPhone || ''}</div>
+                        </td>
+                        <td>${record.mechanicName || 'N/A'}</td>
+                        <td>${record.oilType}</td>
+                        <td>${record.mileage} km</td>
+                        <td>${record.diff > 0 ? record.diff + ' km' : 'Initial'}</td>
+                        <td>
+                            <span class="mileage-badge ${isOver ? 'mileage-bad' : 'mileage-good'}">
+                                <span class="status-indicator ${isOver ? 'status-red' : 'status-green'}"></span>
+                                ${isOver ? 'Overdue' : 'Good'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-delete" style="padding: 2px 8px;" onclick="OilManager.deleteRecord('${record.id}')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                        tbody.appendChild(row);
+                    });
+                },
+
+                // History Report Methods
+                openHistoryReport: function () {
+                    document.getElementById('historyReportModal').classList.add('open');
+                    this.renderMechanics(); // Refresh bike list
+                },
+
+                closeHistoryReport: function () {
+                    document.getElementById('historyReportModal').classList.remove('open');
+                },
+
+                generateReport: function () {
+                    const bikeId = document.getElementById('reportBikeId').value;
+                    const period = document.getElementById('reportPeriod').value;
+                    const container = document.getElementById('reportContent');
+
+                    if (!bikeId) {
+                        container.innerHTML = '<div style="text-align: center; color: #94a3b8; padding: 40px;">Select a bike to view its oil change frequency</div>';
+                        return;
+                    }
+
+                    const bike = this.bikes.find(b => b.id.toString() === bikeId.toString());
+                    const records = this.changes.filter(r => r.bikeId.toString() === bikeId.toString());
+
+                    const now = new Date();
+                    let filtered = records;
+
+                    if (period === 'month') {
+                        filtered = records.filter(r => {
+                            const d = new Date(r.date);
+                            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+                        });
+                    } else if (period === 'year') {
+                        filtered = records.filter(r => {
+                            const d = new Date(r.date);
+                            return d.getFullYear() === now.getFullYear();
+                        });
+                    }
+
+                    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                    let html = `
+                        <div style="text-align: center; margin-bottom: 25px;">
+                            <h2 style="margin-bottom: 5px; color: #1e293b;">${bike.plate}</h2>
+                            <p style="color: #64748b; margin: 0;">${bike.model || 'Unknown Model'} | Owner: ${bike.owner || 'N/A'}</p>
+                            <div style="margin-top: 15px; display: inline-block; padding: 8px 20px; background: #22c55e; color: white; border-radius: 50px; font-weight: 700;">
+                                Total Oil Changes (${period}): ${filtered.length}
+                            </div>
+                        </div>
+
+                        <div style="max-height: 300px; overflow-y: auto;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead style="background: white; position: sticky; top: 0;">
+                                    <tr>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0;">Date</th>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0;">Mileage</th>
+                                        <th style="text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0;">Rider</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${filtered.map(r => `
+                                        <tr>
+                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${new Date(r.date).toLocaleDateString()}</td>
+                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${r.mileage} km</td>
+                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${r.riderName || '-'}</td>
+                                        </tr>
+                                    `).join('') || '<tr><td colspan="3" style="text-align: center; padding: 20px;">No records for this period.</td></tr>'}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    container.innerHTML = html;
+                },
+
+                printHistory: function () {
+                    const bikeId = document.getElementById('reportBikeId').value;
+                    if (!bikeId) {
+                        App.showToast('Please select a bike first', 'warning');
+                        return;
+                    }
+                    window.print();
+                },
+
+                deleteRecord: function (id) {
+                    if (!confirm('Are you sure you want to delete this?')) return;
+                    this.changes = this.changes.filter(c => c.id.toString() !== id.toString());
+                    localStorage.setItem(App.KEYS.OIL_CHANGES, JSON.stringify(this.changes));
+                    this.renderTable();
+                    App.showToast('Record deleted');
+                }
+            };
+
+            document.addEventListener('DOMContentLoaded', () => {
+                App.init().then(() => OilManager.init());
+
+                const user = App.getCurrentUser();
+                if (user) {
+                    document.getElementById('userName').textContent = user.name || 'User';
+                    document.getElementById('userInitials').textContent = (user.name || 'U').charAt(0).toUpperCase();
+                }
+            });
+        </script>
+</body>
+
+</html>

@@ -23,8 +23,14 @@
                             data-i18n="dashboard">Dashboard</span></a></li>
                 <li><a href="inventory.html" class="nav-link active"><i class="fas fa-boxes"></i> <span
                             data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
                             data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
@@ -33,6 +39,8 @@
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
                             data-i18n="bikes">Bikes</span></a></li>
                 <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
@@ -51,15 +59,13 @@
 
         <!-- Main Content -->
         <main class="main-content">
-            <header class="top-bar" style="display: flex; justify-content: space-between; align-items: center;">
-                <div style="display: flex; align-items: center;">
-                    <button class="menu-toggle" onclick="App.toggleSidebar()" style="margin-right: 15px;">
-                        <i class="fas fa-bars"></i>
-                    </button>
-                    <div class="page-title" data-i18n="inventory">Inventory Management</div>
-                </div>
+            <header class="top-bar">
+                <button class="menu-toggle" onclick="App.toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="page-title" data-i18n="inventory">Inventory Management</div>
 
-                <div style="display: flex; gap: 15px; align-items: center;">
+                <div class="header-actions hide-on-mobile" style="display: flex; gap: 15px; align-items: center;">
                     <div>
                         <input type="text" id="searchQuery" class="form-control" style="width: 250px; height: 40px;"
                             placeholder="Search..." onkeyup="Inventory.filterData()" data-i18n="search">
@@ -121,7 +127,7 @@
                     </div>
                 </div>
 
-                <div class="table-container">
+                <div class="table-container desktop-only-table">
                     <table>
                         <thead>
                             <tr>
@@ -144,6 +150,11 @@
                     </table>
                 </div>
 
+                <!-- Mobile Card List -->
+                <div id="inventoryMobileList" class="mobile-data-list">
+                    <!-- Populated by JS -->
+                </div>
+
                 <!-- Pagination Controls -->
                 <div id="paginationControls"
                     style="margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 10px 0;">
@@ -153,98 +164,104 @@
         </main>
     </div>
 
-    <!-- Add/Edit Part Modal -->
+    <!-- Premium Add/Edit Part Modal -->
     <div class="modal-overlay" id="partModal">
-        <div class="modal-content">
-            <span class="close-modal" onclick="Inventory.closeModal()">&times;</span>
-            <h2 id="modalTitle">Add New Part</h2>
+        <div class="modal-content-premium">
+            <div class="modal-header-premium">
+                <h2 id="modalTitle" style="margin: 0; font-size: 1.25rem;">Add New Part</h2>
+                <i class="fas fa-times" onclick="Inventory.closeModal()"
+                    style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;"></i>
+            </div>
 
-            <form id="partForm" style="margin-top: 20px;">
-                <input type="hidden" id="partId">
+            <form id="partForm">
+                <div class="modal-body-premium">
+                    <input type="hidden" id="partId">
 
-                <div class="row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">si no</label>
-                        <input type="text" id="partSku" class="form-control" placeholder="e.g. BRK-001" required>
-                    </div>
-                    <div class="form-group" style="flex: 2;">
-                        <label class="form-label">Description (Name)</label>
-                        <input type="text" id="partName" class="form-control" placeholder="e.g. Brake Pad Set" required>
+                    <div class="form-grid">
+                        <!-- Left Column -->
+                        <div class="form-column">
+                            <div class="premium-input-group">
+                                <label class="premium-label">SI NO / CODE</label>
+                                <input type="text" id="partSku" class="premium-input" placeholder="e.g. BRK-001"
+                                    required>
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">Description (Name)</label>
+                                <input type="text" id="partName" class="premium-input" placeholder="e.g. Brake Pad Set"
+                                    required>
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">Category</label>
+                                <select id="partCategory" class="premium-input" required>
+                                    <option value="Electricals & Lighting">Electricals & Lighting</option>
+                                    <option value="Body & Controls">Body & Controls</option>
+                                    <option value="Engine Components">Engine Components</option>
+                                    <option value="Fuel & Air system">Fuel & Air System</option>
+                                    <option value="Electricals & Sensors">Electricals & Sensors</option>
+                                    <option value="Suspension">Suspension</option>
+                                    <option value="Body & Chassis">Body & Chassis</option>
+                                    <option value="Transmission/Clutch">Transmission/Clutch</option>
+                                    <option value="Service & Maintenance">Service & Maintenance</option>
+                                    <option value="Drivetrain">Drivetrain</option>
+                                    <option value="Accessories/Protection">Accessories/Protection</option>
+                                </select>
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">Supplier</label>
+                                <select id="partSupplier" class="premium-input" required></select>
+                            </div>
+
+                            <div style="display: flex; gap: 15px;">
+                                <div class="premium-input-group" style="flex: 1;">
+                                    <label class="premium-label">Unit</label>
+                                    <input type="text" id="partUnit" class="premium-input" value="pc" required>
+                                </div>
+                                <div class="premium-input-group" style="flex: 1;">
+                                    <label class="premium-label">Min Stock</label>
+                                    <input type="number" id="partMinStock" class="premium-input" value="5" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column (Financials & Stock) -->
+                        <div class="form-column">
+                            <div class="premium-input-group">
+                                <label class="premium-label">Quantity (Initial Stock)</label>
+                                <input type="number" id="partStock" class="premium-input" min="0" value="0" required>
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">Unit Price (Excl. VAT)</label>
+                                <input type="number" id="partCost" class="premium-input" step="0.01" min="0" required>
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">VAT %</label>
+                                <input type="number" id="partVat" class="premium-input" step="0.1" min="0" value="0">
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">VAT Amount</label>
+                                <input type="number" id="partVatAmount" class="premium-input" readonly
+                                    style="background: #f1f5f9;">
+                            </div>
+
+                            <div class="premium-input-group">
+                                <label class="premium-label">Total Incl. VAT</label>
+                                <input type="number" id="partPrice" class="premium-input" step="0.01" min="0" required>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Category</label>
-                        <select id="partCategory" class="form-control" required>
-                            <option value="Electricals & Lighting">Electricals & Lighting</option>
-                            <option value="Body & Controls">Body & Controls</option>
-                            <option value="Engine Components">Engine Components</option>
-                            <option value="Fuel & Air system">Fuel & Air System</option>
-                            <option value="Electricals & Sensors">Electricals & Sensors</option>
-                            <option value="Suspension">Suspension</option>
-                            <option value="Body & Chassis">Body & Chassis</option>
-                            <option value="Transmission/Clutch">Transmission/Clutch</option>
-                            <option value="Service & Maintenance">Service & Maintenance</option>
-                            <option value="Drivetrain">Drivetrain</option>
-                            <option value="Accessories/Protection">Accessories/Protection</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Supplier</label>
-                        <select id="partSupplier" class="form-control" required>
-                            <!-- Populated dynamically -->
-                        </select>
-                    </div>
-                </div>
-
-                <div class="row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Quantity (Stock)</label>
-                        <input type="number" id="partStock" class="form-control" min="0" value="0" required>
-                    </div>
-
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Min Stock Alert</label>
-                        <input type="number" id="partMinStock" class="form-control" min="0" value="5" required>
-                    </div>
-
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Unit</label>
-                        <input type="text" id="partUnit" class="form-control" placeholder="e.g. pc, set" value="pc"
-                            required>
-                    </div>
-                </div>
-
-                <div class="row" style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">unit price</label>
-                        <input type="number" id="partCost" class="form-control" step="0.01" min="0" required>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">total incl</label>
-                        <input type="number" id="partPrice" class="form-control" step="0.01" min="0" required>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">VAT %</label>
-                        <input type="number" id="partVat" class="form-control" step="0.1" min="0" value="0">
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">VAT AMOUNT</label>
-                        <input type="number" id="partVatAmount" class="form-control" step="0.1" min="0" value="0"
-                            readonly>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label class="form-label">Total Incl. VAT</label>
-                        <input type="number" id="partTotalIncl" class="form-control" step="0.1" min="0" value="0"
-                            readonly>
-                    </div>
-                </div>
-
-                <div style="text-align: right; margin-top: 20px;">
-                    <button type="button" class="btn" style="background: #e74c3c; color: white; margin-right: 10px;"
-                        onclick="Inventory.closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Save Part</button>
+                <div class="modal-footer-premium">
+                    <button type="button" class="btn btn-secondary" onclick="Inventory.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
+                        <i class="fas fa-save" style="margin-right: 8px;"></i> Save Part
+                    </button>
                 </div>
             </form>
         </div>
@@ -272,6 +289,22 @@
                 document.getElementById('partForm').addEventListener('submit', (e) => {
                     e.preventDefault();
                     this.savePart();
+                });
+
+                // Real-time calculations
+                const calcTotal = () => {
+                    const cost = parseFloat(document.getElementById('partCost').value) || 0;
+                    const vatPercent = parseFloat(document.getElementById('partVat').value) || 0;
+                    const vatAmount = cost * (vatPercent / 100);
+                    const total = cost + vatAmount;
+
+                    document.getElementById('partVatAmount').value = vatAmount.toFixed(2);
+                    document.getElementById('partPrice').value = total.toFixed(2);
+                };
+
+                ['partCost', 'partVat'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.addEventListener('input', calcTotal);
                 });
 
                 // Real-time validation
@@ -371,6 +404,47 @@
                 });
 
                 this.renderPagination(items.length);
+                this.renderMobileCards(pagedItems);
+            },
+
+            renderMobileCards: function (items) {
+                const container = document.getElementById('inventoryMobileList');
+                if (!container) return;
+                container.innerHTML = '';
+
+                if (items.length === 0) {
+                    container.innerHTML = '<div class="text-center" style="padding: 20px; color: var(--text-muted);">No parts found</div>';
+                    return;
+                }
+
+                items.forEach(item => {
+                    const qty = item.stock || 0;
+                    const card = document.createElement('div');
+                    card.className = 'mobile-data-card';
+                    card.onclick = () => this.edit(item.id);
+
+                    card.innerHTML = `
+                        <div class="mobile-data-info">
+                            <h4>${item.name}</h4>
+                            <p>${item.sku} • ${item.category}</p>
+                            <div style="margin-top: 8px; display: flex; gap: 8px;">
+                                <span class="badge ${qty <= (item.minStock || 0) ? 'badge-danger' : 'badge-success'}">
+                                    ${qty} ${item.unit || 'pc'}
+                                </span>
+                                <span style="font-size: 11px; color: var(--accent-color); font-weight: 600;">
+                                    ${App.formatCurrency(item.price || 0)}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="mobile-data-value">
+                            <button class="btn btn-sm" style="background: #f39c12; color: white;" 
+                                onclick="event.stopPropagation(); window.location.href='issue-part.html?sku=${item.sku}'">
+                                <i class="fas fa-hand-holding"></i>
+                            </button>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
             },
 
             renderPagination: function (totalItems) {
@@ -440,7 +514,6 @@
                                 return c.includes('sku') || c.includes('name') || c.includes('item') || c.includes('code');
                             })) {
                                 headerRowIndex = i;
-                                break;
                             }
                         }
 
@@ -565,6 +638,7 @@
                     // Set defaults
                     document.getElementById('partUnit').value = 'pc';
                     document.getElementById('partVat').value = '0';
+                    document.getElementById('partVatAmount').value = '';
                 }
             },
 
@@ -659,6 +733,12 @@
                     document.getElementById('partCost').value = item.cost;
                     document.getElementById('partPrice').value = item.price;
                     document.getElementById('partVat').value = item.vat || 0;
+
+                    // Trigger manual VAT amount update on edit
+                    const cost = parseFloat(item.cost) || 0;
+                    const vatPercent = parseFloat(item.vat) || 0;
+                    document.getElementById('partVatAmount').value = (cost * (vatPercent / 100)).toFixed(2);
+
                     this.openModal(true);
                 }
             },

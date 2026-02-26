@@ -314,6 +314,9 @@ const App = {
                     if (sidebar) sidebar.classList.add('active');
                 }
 
+                this.initSidebar();
+                this.initBottomNav();
+
                 this.updateContent();
                 this.checkAuth();
                 this.applyRolePermissions();
@@ -658,9 +661,88 @@ const App = {
 
     toggleSidebar: function () {
         const sidebar = document.querySelector('.sidebar');
+        const overlay = document.querySelector('.sidebar-overlay');
+
         sidebar.classList.toggle('active');
-        // Save state to localStorage
-        localStorage.setItem('spi_sidebar_active', sidebar.classList.contains('active'));
+
+        const isActive = sidebar.classList.contains('active');
+        localStorage.setItem('spi_sidebar_active', isActive);
+
+        if (overlay) {
+            if (isActive && window.innerWidth <= 768) {
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+    },
+
+    /**
+     * Initialize Sidebar interactions (Touch & Overlay)
+     */
+    initSidebar: function () {
+        const sidebar = document.querySelector('.sidebar');
+        if (!sidebar) return;
+
+        // 1. Create Overlay if it doesn't exist
+        if (!document.querySelector('.sidebar-overlay')) {
+            const overlay = document.createElement('div');
+            overlay.className = 'sidebar-overlay';
+            overlay.onclick = () => this.toggleSidebar();
+            document.body.appendChild(overlay);
+        }
+
+        // 2. Add Close Button (Mobile Only)
+        if (!sidebar.querySelector('.sidebar-close')) {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'sidebar-close';
+            closeBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            closeBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.toggleSidebar();
+            };
+
+            // RTL Support for Icon
+            if (document.documentElement.dir === 'rtl') {
+                closeBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            }
+
+            sidebar.appendChild(closeBtn);
+        }
+    },
+
+    /**
+     * Initialize Mobile Bottom Navigation
+     */
+    initBottomNav: function () {
+        if (window.innerWidth > 768) return;
+
+        // 1. Create Bottom Nav if it doesn't exist
+        if (!document.querySelector('.bottom-nav')) {
+            const nav = document.createElement('div');
+            nav.className = 'bottom-nav';
+
+            const currentPath = window.location.pathname;
+            const menuItems = [
+                { icon: 'fas fa-th-large', label: 'Home', link: 'dashboard.html' },
+                { icon: 'fas fa-boxes', label: 'Stock', link: 'inventory.html' },
+                { icon: 'fas fa-plus-circle', label: 'Issue', link: 'issue-part.html' },
+                { icon: 'fas fa-chart-bar', label: 'Reports', link: 'reports.html' },
+                { icon: 'fas fa-history', label: 'History', link: 'mechanic-history.html' }
+            ];
+
+            nav.innerHTML = menuItems.map(item => {
+                const isActive = currentPath.includes(item.link);
+                return `
+                    <a href="${item.link}" class="bottom-nav-item ${isActive ? 'active' : ''}" onclick="this.style.transform='scale(0.9)'">
+                        <i class="${item.icon}"></i>
+                        <span>${item.label}</span>
+                    </a>
+                `;
+            }).join('');
+
+            document.body.appendChild(nav);
+        }
     },
 
     /**
@@ -674,6 +756,10 @@ const App = {
      * Format currency
      */
     formatCurrency: function (amount) {
+        const user = this.getCurrentUser();
+        if (user && user.role === 'staff') {
+            return '***';
+        }
         return new Intl.NumberFormat('en-AE', { style: 'currency', currency: 'AED' }).format(amount);
     },
 
@@ -712,40 +798,71 @@ const App = {
 
         console.log(`[auth]: Applying restricted permissions for role: ${user.role}`);
 
-        // 1. Sidebar Restrictions (Staff Only)
-        if (user.role === 'staff') {
-            const sidebarLinks = document.querySelectorAll('.sidebar-nav a');
-            sidebarLinks.forEach(link => {
-                const i18nSpan = link.querySelector('[data-i18n]');
-                if (i18nSpan) {
-                    const key = i18nSpan.getAttribute('data-i18n');
-                    if (key === 'users' || key === 'reports' || key === 'settings') {
-                        link.parentElement.style.display = 'none';
-                    }
-                }
-            });
+        const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+        const restrictedPages = ['users.html', 'settings.html', 'reports.html', 'suppliers.html', 'mechanics.html', 'purchase-order.html'];
 
-            // 2. Global Delete/Add Restriction (Staff Only)
-            // Added check to ensure we don't hide everything by mistake
-            const style = document.createElement('style');
-            style.id = 'role-permissions-style';
-            if (!document.getElementById(style.id)) {
-                style.innerHTML = `
-                    .btn-delete, 
-                    .action-delete,
-                    .fa-trash,
-                    .fa-trash-alt { 
-                        display: none !important; 
-                    }
-                `;
-                document.head.appendChild(style);
-            }
-
-            // Immediate cleanup for existing elements
-            document.querySelectorAll('.btn-delete, .action-delete, .fa-trash, .fa-trash-alt').forEach(btn => {
-                btn.style.display = 'none';
-            });
+        // 1. Page-Level Protection
+        if (restrictedPages.includes(currentPath)) {
+            console.warn(`[auth]: Unauthorized access to ${currentPath}. Redirecting...`);
+            window.location.href = 'dashboard.html';
+            return;
         }
+
+        // 2. Sidebar Restrictions
+        const sidebarLinks = document.querySelectorAll('.sidebar-nav a');
+        sidebarLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (restrictedPages.some(p => href && href.includes(p))) {
+                link.parentElement.style.display = 'none';
+            }
+        });
+
+        // 3. Global Action & Financial Restrictions (CSS Injection)
+        const style = document.createElement('style');
+        style.id = 'role-permissions-style';
+        if (!document.getElementById(style.id)) {
+            style.innerHTML = `
+                /* Hide Administrative Actions */
+                .btn-delete, .action-delete, .fa-trash, .fa-trash-alt,
+                .btn-import, .import-btn, [onclick*="import"], [onclick*="Import"],
+                .btn-add, .add-btn, [onclick*="Add"][onclick*="New"],
+                .btn-edit, .action-edit, .fa-edit {
+                    display: none !important;
+                }
+
+                /* Hide Financial Data & Sensitive UI Elements */
+                .financial-info, .total-revenue, .valuation-box, .revenue-card,
+                [id*="Revenue"], [id*="Value"], [id*="Profit"], [id*="potentialProfit"],
+                .stat-card:nth-child(3), .stat-card:nth-child(4) /* Target revenue stats on dashboard */ {
+                    display: none !important;
+                }
+                
+                /* Inventory Table: Hide Unit Price, Total Excl, VAT %, VAT Amount, Total Incl */
+                #inventoryTable th:nth-child(n+6):nth-child(-n+10),
+                #inventoryTable td:nth-child(n+6):nth-child(-n+10),
+                table:has(#inventoryTable) th:nth-child(n+6):nth-child(-n+10),
+                table:has(#inventoryTable) td:nth-child(n+6):nth-child(-n+10) {
+                    display: none !important;
+                }
+
+                /* Dashboard: Hide 'Total' column in Recent Sales */
+                #recentSalesTable th:nth-child(4),
+                #recentSalesTable td:nth-child(4),
+                table:has(#recentSalesTable) th:nth-child(4),
+                table:has(#recentSalesTable) td:nth-child(4) {
+                    display: none !important;
+                }
+
+                /* General Financial concealment */
+                .staff-hide-financial { display: none !important; }
+            `;
+            document.head.appendChild(style);
+        }
+
+        // 4. Immediate cleanup for existing elements that might not be caught by CSS properly or need JS logic
+        document.querySelectorAll('.btn-delete, .action-delete, .btn-import, .btn-add').forEach(el => {
+            el.remove();
+        });
     },
     async exportToDatabase() {
         const inventory = JSON.parse(localStorage.getItem(this.KEYS.INVENTORY) || '[]');
