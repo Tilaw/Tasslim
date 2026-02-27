@@ -122,8 +122,49 @@
                             </button>
                         </div>
                     </form>
+                    <div class="card" style="margin-top: 20px;">
+                        <div class="card-header">
+                            <h3 style="margin: 0; color: #1e293b;"><i class="fas fa-database"
+                                    style="margin-right: 10px; color: #f59e0b;"></i>Data Management</h3>
+                            <p style="color: #64748b; font-size: 14px; margin: 5px 0 0 0;">Sync your local data to the
+                                central
+                                database.</p>
+                        </div>
+
+                        <div style="display: flex; flex-direction: column; gap: 15px;">
+                            <div id="migrationStat">
+                                <span class="badge" id="migratedBadge" style="padding: 10px 20px; font-size: 0.9rem;">
+                                    Checking status...
+                                </span>
+                            </div>
+
+                            <div class="alert-info" id="migrationInfo"
+                                style="display: none; background: #eff6ff; border: 1px solid #dbeafe; color: #1e40af; padding: 15px; border-radius: 8px; font-size: 14px;">
+                                <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
+                                Migrating your data ensures it is backed up to the server and available on all your
+                                devices (including mobile).
+                            </div>
+
+                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button class="btn btn-primary" id="migrateBtn" onclick="App.exportToDatabase()"
+                                    style="flex: 1; min-width: 150px; background: #f59e0b; border: none;">
+                                    <i class="fas fa-cloud-upload-alt"></i> Migrate Now
+                                </button>
+                                <button class="btn btn-info" onclick="SettingsMgr.testConnection()"
+                                    style="flex: 1; min-width: 150px; background: #6366f1; border: none; color: white;">
+                                    <i class="fas fa-network-wired"></i> Test Connection
+                                </button>
+                                <button class="btn btn-secondary" onclick="SettingsMgr.clearCache()"
+                                    style="flex: 1; min-width: 150px;">
+                                    <i class="fas fa-sync-alt"></i> Reset Local Cache
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="connResult"
+                        style="display: none; margin-top: 15px; padding: 15px; border-radius: 8px; font-size: 14px;">
+                    </div>
                 </div>
-            </div>
         </main>
     </div>
 
@@ -145,6 +186,104 @@
                     e.preventDefault();
                     this.save();
                 });
+
+                this.updateMigrationStatus();
+            },
+
+            updateMigrationStatus: function () {
+                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                const badge = document.getElementById('migratedBadge');
+                const btn = document.getElementById('migrateBtn');
+                const info = document.getElementById('migrationInfo');
+
+                if (isMigrated) {
+                    badge.textContent = 'Migrated to Database';
+                    badge.className = 'badge badge-success';
+                    btn.style.display = 'none';
+                    info.style.display = 'none';
+                } else {
+                    const hasLocalData = (JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || []).length > 0 ||
+                        (JSON.parse(localStorage.getItem(App.KEYS.SALES)) || []).length > 0;
+
+                    if (hasLocalData) {
+                        badge.textContent = 'Local Mode (Needs Sync)';
+                        badge.className = 'badge badge-warning';
+                        btn.style.display = 'block';
+                        info.style.display = 'block';
+                    } else {
+                        badge.textContent = 'Cloud Mode (Sync Active)';
+                        badge.className = 'badge badge-success';
+                        btn.style.display = 'none';
+                        info.style.display = 'none';
+                    }
+                }
+            },
+
+            testConnection: async function () {
+                const resEl = document.getElementById('connResult');
+                resEl.style.display = 'block';
+                resEl.style.background = '#f8fafc';
+                resEl.style.color = '#1e293b';
+                resEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing connection to backend...';
+
+                try {
+                    console.log(`[settings]: Testing connection to ${API_BASE_URL}/health`);
+                    const response = await fetch(`${API_BASE_URL}/health`, {
+                        method: 'GET',
+                        cache: 'no-cache'
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        resEl.style.background = '#dcfce7';
+                        resEl.style.color = '#15803d';
+                        resEl.style.border = '1px solid #bbf7d0';
+                        resEl.innerHTML = `
+                            <div style="font-weight: bold; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Connection Successful!</div>
+                            <div style="font-size: 0.8rem;">Server is online. Migration and mobile sync will work.</div>
+                            <div style="font-size: 0.75rem; color: #166534; margin-top: 5px;">Server Time: ${new Date(data.timestamp).toLocaleString()}</div>
+                        `;
+                    } else {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error('[settings]: Connection test failed:', error);
+                    resEl.style.background = '#fee2e2';
+                    resEl.style.color = '#b91c1c';
+                    resEl.style.border = '1px solid #fecaca';
+                    resEl.innerHTML = `
+                        <div style="font-weight: bold; margin-bottom: 5px;"><i class="fas fa-times-circle"></i> Connection Failed</div>
+                        <div style="font-size: 0.8rem;">The backend server is unreachable.</div>
+                        <div style="font-size: 0.75rem; margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.5); border-radius: 4px; font-family: monospace;">
+                            <strong>Error:</strong> ${error.message}<br>
+                            <strong>URL:</strong> ${API_BASE_URL}
+                        </div>
+                        <div style="font-size: 0.8rem; margin-top: 10px;">
+                            <strong>Troubleshooting:</strong><br>
+                            1. Ensure <strong>START-SERVER.bat</strong> is running on your PC.<br>
+                            2. If on mobile, check if you are on the same Wi-Fi.<br>
+                            3. Check if a Firewall is blocking port 4000.
+                        </div>
+                    `;
+                }
+            },
+
+            clearCache: function () {
+                if (confirm('This will clear your local browser cache ONLY. Your data on the server will be safe. Do this if you are having sync issues. Continue?')) {
+                    // Keys to keep (session and migration flag)
+                    const session = localStorage.getItem(App.KEYS.SESSION);
+                    const migrated = localStorage.getItem(App.KEYS.DB_MIGRATED);
+                    const lang = localStorage.getItem('spi_lang');
+
+                    localStorage.clear();
+
+                    if (session) localStorage.setItem(App.KEYS.SESSION, session);
+                    if (migrated) localStorage.setItem(App.KEYS.DB_MIGRATED, migrated);
+                    if (lang) localStorage.setItem('spi_lang', lang);
+
+                    App.showToast('Local cache cleared. Reloading...', 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                }
             },
 
             save: function () {

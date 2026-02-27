@@ -336,6 +336,7 @@
             loadData: function () {
                 this.data = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
                 this.suppliers = JSON.parse(localStorage.getItem(App.KEYS.SUPPLIERS)) || [];
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
             },
 
             populateDropdowns: function () {
@@ -395,6 +396,7 @@
                         <td>${App.formatCurrency(vatAmount)}</td>
                         <td>${App.formatCurrency(totalIncl)}</td>
                         <td>
+                            <button class="btn" style="padding: 5px 10px; background: #6366f1; color: white;" onclick="Inventory.printItemReport('${item.id}')" title="Print Report"><i class="fas fa-print"></i></button>
                             <button class="btn" style="padding: 5px 10px; background: #f39c12; color: white;" onclick="window.location.href='issue-part.html?sku=${item.sku}'" title="Pick Item"><i class="fas fa-hand-holding"></i></button>
                             <button class="btn" style="padding: 5px 10px; background: #3498db; color: white;" onclick="Inventory.edit('${item.id}')"><i class="fas fa-edit"></i></button>
                             <button class="btn" style="padding: 5px 10px; background: #e74c3c; color: white;" onclick="Inventory.delete('${item.id}')"><i class="fas fa-trash"></i></button>
@@ -436,7 +438,11 @@
                                 </span>
                             </div>
                         </div>
-                        <div class="mobile-data-value">
+                        <div class="mobile-data-value" style="display: flex; gap: 5px;">
+                            <button class="btn btn-sm" style="background: #6366f1; color: white;" 
+                                onclick="event.stopPropagation(); Inventory.printItemReport('${item.id}')">
+                                <i class="fas fa-print"></i>
+                            </button>
                             <button class="btn btn-sm" style="background: #f39c12; color: white;" 
                                 onclick="event.stopPropagation(); window.location.href='issue-part.html?sku=${item.sku}'">
                                 <i class="fas fa-hand-holding"></i>
@@ -764,6 +770,93 @@
                         App.showToast(error.message || 'Failed to delete part', 'error');
                     }
                 }
+            },
+
+            printItemReport: function (id) {
+                const item = this.data.find(i => i.id?.toString() === id.toString());
+                if (!item) return;
+
+                // Calculate Taken
+                let taken = 0;
+                this.sales.forEach(sale => {
+                    if (sale.type === 'issue' || !sale.type || sale.type === 'sale') {
+                        (sale.items || []).forEach(it => {
+                            if (it.productId?.toString() === id.toString() || it.name === item.name) {
+                                taken += (Number(it.qty) || 0);
+                            }
+                        });
+                    }
+                });
+
+                const left = Number(item.stock) || 0;
+                const total = taken + left;
+
+                const printWindow = window.open('', '_blank');
+                const html = `
+                    <html>
+                    <head>
+                        <title>Print Item Report - ${item.name}</title>
+                        <style>
+                            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; color: #1e293b; }
+                            .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px; margin-bottom: 30px; }
+                            .header h1 { margin: 0; font-size: 24px; color: #0f172a; }
+                            .header p { margin: 5px 0 0; color: #64748b; }
+                            .item-info { display: flex; justify-content: space-between; margin-bottom: 40px; background: #f8fafc; padding: 20px; border-radius: 12px; }
+                            .item-info div { flex: 1; }
+                            .item-info b { display: block; font-size: 12px; text-transform: uppercase; color: #94a3b8; margin-bottom: 4px; }
+                            .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 20px; }
+                            .stat-card { background: white; border: 1px solid #e2e8f0; padding: 25px; border-radius: 16px; text-align: center; }
+                            .stat-card b { display: block; font-size: 14px; text-transform: uppercase; color: #64748b; margin-bottom: 10px; }
+                            .stat-card span { font-size: 32px; font-weight: 800; color: #1e293b; }
+                            .stat-card.taken span { color: #ef4444; }
+                            .stat-card.left span { color: #10b981; }
+                            .stat-card.total span { color: #6366f1; }
+                            .footer { margin-top: 50px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+                            @media print { .no-print { display: none; } }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <h1>Tasslim Parts & Service</h1>
+                            <p>Single Item Inventory Status Report</p>
+                        </div>
+                        
+                        <div class="item-info">
+                            <div><b>Description</b> ${item.name}</div>
+                            <div><b>Code (SKU)</b> ${item.sku}</div>
+                            <div><b>Category</b> ${item.category}</div>
+                        </div>
+
+                        <div class="stats-grid">
+                            <div class="stat-card total">
+                                <b>Total Item (Volume)</b>
+                                <span>${total}</span>
+                            </div>
+                            <div class="stat-card taken">
+                                <b>Item Taken (Issued)</b>
+                                <span>${taken}</span>
+                            </div>
+                            <div class="stat-card left">
+                                <b>Item Left (In Stock)</b>
+                                <span>${left}</span>
+                            </div>
+                        </div>
+
+                        <div class="footer">
+                            Report Generated on ${new Date().toLocaleString()} | Tasslim Inventory System
+                        </div>
+
+                        <script>
+                            window.onload = () => {
+                                window.print();
+                                setTimeout(() => window.close(), 500);
+                            };
+                        <\/script>
+                    </body>
+                    </html>
+                `;
+                printWindow.document.write(html);
+                printWindow.document.close();
             }
         };
 
@@ -783,7 +876,8 @@
                 const userInitialsEl = document.getElementById('userInitials');
 
                 if (userNameEl) userNameEl.textContent = displayName;
-                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n => n[0]).join('').toUpperCase() || 'U';
+                if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n =>
+                    n[0]).join('').toUpperCase() || 'U';
             }
         });
     </script>

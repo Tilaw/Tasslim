@@ -105,6 +105,12 @@
                 <div style="display: flex; gap: 10px;">
                     <input type="file" id="excelRiderFile" hidden accept=".xlsx, .xls"
                         onchange="RiderManager.handleExcel(event)">
+                    
+                    <!-- Admin Only Delete All Button -->
+                    <button class="btn btn-danger id-admin-only" onclick="RiderManager.deleteAllImported()" style="display: none;">
+                        <i class="fas fa-trash-sweep"></i> Delete All Imported
+                    </button>
+
                     <button class="btn btn-success" onclick="document.getElementById('excelRiderFile').click()">
                         <i class="fas fa-file-excel"></i> Import Excel
                     </button>
@@ -189,6 +195,12 @@
             init: function () {
                 this.loadData();
                 this.renderList();
+
+                // Show admin-only elements
+                const user = App.getCurrentUser();
+                if (user && user.role === 'admin') {
+                    document.querySelectorAll('.id-admin-only').forEach(el => el.style.display = 'inline-flex');
+                }
             },
 
             loadData: function () {
@@ -404,7 +416,7 @@
                     const workbook = XLSX.read(data, { type: 'array' });
                     const sheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[sheetName];
-                    const json = XLSX.utils.sheet_to_json(worksheet);
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
                     if (json.length === 0) {
                         App.showToast('Excel file is empty', 'warning');
@@ -412,18 +424,25 @@
                     }
 
                     let addedCount = 0;
-                    json.forEach(row => {
-                        // Support various header names
-                        const name = row['Rider Name'] || row['Name'] || row['Full Name'];
-                        const phone = row['Phone'] || row['Phone Number'] || row['Contact'];
-                        const plates = row['Plates'] || row['Bike Plates'] || row['Bikes'] || '';
+                    json.forEach((row, index) => {
+                        // Skip header if it exists but usually it starts from data in this format
+                        if (!row || row.length < 2) return;
 
-                        if (name && phone) {
+                        // Columns from Screenshot:
+                        // A (0) -> Phone
+                        // B (1) -> Plate / Code
+                        // C (2) -> Rider name
+                        const phone = (row[0] || '').toString().trim();
+                        const plates = (row[1] || '').toString().trim();
+                        const name = (row[2] || 'Excel Rider').toString().trim();
+
+                        if (phone && plates) {
                             this.riders.push({
                                 id: Date.now() + Math.random(),
-                                name: name.toString(),
-                                phone: phone.toString(),
-                                plates: plates.toString()
+                                name: name,
+                                phone: phone,
+                                plates: plates,
+                                imported: true
                             });
                             addedCount++;
                         }
@@ -435,6 +454,18 @@
                     document.getElementById('excelRiderFile').value = '';
                 };
                 reader.readAsArrayBuffer(file);
+            },
+
+            deleteAllImported: function () {
+                if (!confirm('Are you sure you want to delete ALL recently added Excel riders?')) return;
+                
+                const initialCount = this.riders.length;
+                this.riders = this.riders.filter(r => !r.imported);
+                const deletedCount = initialCount - this.riders.length;
+
+                localStorage.setItem('riders_info', JSON.stringify(this.riders));
+                App.showToast(`Deleted ${deletedCount} imported riders.`);
+                this.renderList();
             }
         };
 

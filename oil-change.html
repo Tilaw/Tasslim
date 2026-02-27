@@ -287,6 +287,7 @@
                 bikes: [],
                 mechanics: [],
                 changes: [],
+                riders: [],
                 selectedBikeIds: [],
                 lastBikeRecord: null,
                 allFilteredChanges: [],
@@ -303,12 +304,24 @@
                         e.preventDefault();
                         this.saveRecord();
                     });
+
+                    // Add listener for rider name auto-fill
+                    document.getElementById('riderName').addEventListener('input', (e) => {
+                        const name = e.target.value.trim();
+                        if (!name) return;
+
+                        const rider = this.riders.find(r => r.name === name);
+                        if (rider) {
+                            document.getElementById('riderPhone').value = rider.phone || '';
+                        }
+                    });
                 },
 
                 loadData: function () {
                     this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
                     this.changes = JSON.parse(localStorage.getItem(App.KEYS.OIL_CHANGES)) || [];
                     this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                    this.riders = JSON.parse(localStorage.getItem('riders_info')) || [];
                     this.populateRiderSuggestions();
                 },
 
@@ -317,14 +330,20 @@
                     if (!dl) return;
 
                     const riders = new Set();
+                    // Add existing names from riders_info
+                    this.riders.forEach(r => {
+                        if (r.name) riders.add(r.name);
+                    });
+                    // Also keep names from oil change history
                     this.changes.forEach(r => {
                         if (r.riderName) riders.add(r.riderName);
                     });
+                    // And bike owners
                     this.bikes.forEach(b => {
                         if (b.owner) riders.add(b.owner);
                     });
 
-                    dl.innerHTML = Array.from(riders).map(r => `<option value="${r}">`).join('');
+                    dl.innerHTML = Array.from(riders).sort().map(r => `<option value="${r}">`).join('');
                 },
 
                 renderMechanics: function () {

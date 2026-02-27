@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Spare Parts Inventory System</title>
+    <title>Dashboard</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -253,8 +253,10 @@
                 }
 
                 // Check for migration
-                const totalLocalItems = this.inventory.length + this.sales.length + suppliers.length;
-                if (totalLocalItems > 0) {
+                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                const hasLocalData = this.inventory.length > 0 || this.sales.length > 0;
+
+                if (!isMigrated && hasLocalData) {
                     const alert = document.getElementById('migrationAlert');
                     if (alert) alert.style.display = 'flex';
                 }
@@ -268,12 +270,13 @@
                 const revenue = normalSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
                 document.getElementById('totalRevenue').textContent = App.formatCurrency(revenue);
 
-                // 3. Low Stock Items
+                // 3. Low Stock Items (Including those with 0 stock)
                 const lowStockItems = this.inventory.filter(item => {
                     const stock = Number(item.stock) || 0;
                     const min = Number(item.minStock);
-                    const threshold = Number.isFinite(min) ? min : 0;
-                    return stock > 0 && stock <= threshold;
+                    // Use minStock if valid, otherwise default to 2
+                    const threshold = (item.minStock !== undefined && item.minStock !== null && item.minStock !== '') ? min : 2;
+                    return stock <= threshold;
                 });
                 document.getElementById('lowStockCount').textContent = lowStockItems.length;
                 document.getElementById('totalSuppliers').textContent = suppliers.length;
@@ -341,15 +344,20 @@
             renderLowStock: function (items) {
                 const lowStockList = document.getElementById('lowStockList');
                 if (items.length === 0) {
-                    lowStockList.innerHTML = '<li style="padding: 10px; color: var(--success-color);">All items are well stocked!</li>';
+                    lowStockList.innerHTML = '<li style="padding: 10px; color: #10b981;"><i class="fas fa-check-circle"></i> All items are well stocked!</li>';
                     return;
                 }
-                lowStockList.innerHTML = items.map(item => `
-                    <li style="padding: 10px 0; borderBottom: 1px solid #f1f1f1; display: flex; justify-content: space-between;">
-                        <span>${item.name} <small style="color: #7f8c8d;">(${item.sku})</small></span>
-                        <span style="color: var(--danger-color); font-weight: bold;">${item.stock} left</span>
+                lowStockList.innerHTML = items.map(item => {
+                    const stock = Number(item.stock) || 0;
+                    const isOutValue = stock <= 0;
+                    return `
+                    <li style="padding: 10px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center;">
+                        <span>${item.name} <small style="color: #64748b;">(${item.sku})</small></span>
+                        <span style="color: ${isOutValue ? '#ef4444' : '#f59e0b'}; font-weight: bold; background: ${isOutValue ? '#fee2e2' : '#fffbeb'}; padding: 2px 8px; border-radius: 4px; font-size: 0.85rem;">
+                            ${isOutValue ? '<i class="fas fa-times-circle"></i> NO STOCK' : stock + ' left'}
+                        </span>
                     </li>
-                `).join('');
+                `}).join('');
             },
 
             renderRecentAdditions: function (additions) {

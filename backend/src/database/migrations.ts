@@ -222,6 +222,13 @@ export async function migrate() {
             { table: 'inventory_transactions', column: 'mechanic_id' }
         ]);
 
+        // Ensure unique index on reference_id for transactions
+        try {
+            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_trans_reference ON inventory_transactions(reference_id)`);
+        } catch (err) {
+            console.warn(`[database]: Could not create unique index on inventory_transactions(reference_id).`);
+        }
+
         // Check for missing columns in bikes table (for existing databases)
         const bikesTableInfo = db.prepare("PRAGMA table_info(bikes)").all() as any[];
         const existingColumns = bikesTableInfo.map(c => c.name);

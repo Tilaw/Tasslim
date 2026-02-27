@@ -4,10 +4,9 @@
  */
 
 // Auto-detect if we're running locally (file protocol or localhost) or in production
-const isLocal = window.location.protocol === 'file:' ||
-    window.location.hostname === '127.0.0.1' ||
-    window.location.hostname === 'localhost';
-const API_BASE_URL = isLocal ? 'http://127.0.0.1:4000/api/v1' : '/api/v1';
+const API_BASE_URL = (window.location.protocol === 'file:' || window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+    ? 'http://127.0.0.1:4000/api/v1'
+    : `${window.location.protocol}//${window.location.host}/api/v1`;
 
 const App = {
     // Data Keys for LocalStorage
@@ -359,8 +358,10 @@ const App = {
      */
     loadData: async function () {
         const session = this.getCurrentUser();
+        const isMigrated = localStorage.getItem(this.KEYS.DB_MIGRATED) === 'true';
+
         // 1. Backend Sync if migrated OR if we have a session (proactive sync)
-        if (localStorage.getItem(this.KEYS.DB_MIGRATED) === 'true' || session) {
+        if (isMigrated || session) {
             // If we have a session but flag is missing, we might be on a new origin/port.
             // We'll try to sync; if it succeeds, we'll set the migration flag permanently.
             try {

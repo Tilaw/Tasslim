@@ -117,9 +117,10 @@ export class MigrationController {
 
                 // 6. Sales / Transactions
                 const insertTrans = db.prepare(`
-                    INSERT OR IGNORE INTO inventory_transactions
-                        (id, product_id, transaction_type, quantity, mechanic_id, bike_id, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO inventory_transactions
+                        (id, product_id, transaction_type, quantity, mechanic_id, bike_id, created_at, reference_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(reference_id) DO NOTHING
                 `);
 
                 for (const s of sales) {
@@ -130,6 +131,8 @@ export class MigrationController {
                         ).get(item.sku || '', item.name || '') as any;
 
                         if (prod) {
+                            // Use concatenated s.id and sku to handle multiple items in one sale
+                            const refId = `${s.id}_${item.sku}`;
                             insertTrans.run(
                                 crypto.randomUUID(),
                                 prod.id,
@@ -137,7 +140,8 @@ export class MigrationController {
                                 item.qty || 1,
                                 s.mechanic ? (mechMap.get(s.mechanic) || null) : null,
                                 s.bike ? (bikeMap.get(s.bike) || null) : null,
-                                s.date || new Date().toISOString()
+                                s.date || new Date().toISOString(),
+                                refId
                             );
                         }
                     }
