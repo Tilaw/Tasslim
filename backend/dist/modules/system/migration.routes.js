@@ -1,5 +1,8 @@
-import { Router } from 'express';
-import { MigrationController } from './migration.controller.js';
-const router = Router();
-router.post('/import', MigrationController.importData);
-export { router as migrationRoutes };
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.migrationRoutes = void 0;
+const express_1 = require("express");
+const migration_controller_js_1 = require("./migration.controller.js");
+const router = (0, express_1.Router)();
+exports.migrationRoutes = router;
+router.post('/import', migration_controller_js_1.MigrationController.importData);

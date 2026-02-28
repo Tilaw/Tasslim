@@ -4,10 +4,7 @@ import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// ESM module path replaced by global __dirname in CommonJS.
 
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { productRoutes } from './modules/products/products.routes.js';

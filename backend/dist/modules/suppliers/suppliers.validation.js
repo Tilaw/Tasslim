@@ -1,16 +1,19 @@
-import { z } from 'zod';
-export const createSupplierSchema = z.object({
-    body: z.object({
-        name: z.string().min(1, 'Supplier name is required'),
-        contactPerson: z.string().optional(),
-        email: z.string().email('Invalid email address').optional().nullable(),
-        phone: z.string().optional(),
-        address: z.string().optional(),
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.updateSupplierSchema = exports.createSupplierSchema = void 0;
+const zod_1 = require("zod");
+exports.createSupplierSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        name: zod_1.z.string().min(1, 'Supplier name is required'),
+        contactPerson: zod_1.z.string().optional(),
+        email: zod_1.z.string().email('Invalid email address').optional().nullable(),
+        phone: zod_1.z.string().optional(),
+        address: zod_1.z.string().optional(),
     }),
 });
-export const updateSupplierSchema = z.object({
-    body: createSupplierSchema.shape.body.partial(),
-    params: z.object({
-        id: z.string().uuid('Invalid supplier ID'),
+exports.updateSupplierSchema = zod_1.z.object({
+    body: exports.createSupplierSchema.shape.body.partial(),
+    params: zod_1.z.object({
+        id: zod_1.z.string().uuid('Invalid supplier ID'),
     }),
 });

@@ -1,17 +1,20 @@
-import { z } from 'zod';
-export const loginSchema = z.object({
-    body: z.object({
-        email: z.string().min(1, 'Email or username is required'), // Accept email OR username
-        password: z.string().min(1, 'Password is required'),
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.registerSchema = exports.loginSchema = void 0;
+const zod_1 = require("zod");
+exports.loginSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        email: zod_1.z.string().min(1, 'Email or username is required'), // Accept email OR username
+        password: zod_1.z.string().min(1, 'Password is required'),
     }),
 });
-export const registerSchema = z.object({
-    body: z.object({
-        email: z.string().min(1, 'Email or username is required'),
-        password: z.string().min(6, 'Password must be at least 6 characters'),
-        firstName: z.string().min(1, 'First name is required'),
-        lastName: z.string().optional(),
-        roleId: z.string().uuid('Invalid role ID').optional(),
-        role: z.string().optional(),
+exports.registerSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        email: zod_1.z.string().min(1, 'Email or username is required'),
+        password: zod_1.z.string().min(6, 'Password must be at least 6 characters'),
+        firstName: zod_1.z.string().min(1, 'First name is required'),
+        lastName: zod_1.z.string().optional(),
+        roleId: zod_1.z.string().uuid('Invalid role ID').optional(),
+        role: zod_1.z.string().optional(),
     }),
 });

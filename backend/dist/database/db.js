@@ -1,8 +1,25 @@
-import mysql from 'mysql2/promise';
-import dotenv from 'dotenv';
-dotenv.config();
+"use strict";
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+var _a;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.db = exports.pool = void 0;
+exports.testConnection = testConnection;
+const promise_1 = __importDefault(require("mysql2/promise"));
+const dotenv_1 = __importDefault(require("dotenv"));
+dotenv_1.default.config();
 const dbConfig = {
-    host: process.env.DB_HOST?.split(':')[0] || 'localhost',
+    host: ((_a = process.env.DB_HOST) === null || _a === void 0 ? void 0 : _a.split(':')[0]) || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
     user: process.env.DB_USER,
     password: process.env.DB_PASSWORD,
@@ -11,66 +28,68 @@ const dbConfig = {
     connectionLimit: 10,
     queueLimit: 0
 };
-export const pool = mysql.createPool(dbConfig);
+exports.pool = promise_1.default.createPool(dbConfig);
 // Compatibility wrapper as a separate export if needed, 
 // but we'll export the pool directly and use standard promise-based API.
-export const db = {
+exports.db = {
     prepare: (sql) => {
         // Mocking the SQLite 'prepare' pattern for minimal changes elsewhere
         return {
-            run: async (...params) => {
-                const [result] = await pool.execute(sql, params);
+            run: (...params) => __awaiter(void 0, void 0, void 0, function* () {
+                const [result] = yield exports.pool.execute(sql, params);
                 return result;
-            },
-            get: async (...params) => {
-                const [rows] = await pool.execute(sql, params);
+            }),
+            get: (...params) => __awaiter(void 0, void 0, void 0, function* () {
+                const [rows] = yield exports.pool.execute(sql, params);
                 return rows[0];
-            },
-            all: async (...params) => {
-                const [rows] = await pool.execute(sql, params);
+            }),
+            all: (...params) => __awaiter(void 0, void 0, void 0, function* () {
+                const [rows] = yield exports.pool.execute(sql, params);
                 return rows;
-            }
+            })
         };
     },
     transaction: (fn) => {
-        return async (...args) => {
-            const connection = await pool.getConnection();
+        return (...args) => __awaiter(void 0, void 0, void 0, function* () {
+            const connection = yield exports.pool.getConnection();
             try {
-                await connection.beginTransaction();
-                const result = await fn(connection, ...args);
-                await connection.commit();
+                yield connection.beginTransaction();
+                const result = yield fn(connection, ...args);
+                yield connection.commit();
                 return result;
             }
             catch (error) {
-                await connection.rollback();
+                yield connection.rollback();
                 throw error;
             }
             finally {
                 connection.release();
             }
-        };
+        });
     },
-    exec: async (sql) => {
+    exec: (sql) => __awaiter(void 0, void 0, void 0, function* () {
         // MySQL doesn't have a single .exec for multi-statement strings easily with pool.execute
         // We'll split by ; for basic migrations if needed, but better to use connection.query
-        const connection = await pool.getConnection();
+        const connection = yield exports.pool.getConnection();
         try {
-            await connection.query(sql);
+            yield connection.query(sql);
         }
         finally {
             connection.release();
         }
-    }
+    })
 };
-export async function testConnection() {
-    try {
-        const connection = await pool.getConnection();
-        console.log('[database]: MySQL connected successfully to', process.env.DB_NAME);
-        connection.release();
-        return true;
-    }
-    catch (error) {
-        console.error('[database]: MySQL connection failed:', error);
-        return false;
-    }
+function testConnection() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            const connection = yield exports.pool.getConnection();
+            console.log('[database]: MySQL connected successfully to', process.env.DB_NAME);
+            connection.release();
+            return true;
+        }
+        catch (error) {
+            console.error('[database]: MySQL connection failed:', error);
+            return false;
+        }
+    });
 }

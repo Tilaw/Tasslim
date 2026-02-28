@@ -1,13 +1,16 @@
-import { z } from 'zod';
-export const createTransactionSchema = z.object({
-    body: z.object({
-        productId: z.coerce.string(),
-        transactionType: z.enum(['purchase', 'sale', 'return', 'adjustment', 'issue']),
-        quantity: z.number().int().refine(n => n !== 0, 'Quantity cannot be zero'),
-        mechanicId: z.coerce.string().optional().nullable(),
-        bikeId: z.coerce.string().optional().nullable(),
-        referenceId: z.coerce.string().optional().nullable(),
-        notes: z.string().optional(),
-        date: z.string().optional(),
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.createTransactionSchema = void 0;
+const zod_1 = require("zod");
+exports.createTransactionSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        productId: zod_1.z.coerce.string(),
+        transactionType: zod_1.z.enum(['purchase', 'sale', 'return', 'adjustment', 'issue']),
+        quantity: zod_1.z.number().int().refine(n => n !== 0, 'Quantity cannot be zero'),
+        mechanicId: zod_1.z.coerce.string().optional().nullable(),
+        bikeId: zod_1.z.coerce.string().optional().nullable(),
+        referenceId: zod_1.z.coerce.string().optional().nullable(),
+        notes: zod_1.z.string().optional(),
+        date: zod_1.z.string().optional(),
     }),
 });
