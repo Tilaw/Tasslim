@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import { AuthController } from './auth.controller.js';
+import { validate } from '../../middleware/validation.middleware.js';
+import { loginSchema, registerSchema } from './auth.validation.js';
+const router = Router();
+router.post('/login', validate(loginSchema), AuthController.login);
+router.post('/register', validate(registerSchema), AuthController.register);
+router.get('/', AuthController.getAll);
+router.delete('/:id', AuthController.delete);
+export const authRoutes = router;
