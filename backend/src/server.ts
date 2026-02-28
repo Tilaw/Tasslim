@@ -17,7 +17,7 @@ async function startServer() {
             console.warn('[server]: Database connection failed, but starting server anyway...');
         }
 
-        const server = app.listen(Number(PORT), '0.0.0.0', () => {
+        const server = app.listen(PORT, () => {
             console.log(`[server]: Server is running and accessible on the network at port ${PORT}`);
             console.log(`[server]: Local access: http://localhost:${PORT}`);
         });
