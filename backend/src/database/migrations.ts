@@ -1,31 +1,31 @@
-import { db } from './db.js';
+import { pool } from './db.js';
 import crypto from 'crypto';
 
 export async function migrate() {
-    console.log('[database]: Starting SQLite migrations...');
+    console.log('[database]: Starting MySQL migrations...');
 
     const schema = `
         -- Roles
         CREATE TABLE IF NOT EXISTS roles (
-            id TEXT PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL,
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(50) UNIQUE NOT NULL,
             description TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         );
 
         -- Permissions
         CREATE TABLE IF NOT EXISTS permissions (
-            id TEXT PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL,
-            resource TEXT NOT NULL,
-            action TEXT NOT NULL,
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(100) UNIQUE NOT NULL,
+            resource VARCHAR(100) NOT NULL,
+            action VARCHAR(50) NOT NULL,
             description TEXT
         );
 
         -- Role Permissions
         CREATE TABLE IF NOT EXISTS role_permissions (
-            role_id TEXT,
-            permission_id TEXT,
+            role_id VARCHAR(36),
+            permission_id VARCHAR(36),
             PRIMARY KEY (role_id, permission_id),
             FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
             FOREIGN KEY (permission_id) REFERENCES permissions(id) ON DELETE CASCADE
@@ -33,119 +33,119 @@ export async function migrate() {
 
         -- Users
         CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            first_name TEXT NOT NULL,
-            last_name TEXT NOT NULL,
-            phone TEXT,
-            role_id TEXT,
-            is_active INTEGER DEFAULT 1,
+            id VARCHAR(36) PRIMARY KEY,
+            email VARCHAR(100) UNIQUE NOT NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            first_name VARCHAR(50) NOT NULL,
+            last_name VARCHAR(50) NOT NULL,
+            phone VARCHAR(20),
+            role_id VARCHAR(36),
+            is_active TINYINT(1) DEFAULT 1,
             last_login DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL
         );
 
         -- Categories
         CREATE TABLE IF NOT EXISTS categories (
-            id TEXT PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL,
-            parent_category_id TEXT NULL,
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(100) UNIQUE NOT NULL,
+            parent_category_id VARCHAR(36) NULL,
             description TEXT,
-            is_active INTEGER DEFAULT 1,
+            is_active TINYINT(1) DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (parent_category_id) REFERENCES categories(id) ON DELETE SET NULL
         );
 
         -- Products
         CREATE TABLE IF NOT EXISTS products (
-            id TEXT PRIMARY KEY,
-            sku TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
+            id VARCHAR(36) PRIMARY KEY,
+            sku VARCHAR(100) UNIQUE NOT NULL,
+            name VARCHAR(255) NOT NULL,
             description TEXT,
-            category_id TEXT,
-            brand TEXT,
-            model TEXT,
-            unit_of_measure TEXT DEFAULT 'piece',
-            reorder_level INTEGER DEFAULT 0,
-            unit_cost REAL DEFAULT 0.00,
-            unit_price REAL DEFAULT 0.00,
-            is_active INTEGER DEFAULT 1,
+            category_id VARCHAR(36),
+            brand VARCHAR(100),
+            model VARCHAR(100),
+            unit_of_measure VARCHAR(50) DEFAULT 'piece',
+            reorder_level INT DEFAULT 0,
+            unit_cost DECIMAL(15, 2) DEFAULT 0.00,
+            unit_price DECIMAL(15, 2) DEFAULT 0.00,
+            is_active TINYINT(1) DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
         );
 
         -- Inventory
         CREATE TABLE IF NOT EXISTS inventory (
-            id TEXT PRIMARY KEY,
-            product_id TEXT NOT NULL UNIQUE,
-            quantity INTEGER NOT NULL DEFAULT 0,
-            reserved_quantity INTEGER DEFAULT 0,
+            id VARCHAR(36) PRIMARY KEY,
+            product_id VARCHAR(36) NOT NULL UNIQUE,
+            quantity INT NOT NULL DEFAULT 0,
+            reserved_quantity INT DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
         );
 
         -- Suppliers
         CREATE TABLE IF NOT EXISTS suppliers (
-            id TEXT PRIMARY KEY,
-            name TEXT UNIQUE NOT NULL,
-            contact TEXT,
-            email TEXT,
-            phone TEXT,
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(100) UNIQUE NOT NULL,
+            contact VARCHAR(100),
+            email VARCHAR(100),
+            phone VARCHAR(20),
             address TEXT,
-            is_active INTEGER DEFAULT 1,
+            is_active TINYINT(1) DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
 
         -- Mechanics
         CREATE TABLE IF NOT EXISTS mechanics (
-            id TEXT PRIMARY KEY,
-            code TEXT,
-            unique_code TEXT UNIQUE,
-            name TEXT UNIQUE NOT NULL,
-            passport_number TEXT,
-            phone TEXT,
-            specialization TEXT,
-            is_active INTEGER DEFAULT 1,
+            id VARCHAR(36) PRIMARY KEY,
+            code VARCHAR(50),
+            unique_code VARCHAR(100) UNIQUE,
+            name VARCHAR(100) UNIQUE NOT NULL,
+            passport_number VARCHAR(100),
+            phone VARCHAR(20),
+            specialization VARCHAR(100),
+            is_active TINYINT(1) DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
 
         -- Bikes
         CREATE TABLE IF NOT EXISTS bikes (
-            id TEXT PRIMARY KEY,
-            plate_number TEXT UNIQUE NOT NULL,
-            plate_category TEXT,
-            kind TEXT,
-            color TEXT,
-            ownership TEXT,
-            registration_renew_date TEXT,
-            registration_expiry TEXT,
-            insurance_expiry TEXT,
+            id VARCHAR(36) PRIMARY KEY,
+            plate_number VARCHAR(50) UNIQUE NOT NULL,
+            plate_category VARCHAR(50),
+            kind VARCHAR(50),
+            color VARCHAR(50),
+            ownership VARCHAR(100),
+            registration_renew_date VARCHAR(50),
+            registration_expiry VARCHAR(50),
+            insurance_expiry VARCHAR(50),
             accident_details TEXT,
-            customer_name TEXT,
-            customer_phone TEXT,
-            is_active INTEGER DEFAULT 1,
+            customer_name VARCHAR(100),
+            customer_phone VARCHAR(20),
+            is_active TINYINT(1) DEFAULT 1,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
 
         -- Inventory Transactions (Sales/Issues)
         CREATE TABLE IF NOT EXISTS inventory_transactions (
-            id TEXT PRIMARY KEY,
-            product_id TEXT NOT NULL,
-            transaction_type TEXT NOT NULL, -- 'purchase', 'sale', 'return', 'adjustment'
-            quantity INTEGER NOT NULL,
-            mechanic_id TEXT NULL,
-            bike_id TEXT NULL,
-            reference_id TEXT,
+            id VARCHAR(36) PRIMARY KEY,
+            product_id VARCHAR(36) NOT NULL,
+            transaction_type VARCHAR(50) NOT NULL, -- 'purchase', 'sale', 'return', 'adjustment'
+            quantity INT NOT NULL,
+            mechanic_id VARCHAR(36) NULL,
+            bike_id VARCHAR(36) NULL,
+            reference_id VARCHAR(100) UNIQUE,
             notes TEXT,
-            created_by TEXT,
+            created_by VARCHAR(36),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
             FOREIGN KEY (mechanic_id) REFERENCES mechanics(id) ON DELETE SET NULL,
@@ -154,9 +154,9 @@ export async function migrate() {
 
         -- Refresh Tokens
         CREATE TABLE IF NOT EXISTS refresh_tokens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            token TEXT NOT NULL UNIQUE,
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            user_id VARCHAR(36) NOT NULL,
+            token VARCHAR(767) NOT NULL UNIQUE,  -- Max length for unique index in some MySQL distros
             expires_at DATETIME NOT NULL,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -164,127 +164,46 @@ export async function migrate() {
     `;
 
     try {
-        db.exec(schema);
+        // Execute schema one statement at a time for better reliability in pool.query
+        const statements = schema.split(';').filter(s => s.trim().length > 0);
+        for (const s of statements) {
+            await pool.query(s);
+        }
         console.log('[database]: Tables verified/created');
 
-        // --- Data Deduplication and Unique Index Creation ---
-        const dedupeAndIndex = (tableName: string, columnName: string, dependentTableMoves: { table: string, column: string }[]) => {
-            const duplicates = db.prepare(`
-                SELECT ${columnName}, COUNT(*) as count 
-                FROM ${tableName} 
-                GROUP BY ${columnName} 
-                HAVING count > 1
-            `).all() as any[];
-
-            if (duplicates.length > 0) {
-                console.log(`[database]: Found duplicates in ${tableName} on ${columnName}. Cleaning up...`);
-                for (const dup of duplicates) {
-                    const records = db.prepare(`
-                        SELECT id FROM ${tableName} 
-                        WHERE ${columnName} = ? 
-                        ORDER BY created_at ASC
-                    `).all(dup[columnName]) as any[];
-
-                    const masterId = records[0].id;
-                    const redundantIds = records.slice(1).map(r => r.id);
-
-                    // Update dependent tables
-                    for (const dep of dependentTableMoves) {
-                        db.prepare(`
-                            UPDATE ${dep.table} SET ${dep.column} = ? 
-                            WHERE ${dep.column} IN (${redundantIds.map(() => '?').join(',')})
-                        `).run(masterId, ...redundantIds);
-                    }
-
-                    // Delete redundant records
-                    db.prepare(`
-                        DELETE FROM ${tableName} 
-                        WHERE id IN (${redundantIds.map(() => '?').join(',')})
-                    `).run(...redundantIds);
-                }
-            }
-
-            // Create UNIQUE INDEX to enforce constraints if table already existed without them
-            try {
-                db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_${tableName}_unique_${columnName} ON ${tableName}(${columnName})`);
-            } catch (err) {
-                console.warn(`[database]: Could not create unique index on ${tableName}(${columnName}). It might already be restricted.`);
-            }
+        // Helper to check if a column exists
+        const columnExists = async (tableName: string, columnName: string) => {
+            const [rows] = await pool.query(
+                'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                [process.env.DB_NAME, tableName, columnName]
+            );
+            return (rows as any[]).length > 0;
         };
 
-        // Run Deduplication
-        dedupeAndIndex('categories', 'name', [
-            { table: 'products', column: 'category_id' },
-            { table: 'categories', column: 'parent_category_id' }
-        ]);
-        dedupeAndIndex('suppliers', 'name', []); // Add dependent tables if discovered later
-        dedupeAndIndex('mechanics', 'name', [
-            { table: 'inventory_transactions', column: 'mechanic_id' }
-        ]);
-
-        // Ensure unique index on reference_id for transactions
-        try {
-            db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_trans_reference ON inventory_transactions(reference_id)`);
-        } catch (err) {
-            console.warn(`[database]: Could not create unique index on inventory_transactions(reference_id).`);
-        }
-
-        // Check for missing columns in bikes table (for existing databases)
-        const bikesTableInfo = db.prepare("PRAGMA table_info(bikes)").all() as any[];
-        const existingColumns = bikesTableInfo.map(c => c.name);
-
-        const requiredColumns = [
-            { name: 'plate_category', type: 'TEXT' },
-            { name: 'color', type: 'TEXT' },
-            { name: 'ownership', type: 'TEXT' },
-            { name: 'registration_expiry', type: 'TEXT' },
-            { name: 'insurance_expiry', type: 'TEXT' },
-            { name: 'accident_details', type: 'TEXT' }
-        ];
-
-        for (const col of requiredColumns) {
-            if (!existingColumns.includes(col.name)) {
-                console.log(`[database]: Adding missing column ${col.name} to bikes table...`);
-                db.exec(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
-            }
-        }
-
-        // Add 'kind', 'registration_renew_date', and 'location' to bikes if missing
-        const requiredBikeColumns = [
-            { name: 'kind', type: 'TEXT' },
-            { name: 'registration_renew_date', type: 'TEXT' },
+        // Check for missing columns in bikes table
+        const bikeCols = [
+            { name: 'plate_category', type: 'VARCHAR(50)' },
+            { name: 'color', type: 'VARCHAR(50)' },
+            { name: 'ownership', type: 'VARCHAR(100)' },
+            { name: 'registration_expiry', type: 'VARCHAR(50)' },
+            { name: 'insurance_expiry', type: 'VARCHAR(50)' },
+            { name: 'accident_details', type: 'TEXT' },
+            { name: 'kind', type: 'VARCHAR(50)' },
+            { name: 'registration_renew_date', type: 'VARCHAR(50)' },
             { name: 'location', type: 'TEXT' }
         ];
 
-        for (const col of requiredBikeColumns) {
-            if (!existingColumns.includes(col.name)) {
+        for (const col of bikeCols) {
+            if (!(await columnExists('bikes', col.name))) {
                 console.log(`[database]: Adding missing column ${col.name} to bikes table...`);
-                db.exec(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
-            }
-        }
-
-        // Check for missing columns in mechanics table
-        const mechanicsTableInfo = db.prepare("PRAGMA table_info(mechanics)").all() as any[];
-        const existingMechColumns = mechanicsTableInfo.map(c => c.name);
-
-        const requiredMechColumns = [
-            { name: 'code', type: 'TEXT' },
-            { name: 'unique_code', type: 'TEXT' },
-            { name: 'passport_number', type: 'TEXT' }
-        ];
-
-        for (const col of requiredMechColumns) {
-            if (!existingMechColumns.includes(col.name)) {
-                console.log(`[database]: Adding missing column ${col.name} to mechanics table...`);
-                db.exec(`ALTER TABLE mechanics ADD COLUMN ${col.name} ${col.type}`);
+                await pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
             }
         }
 
         // Seed default roles if empty
-        const rolesCount = db.prepare('SELECT COUNT(*) as count FROM roles').get() as any;
-        if (rolesCount.count === 0) {
+        const [roles] = await pool.query('SELECT COUNT(*) as count FROM roles');
+        if ((roles as any[])[0].count === 0) {
             console.log('[database]: Seeding default roles...');
-            const insertRole = db.prepare('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)');
             const defaultRoles = [
                 [crypto.randomUUID(), 'super_admin', 'Full system access'],
                 [crypto.randomUUID(), 'store_manager', 'Manage store operations'],
@@ -295,22 +214,21 @@ export async function migrate() {
                 [crypto.randomUUID(), 'staff', 'Shop staff - restricted access']
             ];
             for (const role of defaultRoles) {
-                insertRole.run(...role);
+                await pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
             }
         }
 
-        const usersCount = (db.prepare('SELECT COUNT(*) as count FROM users').get() as any).count;
-        if (usersCount === 0) {
+        const [users] = await pool.query('SELECT COUNT(*) as count FROM users');
+        if ((users as any[])[0].count === 0) {
             console.log('[database]: Seeding default admin user...');
-            const adminRole = db.prepare("SELECT id FROM roles WHERE name = 'super_admin'").get() as any;
-            if (adminRole) {
-                const insertUser = db.prepare(`
-                    INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) 
-                    VALUES (?, ?, ?, ?, ?, ?)
-                `);
-                // Real bcrypt hash for password 'admin' (cost 10)
+            const [adminRoles] = await pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
+            if ((adminRoles as any[]).length > 0) {
+                const adminRole = (adminRoles as any[])[0];
                 const adminHash = '$2b$10$Xv4la7dWjWVgir8OLzqQYZ63dte.6vS3nwc.KT7L';
-                insertUser.run(crypto.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id);
+                await pool.query(
+                    'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [crypto.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id]
+                );
             }
         }
 

@@ -4,7 +4,12 @@ export class ReportsService {
     static async getDashboardStats() {
         const [productRows]: any = await pool.execute('SELECT COUNT(*) as count FROM products');
         const [supplierRows]: any = await pool.execute('SELECT COUNT(*) as count FROM suppliers');
-        const [lowStockRows]: any = await pool.execute('SELECT COUNT(*) as count FROM products WHERE quantity <= min_stock_level');
+        const [lowStockRows]: any = await pool.execute(`
+            SELECT COUNT(*) as count 
+            FROM products p
+            JOIN inventory i ON p.id = i.product_id
+            WHERE i.quantity <= p.reorder_level
+        `);
         const [userRows]: any = await pool.execute('SELECT COUNT(*) as count FROM users');
 
         return {

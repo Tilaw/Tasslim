@@ -35,9 +35,9 @@ export class AuthService {
             { expiresIn: (process.env.REFRESH_TOKEN_EXPIRES_IN || '7d') as any }
         );
 
-        // Save refresh token to db (SQLite compatible date)
+        // Save refresh token to db
         await pool.execute(
-            "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, datetime('now', '+7 days'))",
+            "INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 7 DAY))",
             [user.id, refreshToken]
         );
 

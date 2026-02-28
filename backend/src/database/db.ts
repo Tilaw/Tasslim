@@ -1,50 +1,77 @@
-import Database from 'better-sqlite3';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import mysql from 'mysql2/promise';
+import dotenv from 'dotenv';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.resolve(__dirname, '../../inventory.db');
+dotenv.config();
 
-export const db = new Database(dbPath, { verbose: console.log });
+const dbConfig = {
+    host: process.env.DB_HOST?.split(':')[0] || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
+};
 
-// Compatibility wrapper for the mysql2 "pool.execute" pattern
-export const pool = {
-    execute: async (sql: string, params: any[] = []) => {
-        try {
-            // SQLite uses ? just like MySQL
-            const stmt = db.prepare(sql);
-            if (sql.trim().toLowerCase().startsWith('select')) {
-                const rows = stmt.all(...params);
-                return [rows];
-            } else {
-                const info = stmt.run(...params);
-                return [info];
+export const pool = mysql.createPool(dbConfig);
+
+// Compatibility wrapper as a separate export if needed, 
+// but we'll export the pool directly and use standard promise-based API.
+export const db = {
+    prepare: (sql: string) => {
+        // Mocking the SQLite 'prepare' pattern for minimal changes elsewhere
+        return {
+            run: async (...params: any[]) => {
+                const [result] = await pool.execute(sql, params);
+                return result;
+            },
+            get: async (...params: any[]) => {
+                const [rows] = await pool.execute(sql, params);
+                return (rows as any[])[0];
+            },
+            all: async (...params: any[]) => {
+                const [rows] = await pool.execute(sql, params);
+                return rows;
             }
-        } catch (error) {
-            console.error('[database]: Query execution failed!');
-            console.error('[database]: SQL:', sql);
-            console.error('[database]: Params:', JSON.stringify(params));
-            console.error('[database]: Error:', error);
-            throw error;
-        }
+        };
     },
-    // For transactions
-    getConnection: async () => ({
-        release: () => { },
-        execute: pool.execute,
-        beginTransaction: async () => { db.prepare('BEGIN').run(); },
-        commit: async () => { db.prepare('COMMIT').run(); },
-        rollback: async () => { db.prepare('ROLLBACK').run(); },
-    })
+    transaction: (fn: Function) => {
+        return async (...args: any[]) => {
+            const connection = await pool.getConnection();
+            try {
+                await connection.beginTransaction();
+                const result = await fn(connection, ...args);
+                await connection.commit();
+                return result;
+            } catch (error) {
+                await connection.rollback();
+                throw error;
+            } finally {
+                connection.release();
+            }
+        };
+    },
+    exec: async (sql: string) => {
+        // MySQL doesn't have a single .exec for multi-statement strings easily with pool.execute
+        // We'll split by ; for basic migrations if needed, but better to use connection.query
+        const connection = await pool.getConnection();
+        try {
+            await connection.query(sql);
+        } finally {
+            connection.release();
+        }
+    }
 };
 
 export async function testConnection() {
     try {
-        db.pragma('journal_mode = WAL');
-        console.log('[database]: SQLite connected successfully at', dbPath);
+        const connection = await pool.getConnection();
+        console.log('[database]: MySQL connected successfully to', process.env.DB_NAME);
+        connection.release();
         return true;
     } catch (error) {
-        console.error('[database]: SQLite connection failed:', error);
+        console.error('[database]: MySQL connection failed:', error);
         return false;
     }
 }

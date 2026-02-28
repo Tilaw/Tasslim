@@ -2,9 +2,6 @@ node_modules/
 backend/node_modules/
 backend/dist/
 backend/inventory.db
-*.db
-*.zip
-inventory.db
 backend/.env
 .env
 .DS_Store
