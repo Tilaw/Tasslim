@@ -9,17 +9,21 @@ async function startServer() {
         console.log('[server]: Starting server...');
 
         // Run database migrations
+        console.log('[server]: Running database migrations...');
         await migrate();
+        console.log('[server]: Migrations check complete.');
 
         // Test database connection
         const dbConnected = await testConnection();
         if (!dbConnected) {
-            console.warn('[server]: Database connection failed, but starting server anyway...');
+            console.error('[server]: CRITICAL: Database connection failed. Exiting...');
+            process.exit(1);
         }
 
         const server = app.listen(PORT, () => {
             console.log(`[server]: Server is running and accessible on the network at port ${PORT}`);
             console.log(`[server]: Local access: http://localhost:${PORT}`);
+            console.log(`[server]: Health check: http://localhost:${PORT}/health`);
         });
 
         server.on('error', (err) => {
@@ -27,7 +31,8 @@ async function startServer() {
         });
 
     } catch (error) {
-        console.error('[server]: Failed to start server:', error);
+        console.error('[server]: Failed to start server due to an unhandled error:', error);
+        process.exit(1);
     }
 }
 

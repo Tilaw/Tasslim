@@ -3,6 +3,15 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+
+if (missingEnvVars.length > 0) {
+    console.error(`[database]: Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    console.error('[database]: Please check your .env file.');
+    // In production, we might want to exit the process, but let's just log for now to allow local dev if possible
+}
+
 const dbConfig = {
     host: process.env.DB_HOST?.split(':')[0] || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
