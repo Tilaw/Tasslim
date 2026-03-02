@@ -21,6 +21,12 @@ dotenv.config();
 
 const app: Express = express();
 
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`[api]: ${req.method} ${req.path}`);
+    next();
+});
+
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 app.use(cors({
