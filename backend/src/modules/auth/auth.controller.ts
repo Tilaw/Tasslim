@@ -1,16 +1,18 @@
-import { Request, Response, NextFunction } from 'express';
-import { AuthService } from './auth.service.js';
+import { Request, Response, NextFunction } from "express";
+import { AuthService } from "./auth.service.js";
 
 export class AuthController {
     static async login(req: Request, res: Response, next: NextFunction) {
         try {
             const { email, password } = req.body;
             const result = await AuthService.login(email, password);
+            console.log("🚀 ~ AuthController ~ login ~ result:", result);
             res.json({ success: true, data: result });
         } catch (error: any) {
+            console.log("🚀 ~ AuthController ~ login ~ error:", error)
             res.status(401).json({
                 success: false,
-                error: { code: 'UNAUTHORIZED', message: error.message },
+                error: { code: "UNAUTHORIZED", message: error.message },
             });
         }
     }

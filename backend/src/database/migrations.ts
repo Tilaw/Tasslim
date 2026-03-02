@@ -1,8 +1,22 @@
-import { pool } from './db.js';
-import crypto from 'crypto';
+import { pool } from "./db.js";
+import crypto from "crypto";
 
 export async function migrate() {
-    console.log('[database]: Starting MySQL migrations...');
+    console.log("[database]: Starting MySQL migrations...");
+
+    try {
+        // First, create the database if it doesn't exist
+        const dbNameFromEnv = process.env.DB_NAME || "taslimal_";
+        console.log(
+            `[database]: Ensuring database '${dbNameFromEnv}' exists...`,
+        );
+
+        await pool.query(`CREATE DATABASE IF NOT EXISTS \`${dbNameFromEnv}\``);
+        console.log(`[database]: Database '${dbNameFromEnv}' ready`);
+    } catch (dbCreateError) {
+        console.error("[database]: Failed to create database:", dbCreateError);
+        throw dbCreateError;
+    }
 
     const schema = `
         -- Roles
@@ -165,76 +179,110 @@ export async function migrate() {
 
     try {
         // Execute schema one statement at a time for better reliability in pool.query
-        const statements = schema.split(';').filter(s => s.trim().length > 0);
+        const statements = schema.split(";").filter((s) => s.trim().length > 0);
         for (const s of statements) {
             await pool.query(s);
         }
-        console.log('[database]: Tables verified/created');
+        console.log("[database]: Tables verified/created");
 
         // Helper to check if a column exists
         const columnExists = async (tableName: string, columnName: string) => {
             const [rows] = await pool.query(
-                'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-                [process.env.DB_NAME, tableName, columnName]
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                [process.env.DB_NAME, tableName, columnName],
             );
             return (rows as any[]).length > 0;
         };
 
         // Check for missing columns in bikes table
         const bikeCols = [
-            { name: 'plate_category', type: 'VARCHAR(50)' },
-            { name: 'color', type: 'VARCHAR(50)' },
-            { name: 'ownership', type: 'VARCHAR(100)' },
-            { name: 'registration_expiry', type: 'VARCHAR(50)' },
-            { name: 'insurance_expiry', type: 'VARCHAR(50)' },
-            { name: 'accident_details', type: 'TEXT' },
-            { name: 'kind', type: 'VARCHAR(50)' },
-            { name: 'registration_renew_date', type: 'VARCHAR(50)' },
-            { name: 'location', type: 'TEXT' }
+            { name: "plate_category", type: "VARCHAR(50)" },
+            { name: "color", type: "VARCHAR(50)" },
+            { name: "ownership", type: "VARCHAR(100)" },
+            { name: "registration_expiry", type: "VARCHAR(50)" },
+            { name: "insurance_expiry", type: "VARCHAR(50)" },
+            { name: "accident_details", type: "TEXT" },
+            { name: "kind", type: "VARCHAR(50)" },
+            { name: "registration_renew_date", type: "VARCHAR(50)" },
+            { name: "location", type: "TEXT" },
         ];
 
         for (const col of bikeCols) {
-            if (!(await columnExists('bikes', col.name))) {
-                console.log(`[database]: Adding missing column ${col.name} to bikes table...`);
-                await pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
-            }
-        }
-
-        // Seed default roles if empty
-        const [roles] = await pool.query('SELECT COUNT(*) as count FROM roles');
-        if ((roles as any[])[0].count === 0) {
-            console.log('[database]: Seeding default roles...');
-            const defaultRoles = [
-                [crypto.randomUUID(), 'super_admin', 'Full system access'],
-                [crypto.randomUUID(), 'store_manager', 'Manage store operations'],
-                [crypto.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
-                [crypto.randomUUID(), 'sales_person', 'Process sales and view inventory'],
-                [crypto.randomUUID(), 'accountant', 'Financial reports'],
-                [crypto.randomUUID(), 'viewer', 'Read-only access'],
-                [crypto.randomUUID(), 'staff', 'Shop staff - restricted access']
-            ];
-            for (const role of defaultRoles) {
-                await pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
-            }
-        }
-
-        const [users] = await pool.query('SELECT COUNT(*) as count FROM users');
-        if ((users as any[])[0].count === 0) {
-            console.log('[database]: Seeding default admin user...');
-            const [adminRoles] = await pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
-            if ((adminRoles as any[]).length > 0) {
-                const adminRole = (adminRoles as any[])[0];
-                const adminHash = '$2b$10$Xv4la7dWjWVgir8OLzqQYZ63dte.6vS3nwc.KT7L';
+            if (!(await columnExists("bikes", col.name))) {
+                console.log(
+                    `[database]: Adding missing column ${col.name} to bikes table...`,
+                );
                 await pool.query(
-                    'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    [crypto.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id]
+                    `ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`,
                 );
             }
         }
 
-        console.log('[database]: Migrations completed successfully');
+        // Seed default roles if empty
+        const [roles] = await pool.query("SELECT COUNT(*) as count FROM roles");
+        if ((roles as any[])[0].count === 0) {
+            console.log("[database]: Seeding default roles...");
+            const defaultRoles = [
+                [crypto.randomUUID(), "super_admin", "Full system access"],
+                [
+                    crypto.randomUUID(),
+                    "store_manager",
+                    "Manage store operations",
+                ],
+                [
+                    crypto.randomUUID(),
+                    "inventory_manager",
+                    "Manage inventory and suppliers",
+                ],
+                [
+                    crypto.randomUUID(),
+                    "sales_person",
+                    "Process sales and view inventory",
+                ],
+                [crypto.randomUUID(), "accountant", "Financial reports"],
+                [crypto.randomUUID(), "viewer", "Read-only access"],
+                [
+                    crypto.randomUUID(),
+                    "staff",
+                    "Shop staff - restricted access",
+                ],
+            ];
+            for (const role of defaultRoles) {
+                await pool.query(
+                    "INSERT INTO roles (id, name, description) VALUES (?, ?, ?)",
+                    role,
+                );
+            }
+        }
+
+        const [users] = await pool.query("SELECT COUNT(*) as count FROM users");
+        if ((users as any[])[0].count === 0) {
+            console.log("[database]: Seeding default admin user...");
+            const [adminRoles] = await pool.query(
+                "SELECT id FROM roles WHERE name = 'super_admin'",
+            );
+            if ((adminRoles as any[]).length > 0) {
+                const adminRole = (adminRoles as any[])[0];
+                // Valid bcrypt hash for password 'admin' (10 salt rounds)
+                const adminHash =
+                    "$2a$12$yapxOEv4ckkSCBeGMdiKau7w85oB2GX9oINtH2cx9iOVOpW/WFsq2";
+                await pool.query(
+                    "INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)",
+                    [
+                        crypto.randomUUID(),
+                        "admin",
+                        adminHash,
+                        "Admin",
+                        "User",
+                        adminRole.id,
+                    ],
+                );
+            }
+        }
+
+        console.log("[database]: Migrations completed successfully");
     } catch (error) {
-        console.error('[database]: Migration failed:', error);
+        console.error("[database]: Migration failed:", error);
         throw error;
     }
 }
