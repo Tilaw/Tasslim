@@ -202,20 +202,14 @@
                     btn.style.display = 'none';
                     info.style.display = 'none';
                 } else {
+                    // always show migrate button when not migrated; user may want to sync even if no data
                     const hasLocalData = (JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || []).length > 0 ||
                         (JSON.parse(localStorage.getItem(App.KEYS.SALES)) || []).length > 0;
 
-                    if (hasLocalData) {
-                        badge.textContent = 'Local Mode (Needs Sync)';
-                        badge.className = 'badge badge-warning';
-                        btn.style.display = 'block';
-                        info.style.display = 'block';
-                    } else {
-                        badge.textContent = 'Cloud Mode (Sync Active)';
-                        badge.className = 'badge badge-success';
-                        btn.style.display = 'none';
-                        info.style.display = 'none';
-                    }
+                    badge.textContent = hasLocalData ? 'Local Mode (Needs Sync)' : 'Local Mode (Empty)';
+                    badge.className = 'badge badge-warning';
+                    btn.style.display = 'block';
+                    info.style.display = 'block';
                 }
             },
 
@@ -227,21 +221,21 @@
                 resEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Testing connection to backend...';
 
                 try {
-                    console.log(`[settings]: Testing connection to ${API_BASE_URL}/health`);
-                    const response = await fetch(`${API_BASE_URL}/health`, {
+                    // the backend doesn't expose a /health endpoint, so hit /auth instead
+                    console.log(`[settings]: Testing connection to ${API_BASE_URL}/auth`);
+                    const response = await fetch(`${API_BASE_URL}/auth`, {
                         method: 'GET',
                         cache: 'no-cache'
                     });
 
-                    if (response.ok) {
-                        const data = await response.json();
+                    // any response (including 401/404) indicates the server is up
+                    if (response.ok || response.status === 401 || response.status === 404) {
                         resEl.style.background = '#dcfce7';
                         resEl.style.color = '#15803d';
                         resEl.style.border = '1px solid #bbf7d0';
                         resEl.innerHTML = `
                             <div style="font-weight: bold; margin-bottom: 5px;"><i class="fas fa-check-circle"></i> Connection Successful!</div>
                             <div style="font-size: 0.8rem;">Server is online. Migration and mobile sync will work.</div>
-                            <div style="font-size: 0.75rem; color: #166534; margin-top: 5px;">Server Time: ${new Date(data.timestamp).toLocaleString()}</div>
                         `;
                     } else {
                         throw new Error(`Server returned ${response.status}`);

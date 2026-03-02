@@ -43,7 +43,12 @@
 }
 
 body {
-    font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family:
+        "Inter",
+        "Segoe UI",
+        system-ui,
+        -apple-system,
+        sans-serif;
     background-color: var(--light-bg);
     color: var(--text-color);
     line-height: 1.6;
@@ -155,18 +160,18 @@ body {
     width: 100%;
 }
 
-.sidebar.active~.main-content {
+.sidebar.active ~ .main-content {
     margin-inline-start: var(--sidebar-width);
 }
 
 @media screen and (max-width: 768px) {
-    .sidebar.active~.main-content {
+    .sidebar.active ~ .main-content {
         margin-inline-start: 0;
     }
 
     /* Swipe area hint or interaction area */
     .sidebar::after {
-        content: '';
+        content: "";
         position: absolute;
         right: -40px;
         top: 0;
@@ -227,7 +232,9 @@ body {
     padding: 20px;
     box-shadow: var(--card-shadow);
     margin-bottom: 25px;
-    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow var(--transition-speed);
+    transition:
+        transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275),
+        box-shadow var(--transition-speed);
     border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
@@ -429,6 +436,10 @@ tr:hover {
     border-radius: 16px;
     width: 500px;
     max-width: 90%;
+    /* fixed height with scrollable overflow */
+    height: 80vh;
+    max-height: 90vh;
+    overflow-y: auto;
     transform: scale(0.95);
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
@@ -436,6 +447,15 @@ tr:hover {
 
 .modal-overlay.open .modal-content {
     transform: scale(1);
+}
+
+/* small screen tweaks */
+@media (max-height: 600px) {
+    .modal-content {
+        width: 95%;
+        padding: 20px;
+        height: 90vh;
+    }
 }
 
 /* Premium Modal Layouts */
@@ -536,7 +556,6 @@ tr:hover {
 }
 
 @media (max-width: 768px) {
-
     /* Layout */
     .sidebar {
         transform: translateX(calc(var(--sidebar-width) * -1));
@@ -669,7 +688,7 @@ tr:hover {
     }
 
     .bottom-nav-item.active::before {
-        content: '';
+        content: "";
         position: absolute;
         top: -12px;
         width: 30px;
@@ -797,7 +816,7 @@ tr:hover {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .sidebar.active~.main-content {
+    .sidebar.active ~ .main-content {
         margin-inline-start: var(--sidebar-width);
     }
 }
@@ -843,20 +862,28 @@ tr:hover {
     align-items: center;
     height: 100vh;
     margin: 0;
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family:
+        "Segoe UI",
+        system-ui,
+        -apple-system,
+        sans-serif;
     position: relative;
     overflow: hidden;
 }
 
 /* Background Pattern Overlay (Optional Polish) */
 .login-body::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.05) 0%, transparent 50%);
+    background: radial-gradient(
+        circle at 50% 50%,
+        rgba(255, 255, 255, 0.05) 0%,
+        transparent 50%
+    );
     pointer-events: none;
 }
 
@@ -864,7 +891,9 @@ tr:hover {
     background: rgba(255, 255, 255, 0.95);
     padding: 3rem;
     border-radius: 16px;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2), 0 5px 15px rgba(0, 0, 0, 0.1);
+    box-shadow:
+        0 15px 35px rgba(0, 0, 0, 0.2),
+        0 5px 15px rgba(0, 0, 0, 0.1);
     width: 100%;
     max-width: 420px;
     transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
@@ -956,7 +985,7 @@ tr:hover {
     box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.1);
 }
 
-.login-card .form-control:focus+i,
+.login-card .form-control:focus + i,
 .login-card .input-group:focus-within i {
     color: #2a5298;
 }

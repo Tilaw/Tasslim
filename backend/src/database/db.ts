@@ -16,7 +16,7 @@ const dbConfig = {
 
 export const pool = mysql.createPool(dbConfig);
 
-// Compatibility wrapper as a separate export if needed, 
+// Compatibility wrapper as a separate export if needed,
 // but we'll export the pool directly and use standard promise-based API.
 export const db = {
     prepare: (sql: string) => {

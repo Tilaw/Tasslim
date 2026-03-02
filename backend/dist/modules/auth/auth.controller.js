@@ -17,12 +17,14 @@ class AuthController {
             try {
                 const { email, password } = req.body;
                 const result = yield auth_service_js_1.AuthService.login(email, password);
+                console.log("🚀 ~ AuthController ~ login ~ result:", result);
                 res.json({ success: true, data: result });
             }
             catch (error) {
+                console.log("🚀 ~ AuthController ~ login ~ error:", error);
                 res.status(401).json({
                     success: false,
-                    error: { code: 'UNAUTHORIZED', message: error.message },
+                    error: { code: "UNAUTHORIZED", message: error.message },
                 });
             }
         });

@@ -17,7 +17,18 @@ const db_js_1 = require("./db.js");
 const crypto_1 = __importDefault(require("crypto"));
 function migrate() {
     return __awaiter(this, void 0, void 0, function* () {
-        console.log('[database]: Starting MySQL migrations...');
+        console.log("[database]: Starting MySQL migrations...");
+        try {
+            // First, create the database if it doesn't exist
+            const dbNameFromEnv = process.env.DB_NAME || "taslimal_";
+            console.log(`[database]: Ensuring database '${dbNameFromEnv}' exists...`);
+            yield db_js_1.pool.query(`CREATE DATABASE IF NOT EXISTS \`${dbNameFromEnv}\``);
+            console.log(`[database]: Database '${dbNameFromEnv}' ready`);
+        }
+        catch (dbCreateError) {
+            console.error("[database]: Failed to create database:", dbCreateError);
+            throw dbCreateError;
+        }
         const schema = `
         -- Roles
         CREATE TABLE IF NOT EXISTS roles (
@@ -178,65 +189,89 @@ function migrate() {
     `;
         try {
             // Execute schema one statement at a time for better reliability in pool.query
-            const statements = schema.split(';').filter(s => s.trim().length > 0);
+            const statements = schema.split(";").filter((s) => s.trim().length > 0);
             for (const s of statements) {
                 yield db_js_1.pool.query(s);
             }
-            console.log('[database]: Tables verified/created');
+            console.log("[database]: Tables verified/created");
             // Helper to check if a column exists
             const columnExists = (tableName, columnName) => __awaiter(this, void 0, void 0, function* () {
-                const [rows] = yield db_js_1.pool.query('SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?', [process.env.DB_NAME, tableName, columnName]);
+                const [rows] = yield db_js_1.pool.query("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?", [process.env.DB_NAME, tableName, columnName]);
                 return rows.length > 0;
             });
             // Check for missing columns in bikes table
             const bikeCols = [
-                { name: 'plate_category', type: 'VARCHAR(50)' },
-                { name: 'color', type: 'VARCHAR(50)' },
-                { name: 'ownership', type: 'VARCHAR(100)' },
-                { name: 'registration_expiry', type: 'VARCHAR(50)' },
-                { name: 'insurance_expiry', type: 'VARCHAR(50)' },
-                { name: 'accident_details', type: 'TEXT' },
-                { name: 'kind', type: 'VARCHAR(50)' },
-                { name: 'registration_renew_date', type: 'VARCHAR(50)' },
-                { name: 'location', type: 'TEXT' }
+                { name: "plate_category", type: "VARCHAR(50)" },
+                { name: "color", type: "VARCHAR(50)" },
+                { name: "ownership", type: "VARCHAR(100)" },
+                { name: "registration_expiry", type: "VARCHAR(50)" },
+                { name: "insurance_expiry", type: "VARCHAR(50)" },
+                { name: "accident_details", type: "TEXT" },
+                { name: "kind", type: "VARCHAR(50)" },
+                { name: "registration_renew_date", type: "VARCHAR(50)" },
+                { name: "location", type: "TEXT" },
             ];
             for (const col of bikeCols) {
-                if (!(yield columnExists('bikes', col.name))) {
+                if (!(yield columnExists("bikes", col.name))) {
                     console.log(`[database]: Adding missing column ${col.name} to bikes table...`);
                     yield db_js_1.pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
                 }
             }
             // Seed default roles if empty
-            const [roles] = yield db_js_1.pool.query('SELECT COUNT(*) as count FROM roles');
+            const [roles] = yield db_js_1.pool.query("SELECT COUNT(*) as count FROM roles");
             if (roles[0].count === 0) {
-                console.log('[database]: Seeding default roles...');
+                console.log("[database]: Seeding default roles...");
                 const defaultRoles = [
-                    [crypto_1.default.randomUUID(), 'super_admin', 'Full system access'],
-                    [crypto_1.default.randomUUID(), 'store_manager', 'Manage store operations'],
-                    [crypto_1.default.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
-                    [crypto_1.default.randomUUID(), 'sales_person', 'Process sales and view inventory'],
-                    [crypto_1.default.randomUUID(), 'accountant', 'Financial reports'],
-                    [crypto_1.default.randomUUID(), 'viewer', 'Read-only access'],
-                    [crypto_1.default.randomUUID(), 'staff', 'Shop staff - restricted access']
+                    [crypto_1.default.randomUUID(), "super_admin", "Full system access"],
+                    [
+                        crypto_1.default.randomUUID(),
+                        "store_manager",
+                        "Manage store operations",
+                    ],
+                    [
+                        crypto_1.default.randomUUID(),
+                        "inventory_manager",
+                        "Manage inventory and suppliers",
+                    ],
+                    [
+                        crypto_1.default.randomUUID(),
+                        "sales_person",
+                        "Process sales and view inventory",
+                    ],
+                    [crypto_1.default.randomUUID(), "accountant", "Financial reports"],
+                    [crypto_1.default.randomUUID(), "viewer", "Read-only access"],
+                    [
+                        crypto_1.default.randomUUID(),
+                        "staff",
+                        "Shop staff - restricted access",
+                    ],
                 ];
                 for (const role of defaultRoles) {
-                    yield db_js_1.pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
+                    yield db_js_1.pool.query("INSERT INTO roles (id, name, description) VALUES (?, ?, ?)", role);
                 }
             }
-            const [users] = yield db_js_1.pool.query('SELECT COUNT(*) as count FROM users');
+            const [users] = yield db_js_1.pool.query("SELECT COUNT(*) as count FROM users");
             if (users[0].count === 0) {
-                console.log('[database]: Seeding default admin user...');
+                console.log("[database]: Seeding default admin user...");
                 const [adminRoles] = yield db_js_1.pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
                 if (adminRoles.length > 0) {
                     const adminRole = adminRoles[0];
-                    const adminHash = '$2b$10$Xv4la7dWjWVgir8OLzqQYZ63dte.6vS3nwc.KT7L';
-                    yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id]);
+                    // Valid bcrypt hash for password 'admin' (10 salt rounds)
+                    const adminHash = "$2a$12$yapxOEv4ckkSCBeGMdiKau7w85oB2GX9oINtH2cx9iOVOpW/WFsq2";
+                    yield db_js_1.pool.query("INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)", [
+                        crypto_1.default.randomUUID(),
+                        "admin",
+                        adminHash,
+                        "Admin",
+                        "User",
+                        adminRole.id,
+                    ]);
                 }
             }
-            console.log('[database]: Migrations completed successfully');
+            console.log("[database]: Migrations completed successfully");
         }
         catch (error) {
-            console.error('[database]: Migration failed:', error);
+            console.error("[database]: Migration failed:", error);
             throw error;
         }
     });

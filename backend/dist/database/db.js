@@ -29,7 +29,7 @@ const dbConfig = {
     queueLimit: 0
 };
 exports.pool = promise_1.default.createPool(dbConfig);
-// Compatibility wrapper as a separate export if needed, 
+// Compatibility wrapper as a separate export if needed,
 // but we'll export the pool directly and use standard promise-based API.
 exports.db = {
     prepare: (sql) => {
