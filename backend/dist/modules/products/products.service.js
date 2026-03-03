@@ -33,9 +33,11 @@ class ProductService {
             const name = String(raw).trim();
             if (!name)
                 return null;
+            // Find existing by name
             const [rows] = yield db_js_1.pool.execute('SELECT id FROM categories WHERE name = ? LIMIT 1', [name]);
             if (rows && rows[0] && rows[0].id)
                 return rows[0].id;
+            // Create category on-the-fly (legacy compatibility)
             const id = crypto_1.default.randomUUID();
             yield db_js_1.pool.execute('INSERT INTO categories (id, name, parent_category_id, description, is_active) VALUES (?, ?, NULL, NULL, TRUE)', [id, name]);
             return id;
@@ -154,6 +156,7 @@ class ProductService {
                 fields.push(`${dbKey} = ?`);
                 values.push(data[key]);
             });
+            // Handle category updates (UUID or legacy name)
             if (data.categoryId !== undefined || data.category !== undefined) {
                 const categoryId = yield this.resolveCategoryId(data);
                 fields.push('category_id = ?');
