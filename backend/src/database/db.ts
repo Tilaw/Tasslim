@@ -1,5 +1,6 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
@@ -7,9 +8,8 @@ const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
-    console.error(`[database]: Missing required environment variables: ${missingEnvVars.join(', ')}`);
-    console.error('[database]: Please check your .env file.');
-    // In production, we might want to exit the process, but let's just log for now to allow local dev if possible
+    logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    logger.warn('Please check your .env file.');
 }
 
 const dbConfig = {
@@ -76,11 +76,11 @@ export const db = {
 export async function testConnection() {
     try {
         const connection = await pool.getConnection();
-        console.log('[database]: MySQL connected successfully to', process.env.DB_NAME);
+        logger.success(`MySQL connected successfully to ${process.env.DB_NAME}`);
         connection.release();
         return true;
     } catch (error) {
-        console.error('[database]: MySQL connection failed:', error);
+        logger.error('MySQL connection failed', error);
         return false;
     }
 }
