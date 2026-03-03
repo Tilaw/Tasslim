@@ -7,8 +7,25 @@ import { createSupplierSchema, updateSupplierSchema } from './suppliers.validati
 const router = Router();
 
 router.get('/', authMiddleware, SupplierController.getAll);
-router.post('/', authMiddleware, requireRole('super_admin', 'store_manager'), validate(createSupplierSchema), SupplierController.create);
-router.patch('/:id', authMiddleware, requireRole('super_admin', 'store_manager'), validate(updateSupplierSchema), SupplierController.update);
-router.delete('/:id', authMiddleware, requireRole('super_admin', 'store_manager'), SupplierController.delete);
+router.post(
+    '/',
+    authMiddleware,
+    requireRole('super_admin', 'admin', 'store_manager', 'inventory_manager', 'staff'),
+    validate(createSupplierSchema),
+    SupplierController.create
+);
+router.patch(
+    '/:id',
+    authMiddleware,
+    requireRole('super_admin', 'admin', 'store_manager', 'inventory_manager', 'staff'),
+    validate(updateSupplierSchema),
+    SupplierController.update
+);
+router.delete(
+    '/:id',
+    authMiddleware,
+    requireRole('super_admin', 'admin', 'store_manager', 'inventory_manager', 'staff'),
+    SupplierController.delete
+);
 
 export const supplierRoutes = router;

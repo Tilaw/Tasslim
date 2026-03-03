@@ -138,8 +138,9 @@
         const Suppliers = {
             data: [],
 
-            init: function () {
-                this.loadData();
+            init: async function () {
+                await App.init();
+                await this.loadData();
                 this.renderTable();
 
                 document.getElementById('supplierForm').addEventListener('submit', (e) => {
@@ -155,8 +156,22 @@
                 });
             },
 
-            loadData: function () {
-                this.data = JSON.parse(localStorage.getItem(App.KEYS.SUPPLIERS)) || [];
+            loadData: async function () {
+                // Always load from API (no demo/localStorage supplier mode)
+                try {
+                    const result = await App.apiCall('/suppliers', 'GET');
+                    this.data = (result && result.success && Array.isArray(result.data)) ? result.data : [];
+                } catch (err) {
+                    const msg = err && err.message ? err.message : '';
+                    const status = err && err.status ? err.status : null;
+                    if (status === 401) {
+                        App.showToast('Session expired. Please login again.', 'error');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                    App.showToast(msg || 'Failed to load suppliers from server', 'error');
+                    this.data = [];
+                }
             },
 
             renderTable: function () {
@@ -216,30 +231,29 @@
                 };
 
                 try {
-                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-                    if (isMigrated) {
-                        const endpoint = isEdit ? `/suppliers/${id}` : '/suppliers';
-                        const method = isEdit ? 'PATCH' : 'POST';
-                        const result = await App.apiCall(endpoint, method, supplier);
-                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
-                        await App.loadData();
-                        this.loadData();
-                    } else {
-                        const localSupplier = { ...supplier, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
-                        if (isEdit) {
-                            const index = this.data.findIndex(s => s.id?.toString() === id.toString());
-                            if (index !== -1) this.data[index] = localSupplier;
-                        } else {
-                            this.data.push(localSupplier);
-                        }
-                        localStorage.setItem(App.KEYS.SUPPLIERS, JSON.stringify(this.data));
-                    }
+                    const endpoint = isEdit ? `/suppliers/${id}` : '/suppliers';
+                    const method = isEdit ? 'PATCH' : 'POST';
+                    await App.apiCall(endpoint, method, supplier);
+
+                    await this.loadData();
                     this.renderTable();
                     this.closeModal();
                     App.showToast('Supplier saved successfully');
                 } catch (error) {
                     console.error('Save failed:', error);
-                    App.showToast(error.message || 'Failed to save supplier', 'error');
+                    const msg = error && error.message ? error.message : '';
+                    const status = error && error.status ? error.status : null;
+
+                    if (status === 401) {
+                        App.showToast('Session expired. Please login again.', 'error');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                    if (status === 403) {
+                        App.showToast('Insufficient permissions to save supplier.', 'error');
+                        return;
+                    }
+                    App.showToast(msg || 'Failed to save supplier', 'error');
                 }
             },
 
@@ -258,21 +272,24 @@
             delete: async function (id) {
                 if (confirm('Are you sure?')) {
                     try {
-                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-                        if (isMigrated) {
-                            const result = await App.apiCall(`/suppliers/${id}`, 'DELETE');
-                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
-                            await App.loadData();
-                            this.loadData();
-                        } else {
-                            this.data = this.data.filter(s => s.id?.toString() !== id.toString());
-                            localStorage.setItem(App.KEYS.SUPPLIERS, JSON.stringify(this.data));
-                        }
+                        await App.apiCall(`/suppliers/${id}`, 'DELETE');
+                        await this.loadData();
                         this.renderTable();
                         App.showToast('Supplier deleted', 'error');
                     } catch (error) {
                         console.error('Delete failed:', error);
-                        App.showToast(error.message || 'Failed to delete supplier', 'error');
+                        const msg = error && error.message ? error.message : '';
+                        const status = error && error.status ? error.status : null;
+                        if (status === 401) {
+                            App.showToast('Session expired. Please login again.', 'error');
+                            window.location.href = 'index.html';
+                            return;
+                        }
+                        if (status === 403) {
+                            App.showToast('Insufficient permissions to delete supplier.', 'error');
+                            return;
+                        }
+                        App.showToast(msg || 'Failed to delete supplier', 'error');
                     }
                 }
             }
@@ -282,8 +299,7 @@
         window.Suppliers = Suppliers;
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await App.init();
-            Suppliers.init();
+            await Suppliers.init();
 
             // Header User Info (with safety checks)
             const user = App.getCurrentUser();
@@ -301,4 +317,3 @@
 </body>
 
 </html>
-

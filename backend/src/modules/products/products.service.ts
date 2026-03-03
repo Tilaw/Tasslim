@@ -2,6 +2,36 @@ import { pool } from '../../database/db.js';
 import crypto from 'crypto';
 
 export class ProductService {
+    private static isUuid(v: any) {
+        return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    }
+
+    /**
+     * Accept either a category UUID (`categoryId`) or a legacy category name (`category`).
+     * If a name is provided and does not exist, create it.
+     */
+    private static async resolveCategoryId(data: any): Promise<string | null> {
+        const raw = data?.categoryId || data?.category;
+        if (!raw) return null;
+
+        if (this.isUuid(raw)) return raw;
+
+        const name = String(raw).trim();
+        if (!name) return null;
+
+        // Find existing by name
+        const [rows]: any = await pool.execute('SELECT id FROM categories WHERE name = ? LIMIT 1', [name]);
+        if (rows && rows[0] && rows[0].id) return rows[0].id;
+
+        // Create category on-the-fly (legacy compatibility)
+        const id = crypto.randomUUID();
+        await pool.execute(
+            'INSERT INTO categories (id, name, parent_category_id, description, is_active) VALUES (?, ?, NULL, NULL, TRUE)',
+            [id, name]
+        );
+        return id;
+    }
+
     static async getAll(params: any) {
         let query = `
             SELECT 
@@ -69,6 +99,7 @@ export class ProductService {
 
     static async create(data: any) {
         const id = crypto.randomUUID();
+        const categoryId = await this.resolveCategoryId(data);
         await pool.execute(
             'INSERT INTO products (id, sku, name, description, category_id, brand, model, unit_of_measure, reorder_level, unit_cost, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
             [
@@ -76,7 +107,7 @@ export class ProductService {
                 data.sku,
                 data.name,
                 data.description || null,
-                data.categoryId || data.category || null,
+                categoryId,
                 data.brand || null,
                 data.model || null,
                 data.unit || data.unitOfMeasure || 'piece',
@@ -106,8 +137,7 @@ export class ProductService {
             reorderLevel: 'reorder_level',
             unit: 'unit_of_measure',
             unitOfMeasure: 'unit_of_measure',
-            category: 'category_id',
-            categoryId: 'category_id'
+            // `category` / `categoryId` handled separately below
         };
 
         Object.keys(data).forEach((key) => {
@@ -116,10 +146,18 @@ export class ProductService {
 
             // Skip stock if passed here, as it belongs to inventory table
             if (key === 'stock' || dbKey === 'id' || dbKey === 'is_active') return;
+            if (key === 'category' || key === 'categoryId') return;
 
             fields.push(`${dbKey} = ?`);
             values.push(data[key]);
         });
+
+        // Handle category updates (UUID or legacy name)
+        if (data.categoryId !== undefined || data.category !== undefined) {
+            const categoryId = await this.resolveCategoryId(data);
+            fields.push('category_id = ?');
+            values.push(categoryId);
+        }
 
         if (fields.length > 0) {
             values.push(id);

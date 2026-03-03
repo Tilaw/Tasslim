@@ -510,8 +510,21 @@
                 const qty = parseInt(qtyInput.value);
 
                 if (!this.selectedPart) {
-                    App.showToast('Please select a part first.', 'warning');
-                    return;
+                    // Attempt to resolve by exact match on entered name or SKU
+                    const typed = (document.getElementById('manualSearch').value || '').trim();
+                    if (typed) {
+                        const exact = this.inventory.find(p =>
+                            (p.name || '').toLowerCase() === typed.toLowerCase() ||
+                            (p.sku || '').toLowerCase() === typed.toLowerCase()
+                        );
+                        if (exact) {
+                            this.selectedPart = exact;
+                        }
+                    }
+                    if (!this.selectedPart) {
+                        App.showToast('Enter a valid part name/SKU or pick from suggestions.', 'warning');
+                        return;
+                    }
                 }
                 if (isNaN(qty) || qty <= 0) {
                     App.showToast('Invalid quantity.', 'warning');

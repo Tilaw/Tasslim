@@ -803,6 +803,13 @@
 
                 if (matches.length === 0) {
                     dropdown.style.display = 'none';
+                    // Allow manual entry by pressing Enter even if not found
+                    if (e.key === 'Enter') {
+                        const raw = e.target.value.trim();
+                        if (raw) {
+                            this.selectBike(raw);
+                        }
+                    }
                     return;
                 }
 

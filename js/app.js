@@ -59,13 +59,17 @@ const App = {
             if (!contentType || !contentType.includes("application/json")) {
                 const text = await response.text();
                 console.error(`[api]: Expected JSON but got ${contentType || 'no content-type'}. Response text:`, text.substring(0, 500));
-                throw new Error(`Server returned non-JSON response (${response.status}). The server might be down or misconfigured.`);
+                const err = new Error(`Server returned non-JSON response (${response.status}). The server might be down or misconfigured.`);
+                err.status = response.status;
+                throw err;
             }
 
             const result = await response.json();
 
             if (!response.ok) {
-                throw new Error(result.error?.message || result.error || 'API Request failed');
+                const err = new Error(result.error?.message || result.error || 'API Request failed');
+                err.status = response.status;
+                throw err;
             }
 
             return result;
@@ -544,8 +548,12 @@ const App = {
         const currentPath = window.location.pathname;
         const isLoginPage = currentPath.includes('index.html') || currentPath.endsWith('/') || currentPath === '';
 
-        // If not logged in and NOT on the login page → send to login
-        if (!session && !isLoginPage) {
+        // Require a valid API session token for protected pages
+        // (Prevents demo/offline sessions from bypassing API authorization)
+        const hasToken = session && session.token;
+
+        // If not logged in (or missing token) and NOT on the login page → send to login
+        if ((!session || !hasToken) && !isLoginPage) {
             window.location.href = 'index.html';
         }
         // NOTE: We do NOT redirect logged-in users away from the login page.
@@ -799,15 +807,26 @@ const App = {
      */
     applyRolePermissions: function () {
         const user = this.getCurrentUser();
-        if (!user || user.role === 'admin') return;
+        if (!user) return;
+
+        // Treat legacy/DB roles consistently.
+        const role = (user.role || '').toString();
+        const elevatedRoles = new Set(['admin', 'super_admin']);
+        if (elevatedRoles.has(role)) return;
 
         console.log(`[auth]: Applying restricted permissions for role: ${user.role}`);
 
         const currentPath = window.location.pathname.split('/').pop() || 'index.html';
         const restrictedPages = ['users.html', 'settings.html', 'reports.html', 'suppliers.html', 'mechanics.html', 'purchase-order.html'];
 
+        // Manager roles can access operational pages like suppliers/mechanics/purchase order.
+        const managerRoles = new Set(['store_manager', 'inventory_manager']);
+        const effectiveRestrictedPages = managerRoles.has(role)
+            ? ['users.html', 'settings.html', 'reports.html']
+            : restrictedPages;
+
         // 1. Page-Level Protection
-        if (restrictedPages.includes(currentPath)) {
+        if (effectiveRestrictedPages.includes(currentPath)) {
             console.warn(`[auth]: Unauthorized access to ${currentPath}. Redirecting...`);
             window.location.href = 'dashboard.html';
             return;
@@ -817,7 +836,7 @@ const App = {
         const sidebarLinks = document.querySelectorAll('.sidebar-nav a');
         sidebarLinks.forEach(link => {
             const href = link.getAttribute('href');
-            if (restrictedPages.some(p => href && href.includes(p))) {
+            if (effectiveRestrictedPages.some(p => href && href.includes(p))) {
                 link.parentElement.style.display = 'none';
             }
         });
