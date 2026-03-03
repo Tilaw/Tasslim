@@ -200,12 +200,15 @@ export async function migrate() {
             }
         }
 
-        // Seed default roles if empty
-        const [roles] = await pool.query('SELECT COUNT(*) as count FROM roles');
-        if ((roles as any[])[0].count === 0) {
+        // Ensure Super Admin Role exists
+        const [roles]: any = await pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
+        let superAdminRoleId: string;
+
+        if (roles.length === 0) {
             console.log('[database]: Seeding default roles...');
+            superAdminRoleId = crypto.randomUUID();
             const defaultRoles = [
-                [crypto.randomUUID(), 'super_admin', 'Full system access'],
+                [superAdminRoleId, 'super_admin', 'Full system access'],
                 [crypto.randomUUID(), 'store_manager', 'Manage store operations'],
                 [crypto.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
                 [crypto.randomUUID(), 'sales_person', 'Process sales and view inventory'],
@@ -216,20 +219,29 @@ export async function migrate() {
             for (const role of defaultRoles) {
                 await pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
             }
+        } else {
+            superAdminRoleId = roles[0].id;
         }
 
-        const [users] = await pool.query('SELECT COUNT(*) as count FROM users');
-        if ((users as any[])[0].count === 0) {
-            console.log('[database]: Seeding default admin user...');
-            const [adminRoles] = await pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
-            if ((adminRoles as any[]).length > 0) {
-                const adminRole = (adminRoles as any[])[0];
-                const adminHash = '$2b$10$Xv4la7dWjWVgir8OLzqQYZ63dte.6vS3nwc.KT7L';
-                await pool.query(
-                    'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    [crypto.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id]
-                );
-            }
+        // Ensure Production Admin User exists
+        const adminEmail = 'admin@taslimalwataniah.ae';
+        const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
+
+        const [existingAdmins]: any = await pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
+
+        if (existingAdmins.length === 0) {
+            console.log(`[database]: Creating production admin user: ${adminEmail}`);
+            await pool.query(
+                'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+                [crypto.randomUUID(), adminEmail, adminHash, 'System', 'Admin', superAdminRoleId]
+            );
+        } else {
+            // Optionally update password to ensure it matches the request
+            await pool.query(
+                'UPDATE users SET password_hash = ?, role_id = ?, is_active = 1 WHERE email = ?',
+                [adminHash, superAdminRoleId, adminEmail]
+            );
+            console.log(`[database]: Production admin user verified: ${adminEmail}`);
         }
 
         console.log('[database]: Migrations completed successfully');
