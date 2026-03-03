@@ -10,16 +10,16 @@ async function createAdmin() {
     try {
         logger.info('Creating production admin user...');
 
-        // 1. Get super_admin role
-        const [roles]: any = await pool.execute("SELECT id FROM roles WHERE name = 'super_admin'");
+        // 1. Get admin role
+        const [roles]: any = await pool.execute("SELECT id FROM roles WHERE name = 'admin'");
         let roleId: string;
 
         if (roles.length === 0) {
-            logger.warn('super_admin role not found. Creating it...');
+            logger.warn('admin role not found. Creating it...');
             roleId = crypto.randomUUID();
             await pool.execute(
                 "INSERT INTO roles (id, name, description) VALUES (?, ?, ?)",
-                [roleId, 'super_admin', 'Full system access']
+                [roleId, 'admin', 'Standard administrative access']
             );
         } else {
             roleId = roles[0].id;

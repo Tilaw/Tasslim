@@ -1,5 +1,6 @@
 import { pool } from './db.js';
 import crypto from 'crypto';
+import bcrypt from 'bcryptjs';
 
 export async function migrate() {
     console.log('[database]: Starting MySQL migrations...');
@@ -200,30 +201,34 @@ export async function migrate() {
             }
         }
 
-        // Ensure Super Admin Role exists
-        const [roles]: any = await pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
-        let superAdminRoleId: string;
+        // Ensure Default Roles exist
+        const [existingRoles]: any = await pool.query("SELECT name, id FROM roles");
+        const roleMap = new Map(existingRoles.map((r: any) => [r.name, r.id]));
 
-        if (roles.length === 0) {
-            console.log('[database]: Seeding default roles...');
-            superAdminRoleId = crypto.randomUUID();
-            const defaultRoles = [
-                [superAdminRoleId, 'super_admin', 'Full system access'],
-                [crypto.randomUUID(), 'store_manager', 'Manage store operations'],
-                [crypto.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
-                [crypto.randomUUID(), 'sales_person', 'Process sales and view inventory'],
-                [crypto.randomUUID(), 'accountant', 'Financial reports'],
-                [crypto.randomUUID(), 'viewer', 'Read-only access'],
-                [crypto.randomUUID(), 'staff', 'Shop staff - restricted access']
-            ];
-            for (const role of defaultRoles) {
-                await pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
+        const defaultRoles = [
+            ['super_admin', 'Full system access'],
+            ['admin', 'Standard administrative access'],
+            ['store_manager', 'Manage store operations'],
+            ['inventory_manager', 'Manage inventory and suppliers'],
+            ['sales_person', 'Process sales and view inventory'],
+            ['accountant', 'Financial reports'],
+            ['viewer', 'Read-only access'],
+            ['staff', 'Shop staff - restricted access']
+        ];
+
+        for (const [name, desc] of defaultRoles) {
+            if (!roleMap.has(name)) {
+                const id = crypto.randomUUID();
+                console.log(`[database]: Seeding role: ${name}`);
+                await pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', [id, name, desc]);
+                roleMap.set(name, id);
             }
-        } else {
-            superAdminRoleId = roles[0].id;
         }
 
-        // Ensure Production Admin User exists
+        const adminRoleId = roleMap.get('admin');
+        const staffRoleId = roleMap.get('staff');
+
+        // Ensure Production Admin User exists (and is set to 'admin' role, not 'super_admin')
         const adminEmail = 'admin@taslimalwataniah.ae';
         const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
 
@@ -233,15 +238,36 @@ export async function migrate() {
             console.log(`[database]: Creating production admin user: ${adminEmail}`);
             await pool.query(
                 'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
-                [crypto.randomUUID(), adminEmail, adminHash, 'System', 'Admin', superAdminRoleId]
+                [crypto.randomUUID(), adminEmail, adminHash, 'System', 'Admin', adminRoleId]
             );
         } else {
-            // Optionally update password to ensure it matches the request
+            console.log(`[database]: Updating production admin role to 'admin': ${adminEmail}`);
             await pool.query(
-                'UPDATE users SET password_hash = ?, role_id = ?, is_active = 1 WHERE email = ?',
-                [adminHash, superAdminRoleId, adminEmail]
+                'UPDATE users SET role_id = ?, is_active = 1 WHERE email = ?',
+                [adminRoleId, adminEmail]
             );
-            console.log(`[database]: Production admin user verified: ${adminEmail}`);
+        }
+
+        // Seed Demo Users (admin/admin and staff/staff)
+        const demoUsers = [
+            { email: 'admin', pass: 'admin', first: 'Demo', last: 'Admin', role: adminRoleId },
+            { email: 'staff', pass: 'staff', first: 'Demo', last: 'Staff', role: staffRoleId }
+        ];
+
+        for (const user of demoUsers) {
+            const [existing]: any = await pool.query('SELECT id FROM users WHERE email = ?', [user.email]);
+            const hash = await bcrypt.hash(user.pass, 10);
+
+            if (existing.length === 0) {
+                console.log(`[database]: Seeding demo user: ${user.email}`);
+                await pool.query(
+                    'INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)',
+                    [crypto.randomUUID(), user.email, hash, user.first, user.last, user.role]
+                );
+            } else {
+                // Update to ensure demo passwords stay as expected for verification
+                await pool.query('UPDATE users SET password_hash = ? WHERE email = ?', [hash, user.email]);
+            }
         }
 
         console.log('[database]: Migrations completed successfully');

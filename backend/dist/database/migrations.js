@@ -15,6 +15,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.migrate = migrate;
 const db_js_1 = require("./db.js");
 const crypto_1 = __importDefault(require("crypto"));
+const bcryptjs_1 = __importDefault(require("bcryptjs"));
 function migrate() {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('[database]: Starting MySQL migrations...');
@@ -206,40 +207,57 @@ function migrate() {
                     yield db_js_1.pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
                 }
             }
-            // Ensure Super Admin Role exists
-            const [roles] = yield db_js_1.pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
-            let superAdminRoleId;
-            if (roles.length === 0) {
-                console.log('[database]: Seeding default roles...');
-                superAdminRoleId = crypto_1.default.randomUUID();
-                const defaultRoles = [
-                    [superAdminRoleId, 'super_admin', 'Full system access'],
-                    [crypto_1.default.randomUUID(), 'store_manager', 'Manage store operations'],
-                    [crypto_1.default.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
-                    [crypto_1.default.randomUUID(), 'sales_person', 'Process sales and view inventory'],
-                    [crypto_1.default.randomUUID(), 'accountant', 'Financial reports'],
-                    [crypto_1.default.randomUUID(), 'viewer', 'Read-only access'],
-                    [crypto_1.default.randomUUID(), 'staff', 'Shop staff - restricted access']
-                ];
-                for (const role of defaultRoles) {
-                    yield db_js_1.pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
+            // Ensure Default Roles exist
+            const [existingRoles] = yield db_js_1.pool.query("SELECT name, id FROM roles");
+            const roleMap = new Map(existingRoles.map((r) => [r.name, r.id]));
+            const defaultRoles = [
+                ['super_admin', 'Full system access'],
+                ['admin', 'Standard administrative access'],
+                ['store_manager', 'Manage store operations'],
+                ['inventory_manager', 'Manage inventory and suppliers'],
+                ['sales_person', 'Process sales and view inventory'],
+                ['accountant', 'Financial reports'],
+                ['viewer', 'Read-only access'],
+                ['staff', 'Shop staff - restricted access']
+            ];
+            for (const [name, desc] of defaultRoles) {
+                if (!roleMap.has(name)) {
+                    const id = crypto_1.default.randomUUID();
+                    console.log(`[database]: Seeding role: ${name}`);
+                    yield db_js_1.pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', [id, name, desc]);
+                    roleMap.set(name, id);
                 }
             }
-            else {
-                superAdminRoleId = roles[0].id;
-            }
-            // Ensure Production Admin User exists
+            const adminRoleId = roleMap.get('admin');
+            const staffRoleId = roleMap.get('staff');
+            // Ensure Production Admin User exists (and is set to 'admin' role, not 'super_admin')
             const adminEmail = 'admin@taslimalwataniah.ae';
             const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
             const [existingAdmins] = yield db_js_1.pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
             if (existingAdmins.length === 0) {
                 console.log(`[database]: Creating production admin user: ${adminEmail}`);
-                yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), adminEmail, adminHash, 'System', 'Admin', superAdminRoleId]);
+                yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), adminEmail, adminHash, 'System', 'Admin', adminRoleId]);
             }
             else {
-                // Optionally update password to ensure it matches the request
-                yield db_js_1.pool.query('UPDATE users SET password_hash = ?, role_id = ?, is_active = 1 WHERE email = ?', [adminHash, superAdminRoleId, adminEmail]);
-                console.log(`[database]: Production admin user verified: ${adminEmail}`);
+                console.log(`[database]: Updating production admin role to 'admin': ${adminEmail}`);
+                yield db_js_1.pool.query('UPDATE users SET role_id = ?, is_active = 1 WHERE email = ?', [adminRoleId, adminEmail]);
+            }
+            // Seed Demo Users (admin/admin and staff/staff)
+            const demoUsers = [
+                { email: 'admin', pass: 'admin', first: 'Demo', last: 'Admin', role: adminRoleId },
+                { email: 'staff', pass: 'staff', first: 'Demo', last: 'Staff', role: staffRoleId }
+            ];
+            for (const user of demoUsers) {
+                const [existing] = yield db_js_1.pool.query('SELECT id FROM users WHERE email = ?', [user.email]);
+                const hash = yield bcryptjs_1.default.hash(user.pass, 10);
+                if (existing.length === 0) {
+                    console.log(`[database]: Seeding demo user: ${user.email}`);
+                    yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), user.email, hash, user.first, user.last, user.role]);
+                }
+                else {
+                    // Update to ensure demo passwords stay as expected for verification
+                    yield db_js_1.pool.query('UPDATE users SET password_hash = ? WHERE email = ?', [hash, user.email]);
+                }
             }
             console.log('[database]: Migrations completed successfully');
         }

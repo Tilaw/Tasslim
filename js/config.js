@@ -8,16 +8,21 @@ var CONFIG = {
         // Use relative URL if serving from the same backend server, 
         // or absolute URL if serving from a different domain or file:// protocol.
         BASE_URL: (() => {
+            // Check if there is an environment override (from js/env.js)
+            if (window.ENV_CONFIG && window.ENV_CONFIG.API_BASE_URL) {
+                return window.ENV_CONFIG.API_BASE_URL;
+            }
+
             const host = window.location.hostname;
             const protocol = window.location.protocol;
 
-            // If running on localhost or via file:// protocol, point to the local backend
+            // Safe fallback: If running on localhost or via file:// protocol
             if (host === '127.0.0.1' || host === 'localhost' || protocol === 'file:') {
                 return 'http://localhost:4000/api/v1';
             }
 
-            // Otherwise, assume relative path for production
-            return '/api/v1';
+            // Production default fallback
+            return 'https://api.taslimalwataniah.ae/api/v1';
         })(),
 
         // Timeout for API requests in milliseconds

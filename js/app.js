@@ -364,8 +364,8 @@ const App = {
         const session = this.getCurrentUser();
         const isMigrated = localStorage.getItem(this.KEYS.DB_MIGRATED) === 'true';
 
-        // 1. Backend Sync if migrated OR if we have a session (proactive sync)
-        if (isMigrated || session) {
+        // 1. Backend Sync if migrated AND we have an active session with a token
+        if ((isMigrated || session) && session && session.token) {
             // If we have a session but flag is missing, we might be on a new origin/port.
             // We'll try to sync; if it succeeds, we'll set the migration flag permanently.
             try {
