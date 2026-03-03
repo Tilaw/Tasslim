@@ -17,7 +17,19 @@ exports.db = exports.pool = void 0;
 exports.testConnection = testConnection;
 const promise_1 = __importDefault(require("mysql2/promise"));
 const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+const logger_js_1 = require("../utils/logger.js");
+// Load environment variables with fallback paths
 dotenv_1.default.config();
+dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), '.env') });
+dotenv_1.default.config({ path: path_1.default.resolve(__dirname, '../../.env') });
+const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
+const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
+if (missingEnvVars.length > 0) {
+    logger_js_1.logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
+    logger_js_1.logger.warn(`Current Working Directory: ${process.cwd()}`);
+    logger_js_1.logger.warn('Please check your .env file location and permissions.');
+}
 const dbConfig = {
     host: ((_a = process.env.DB_HOST) === null || _a === void 0 ? void 0 : _a.split(':')[0]) || 'localhost',
     port: Number(process.env.DB_PORT) || 3306,
@@ -83,12 +95,12 @@ function testConnection() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const connection = yield exports.pool.getConnection();
-            console.log('[database]: MySQL connected successfully to', process.env.DB_NAME);
+            logger_js_1.logger.success(`MySQL connected successfully to ${process.env.DB_NAME}`);
             connection.release();
             return true;
         }
         catch (error) {
-            console.error('[database]: MySQL connection failed:', error);
+            logger_js_1.logger.error('MySQL connection failed', error);
             return false;
         }
     });

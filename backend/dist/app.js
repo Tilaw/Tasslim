@@ -7,7 +7,6 @@ const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
-const dotenv_1 = __importDefault(require("dotenv"));
 const path_1 = __importDefault(require("path"));
 // ESM module path replaced by global __dirname in CommonJS.
 const auth_routes_js_1 = require("./modules/auth/auth.routes.js");
@@ -19,9 +18,19 @@ const mechanics_routes_js_1 = require("./modules/mechanics/mechanics.routes.js")
 const bikes_routes_js_1 = require("./modules/bikes/bikes.routes.js");
 const reports_routes_js_1 = require("./modules/reports/reports.routes.js");
 const migration_routes_js_1 = require("./modules/system/migration.routes.js");
-// Load environment variables
-dotenv_1.default.config();
+const logger_js_1 = require("./utils/logger.js");
+const error_middleware_js_1 = require("./middleware/error.middleware.js");
+// Load environment variables is handled in server.ts and db.ts
 const app = (0, express_1.default)();
+// Request logging middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logger_js_1.logger.api(req.method, req.path, res.statusCode, duration);
+    });
+    next();
+});
 // Security middleware
 app.use((0, helmet_1.default)({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
 app.use((0, cors_1.default)({
@@ -47,6 +56,8 @@ app.use('/api/v1/mechanics', mechanics_routes_js_1.mechanicRoutes);
 app.use('/api/v1/bikes', bikes_routes_js_1.bikeRoutes);
 app.use('/api/v1/reports', reports_routes_js_1.reportRoutes);
 app.use('/api/v1/migration', migration_routes_js_1.migrationRoutes);
+// Catch-all for API 404s (matches any /api/v1 route not handled above)
+app.use('/api/v1', error_middleware_js_1.notFoundHandler);
 // Serve Static Frontend Files
 const frontendPath = path_1.default.join(__dirname, '../../');
 app.use(express_1.default.static(frontendPath));
@@ -57,15 +68,6 @@ app.use((req, res, next) => {
         return next();
     res.sendFile(path_1.default.join(frontendPath, 'index.html'));
 });
-// Error handling middleware (placeholder)
-app.use((err, req, res, next) => {
-    console.error(err.stack);
-    res.status(500).json({
-        success: false,
-        error: {
-            code: 'INTERNAL_SERVER_ERROR',
-            message: err.message || 'Something went wrong',
-        },
-    });
-});
+// Global Error handling middleware
+app.use(error_middleware_js_1.errorMiddleware);
 exports.default = app;

@@ -1,3 +1,11 @@
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Load environment variables as early as possible
+dotenv.config();
+// Also try loading from one level up if we are in dist/
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+
 import app from './app.js';
 import { testConnection } from './database/db.js';
 import { migrate } from './database/migrations.js';

@@ -1,15 +1,20 @@
 import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
+import path from 'path';
 import { logger } from '../utils/logger.js';
 
+// Load environment variables with fallback paths
 dotenv.config();
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const requiredEnvVars = ['DB_HOST', 'DB_USER', 'DB_NAME'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
 if (missingEnvVars.length > 0) {
     logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-    logger.warn('Please check your .env file.');
+    logger.warn(`Current Working Directory: ${process.cwd()}`);
+    logger.warn('Please check your .env file location and permissions.');
 }
 
 const dbConfig = {

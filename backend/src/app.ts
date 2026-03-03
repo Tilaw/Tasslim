@@ -19,8 +19,7 @@ import { migrationRoutes } from './modules/system/migration.routes.js';
 import { logger } from './utils/logger.js';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware.js';
 
-// Load environment variables
-dotenv.config();
+// Load environment variables is handled in server.ts and db.ts
 
 const app: Express = express();
 

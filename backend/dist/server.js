@@ -12,6 +12,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+const dotenv_1 = __importDefault(require("dotenv"));
+const path_1 = __importDefault(require("path"));
+// Load environment variables as early as possible
+dotenv_1.default.config();
+// Also try loading from one level up if we are in dist/
+dotenv_1.default.config({ path: path_1.default.join(process.cwd(), '.env') });
 const app_js_1 = __importDefault(require("./app.js"));
 const db_js_1 = require("./database/db.js");
 const migrations_js_1 = require("./database/migrations.js");
@@ -21,22 +27,27 @@ function startServer() {
         try {
             console.log('[server]: Starting server...');
             // Run database migrations
+            console.log('[server]: Running database migrations...');
             yield (0, migrations_js_1.migrate)();
+            console.log('[server]: Migrations check complete.');
             // Test database connection
             const dbConnected = yield (0, db_js_1.testConnection)();
             if (!dbConnected) {
-                console.warn('[server]: Database connection failed, but starting server anyway...');
+                console.error('[server]: CRITICAL: Database connection failed. Exiting...');
+                process.exit(1);
             }
             const server = app_js_1.default.listen(PORT, () => {
                 console.log(`[server]: Server is running and accessible on the network at port ${PORT}`);
                 console.log(`[server]: Local access: http://localhost:${PORT}`);
+                console.log(`[server]: Health check: http://localhost:${PORT}/health`);
             });
             server.on('error', (err) => {
                 console.error('[server]: Server error:', err);
             });
         }
         catch (error) {
-            console.error('[server]: Failed to start server:', error);
+            console.error('[server]: Failed to start server due to an unhandled error:', error);
+            process.exit(1);
         }
     });
 }

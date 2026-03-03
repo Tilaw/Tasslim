@@ -206,12 +206,14 @@ function migrate() {
                     yield db_js_1.pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
                 }
             }
-            // Seed default roles if empty
-            const [roles] = yield db_js_1.pool.query('SELECT COUNT(*) as count FROM roles');
-            if (roles[0].count === 0) {
+            // Ensure Super Admin Role exists
+            const [roles] = yield db_js_1.pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
+            let superAdminRoleId;
+            if (roles.length === 0) {
                 console.log('[database]: Seeding default roles...');
+                superAdminRoleId = crypto_1.default.randomUUID();
                 const defaultRoles = [
-                    [crypto_1.default.randomUUID(), 'super_admin', 'Full system access'],
+                    [superAdminRoleId, 'super_admin', 'Full system access'],
                     [crypto_1.default.randomUUID(), 'store_manager', 'Manage store operations'],
                     [crypto_1.default.randomUUID(), 'inventory_manager', 'Manage inventory and suppliers'],
                     [crypto_1.default.randomUUID(), 'sales_person', 'Process sales and view inventory'],
@@ -223,15 +225,21 @@ function migrate() {
                     yield db_js_1.pool.query('INSERT INTO roles (id, name, description) VALUES (?, ?, ?)', role);
                 }
             }
-            const [users] = yield db_js_1.pool.query('SELECT COUNT(*) as count FROM users');
-            if (users[0].count === 0) {
-                console.log('[database]: Seeding default admin user...');
-                const [adminRoles] = yield db_js_1.pool.query("SELECT id FROM roles WHERE name = 'super_admin'");
-                if (adminRoles.length > 0) {
-                    const adminRole = adminRoles[0];
-                    const adminHash = '$2b$10$Xv4la7dWjWVgir8OLzqQYZ63dte.6vS3nwc.KT7L';
-                    yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), 'admin', adminHash, 'Admin', 'User', adminRole.id]);
-                }
+            else {
+                superAdminRoleId = roles[0].id;
+            }
+            // Ensure Production Admin User exists
+            const adminEmail = 'admin@taslimalwataniah.ae';
+            const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
+            const [existingAdmins] = yield db_js_1.pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
+            if (existingAdmins.length === 0) {
+                console.log(`[database]: Creating production admin user: ${adminEmail}`);
+                yield db_js_1.pool.query('INSERT INTO users (id, email, password_hash, first_name, last_name, role_id) VALUES (?, ?, ?, ?, ?, ?)', [crypto_1.default.randomUUID(), adminEmail, adminHash, 'System', 'Admin', superAdminRoleId]);
+            }
+            else {
+                // Optionally update password to ensure it matches the request
+                yield db_js_1.pool.query('UPDATE users SET password_hash = ?, role_id = ?, is_active = 1 WHERE email = ?', [adminHash, superAdminRoleId, adminEmail]);
+                console.log(`[database]: Production admin user verified: ${adminEmail}`);
             }
             console.log('[database]: Migrations completed successfully');
         }
