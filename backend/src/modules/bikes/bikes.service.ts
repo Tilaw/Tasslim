@@ -6,17 +6,17 @@ export class BikeService {
         const [rows] = await pool.execute(`
             SELECT 
                 id,
-                plate_number AS plate,
-                plate_category AS category,
+                plate_number AS \`plate\`,
+                plate_category AS \`category\`,
                 kind,
                 color,
                 ownership,
-                registration_renew_date AS regRenew,
-                registration_expiry AS regExp,
-                insurance_expiry AS insExp,
-                accident_details AS accident,
-                customer_name AS customer,
-                customer_phone AS phone,
+                registration_renew_date AS \`regRenew\`,
+                registration_expiry AS \`regExp\`,
+                insurance_expiry AS \`insExp\`,
+                accident_details AS \`accident\`,
+                customer_name AS \`customer\`,
+                customer_phone AS \`phone\`,
                 location,
                 is_active
             FROM bikes 
@@ -30,17 +30,17 @@ export class BikeService {
         const [rows]: any = await pool.execute(`
             SELECT 
                 id,
-                plate_number AS plate,
-                plate_category AS category,
+                plate_number AS \`plate\`,
+                plate_category AS \`category\`,
                 kind,
                 color,
                 ownership,
-                registration_renew_date AS regRenew,
-                registration_expiry AS regExp,
-                insurance_expiry AS insExp,
-                accident_details AS accident,
-                customer_name AS customer,
-                customer_phone AS phone,
+                registration_renew_date AS \`regRenew\`,
+                registration_expiry AS \`regExp\`,
+                insurance_expiry AS \`insExp\`,
+                accident_details AS \`accident\`,
+                customer_name AS \`customer\`,
+                customer_phone AS \`phone\`,
                 location,
                 is_active
             FROM bikes 

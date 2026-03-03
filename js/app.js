@@ -4,13 +4,12 @@
  */
 
 // Live server URL — all devices (PC and mobile) sync from the same database
-const LIVE_API = 'https://taslimalwataniah.ae/api/v1';
-const LOCAL_API = 'http://127.0.0.1:4000/api/v1';
-
-// Use local dev server only when explicitly on localhost/127
-const API_BASE_URL = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
-    ? LOCAL_API
-    : LIVE_API;
+// API Configuration (Externalized to config.js)
+const API_BASE_URL = (window.CONFIG && window.CONFIG.API)
+    ? window.CONFIG.API.BASE_URL
+    : (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+        ? 'http://localhost:4000/api/v1'
+        : '/api/v1';
 
 
 const App = {
@@ -365,8 +364,8 @@ const App = {
         const session = this.getCurrentUser();
         const isMigrated = localStorage.getItem(this.KEYS.DB_MIGRATED) === 'true';
 
-        // 1. Backend Sync if migrated OR if we have a session (proactive sync)
-        if (isMigrated || session) {
+        // 1. Backend Sync if migrated AND we have an active session with a token
+        if ((isMigrated || session) && session && session.token) {
             // If we have a session but flag is missing, we might be on a new origin/port.
             // We'll try to sync; if it succeeds, we'll set the migration flag permanently.
             try {

@@ -12,10 +12,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { User, Bell, Search } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 export function Header() {
     const user = useAuthStore((state) => state.user)
     const logout = useAuthStore((state) => state.logout)
+    const router = useRouter()
+
+    const handleLogout = () => {
+        logout()
+        router.push("/login")
+    }
 
     return (
         <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
@@ -51,7 +58,7 @@ export function Header() {
                         </DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>Profile Settings</DropdownMenuItem>
-                        <DropdownMenuItem onClick={logout}>Log out</DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleLogout}>Log out</DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </div>

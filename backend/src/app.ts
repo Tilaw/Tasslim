@@ -16,10 +16,22 @@ import { bikeRoutes } from './modules/bikes/bikes.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { migrationRoutes } from './modules/system/migration.routes.js';
 
-// Load environment variables
-dotenv.config();
+import { logger } from './utils/logger.js';
+import { errorMiddleware, notFoundHandler } from './middleware/error.middleware.js';
+
+// Load environment variables is handled in server.ts and db.ts
 
 const app: Express = express();
+
+// Request logging middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        logger.api(req.method, req.path, res.statusCode, duration);
+    });
+    next();
+});
 
 // Security middleware
 app.use(helmet({ contentSecurityPolicy: false, crossOriginResourcePolicy: false }));
@@ -51,6 +63,9 @@ app.use('/api/v1/bikes', bikeRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/migration', migrationRoutes);
 
+// Catch-all for API 404s (matches any /api/v1 route not handled above)
+app.use('/api/v1', notFoundHandler);
+
 // Serve Static Frontend Files
 const frontendPath = path.join(__dirname, '../../');
 app.use(express.static(frontendPath));
@@ -62,16 +77,7 @@ app.use((req, res, next) => {
     res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
-// Error handling middleware (placeholder)
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-    console.error(err.stack);
-    res.status(500).json({
-        success: false,
-        error: {
-            code: 'INTERNAL_SERVER_ERROR',
-            message: err.message || 'Something went wrong',
-        },
-    });
-});
+// Global Error handling middleware
+app.use(errorMiddleware);
 
 export default app;
