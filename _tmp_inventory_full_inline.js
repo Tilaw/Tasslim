@@ -1,279 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inventory - Spare Parts Inventory System</title>
-    <link rel="stylesheet" href="css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-</head>
-
-<body>
-
-    <div class="app-container">
-        <!-- Sidebar -->
-        <nav class="sidebar">
-            <div class="sidebar-header">
-                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
-                Tasslim Parts Manager
-            </div>
-            <ul class="sidebar-nav">
-                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
-                            data-i18n="dashboard">Dashboard</span></a></li>
-                <li><a href="inventory.html" class="nav-link active"><i class="fas fa-boxes"></i> <span
-                            data-i18n="inventory">Inventory</span></a></li>
-                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
-                            Order</span></a></li>
-                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
-                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
-                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
-                            data-i18n="oilChange">Oil Change</span></a></li>
-                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
-                            data-i18n="bikeHistory">Bike History</span></a></li>
-                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
-                            data-i18n="suppliers">Suppliers</span></a></li>
-                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
-                            data-i18n="mechanics">Mechanics</span></a></li>
-                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
-                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
-                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
-                            data-i18n="users">Users</span></a></li>
-                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
-                </li>
-                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
-                            data-i18n="bikes">Bikes</span></a></li>
-                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
-                            data-i18n="reports">Reports</span></a></li>
-                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
-                            data-i18n="settings">Settings</span></a></li>
-            </ul>
-            <div class="sidebar-footer">
-                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
-                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
-                        data-i18n="translate">Translate</span></button>
-                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
-                        data-i18n="logout">Logout</span></a>
-            </div>
-        </nav>
-
-        <!-- Main Content -->
-        <main class="main-content">
-            <header class="top-bar">
-                <button class="menu-toggle" onclick="App.toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div class="page-title" data-i18n="inventory">Inventory Management</div>
-
-                <div class="header-actions hide-on-mobile" style="display: flex; gap: 15px; align-items: center;">
-                    <div>
-                        <input type="text" id="searchQuery" class="form-control" style="width: 250px; height: 40px;"
-                            placeholder="Search..." onkeyup="Inventory.filterData()" data-i18n="search">
-                    </div>
-                    <div class="user-profile">
-                        <div class="user-avatar" id="userInitials">AU</div>
-                        <span id="userName">Admin User</span>
-                    </div>
-                </div>
-            </header>
-
-            <div class="card">
-                <div class="d-flex justify-between align-center mb-20">
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" id="addNewBtn">
-                            <i class="fas fa-plus"></i> <span data-i18n="add">Add New</span>
-                        </button>
-                        <button class="btn" style="background: #f39c12; color: white;"
-                            onclick="window.location.href='issue-part.html'">
-                            <i class="fas fa-hand-holding"></i> <span data-i18n="pickItem">Issue Part (Mapping)</span>
-                        </button>
-                    </div>
-                    <button class="btn btn-success" onclick="document.getElementById('fileInput').click()">
-                        <i class="fas fa-file-excel"></i> <span data-i18n="import">Import Excel</span>
-                    </button>
-                    <input type="file" id="fileInput" accept=".xlsx, .xls" style="display: none;"
-                        onchange="Inventory.handleFileSelect(event)">
-                    <div style="display: flex; gap: 10px;">
-                        <select id="categoryFilter" class="form-control" onchange="Inventory.filterItems()"
-                            style="width: 150px; height: 40px;">
-                            <option value="Electricals & Lighting" data-i18n="cat_elec_light">Electricals & Lighting
-                            </option>
-                            <option value="Body & Controls" data-i18n="cat_body_ctrl">Body & Controls</option>
-                            <option value="Engine Components" data-i18n="cat_engine">Engine Components</option>
-                            <option value="Fuel & Air system" data-i18n="cat_fuel_air">Fuel & Air System</option>
-                            <option value="Electricals & Sensors" data-i18n="cat_elec_sens">Electricals & Sensors
-                            </option>
-                            <option value="Suspension" data-i18n="cat_suspension">Suspension</option>
-                            <option value="Body & Chassis" data-i18n="cat_body_chassis">Body & Chassis</option>
-                            <option value="Transmission/Clutch" data-i18n="cat_trans">Transmission/Clutch</option>
-                            <option value="Service & Maintenance" data-i18n="cat_service">Service & Maintenance</option>
-                            <option value="Drivetrain" data-i18n="cat_drivetrain">Drivetrain</option>
-                            <option value="Accessories/Protection" data-i18n="cat_acc">Accessories/Protection</option>
-                        </select>
-                        <select id="stockFilter" class="form-control" onchange="Inventory.filterItems()"
-                            style="width: 150px; height: 40px;">
-                            <option value="" data-i18n="allStock">All Stock Status</option>
-                            <option value="low" data-i18n="stock_low">Low Stock</option>
-                            <option value="out" data-i18n="stock_out">Out of Stock</option>
-                            <option value="good" data-i18n="stock_good">In Stock</option>
-                        </select>
-                        <select id="pageSize" class="form-control" onchange="Inventory.changePageSize()"
-                            style="width: 130px; height: 40px;">
-                            <option value="10">10 per page</option>
-                            <option value="20" selected>20 per page</option>
-                            <option value="50">50 per page</option>
-                            <option value="100">100 per page</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="table-container desktop-only-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>SI NO</th>
-                                <th data-i18n="sku">CODE</th>
-                                <th data-i18n="name">DESCRIPTION</th>
-                                <th data-i18n="stock">QUANTITY</th>
-                                <th>UNIT</th>
-                                <th data-i18n="price">UNIT PRICE</th>
-                                <th data-i18n="total">TOTAL EXCL</th>
-                                <th>VAT %</th>
-                                <th>VAT AMOUNT</th>
-                                <th data-i18n="total">TOTAL INCL</th>
-                                <th data-i18n="actions">ACTIONS</th>
-                            </tr>
-                        </thead>
-                        <tbody id="inventoryTable">
-                            <!-- Populated by JS -->
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Mobile Card List -->
-                <div id="inventoryMobileList" class="mobile-data-list">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- Pagination Controls -->
-                <div id="paginationControls"
-                    style="margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 10px 0;">
-                    <!-- JS -->
-                </div>
-            </div>
-        </main>
-    </div>
-
-    <!-- Premium Add/Edit Part Modal -->
-    <div class="modal-overlay" id="partModal">
-        <div class="modal-content-premium">
-            <div class="modal-header-premium">
-                <h2 id="modalTitle" style="margin: 0; font-size: 1.25rem;">Add New Part</h2>
-                <i class="fas fa-times" onclick="Inventory.closeModal()"
-                    style="cursor: pointer; font-size: 1.2rem; opacity: 0.8;"></i>
-            </div>
-
-            <form id="partForm">
-                <div class="modal-body-premium">
-                    <input type="hidden" id="partId">
-
-                    <div class="form-grid">
-                        <!-- Left Column -->
-                        <div class="form-column">
-                            <div class="premium-input-group">
-                                <label class="premium-label">SI NO / CODE</label>
-                                <input type="text" id="partSku" class="premium-input" placeholder="e.g. BRK-001"
-                                    required>
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">Description (Name)</label>
-                                <input type="text" id="partName" class="premium-input" placeholder="e.g. Brake Pad Set"
-                                    required>
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">Category</label>
-                                <select id="partCategory" class="premium-input" required>
-                                    <option value="Electricals & Lighting">Electricals & Lighting</option>
-                                    <option value="Body & Controls">Body & Controls</option>
-                                    <option value="Engine Components">Engine Components</option>
-                                    <option value="Fuel & Air system">Fuel & Air System</option>
-                                    <option value="Electricals & Sensors">Electricals & Sensors</option>
-                                    <option value="Suspension">Suspension</option>
-                                    <option value="Body & Chassis">Body & Chassis</option>
-                                    <option value="Transmission/Clutch">Transmission/Clutch</option>
-                                    <option value="Service & Maintenance">Service & Maintenance</option>
-                                    <option value="Drivetrain">Drivetrain</option>
-                                    <option value="Accessories/Protection">Accessories/Protection</option>
-                                </select>
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">Supplier</label>
-                                <select id="partSupplier" class="premium-input" required></select>
-                            </div>
-
-                            <div style="display: flex; gap: 15px;">
-                                <div class="premium-input-group" style="flex: 1;">
-                                    <label class="premium-label">Unit</label>
-                                    <input type="text" id="partUnit" class="premium-input" value="pc" required>
-                                </div>
-                                <div class="premium-input-group" style="flex: 1;">
-                                    <label class="premium-label">Min Stock</label>
-                                    <input type="number" id="partMinStock" class="premium-input" value="5" required>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Right Column (Financials & Stock) -->
-                        <div class="form-column">
-                            <div class="premium-input-group">
-                                <label class="premium-label">Quantity (Initial Stock)</label>
-                                <input type="number" id="partStock" class="premium-input" min="0" value="0" required>
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">Unit Price (Excl. VAT)</label>
-                                <input type="number" id="partCost" class="premium-input" step="0.01" min="0" required>
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">VAT %</label>
-                                <input type="number" id="partVat" class="premium-input" step="0.1" min="0" value="0">
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">VAT Amount</label>
-                                <input type="number" id="partVatAmount" class="premium-input" readonly
-                                    style="background: #f1f5f9;">
-                            </div>
-
-                            <div class="premium-input-group">
-                                <label class="premium-label">Total Incl. VAT</label>
-                                <input type="number" id="partPrice" class="premium-input" step="0.01" min="0" required>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal-footer-premium">
-                    <button type="button" class="btn btn-secondary" onclick="Inventory.closeModal()">Cancel</button>
-                    <button type="submit" class="btn btn-primary" style="padding: 10px 30px;">
-                        <i class="fas fa-save" style="margin-right: 8px;"></i> Save Part
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Duplicate Pick Modal removed in favor of issue-part.html -->
-
-    <script src="js/config.js"></script><script src="js/app.js"></script>
-    <!-- Excel import library for Inventory Import/Template buttons -->
-    <!-- Use SheetJS official CDN (more reliable than some CDN mirrors that may return truncated responses). -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
-    <script>
         const Inventory = {
             data: [],
             filteredData: [],
@@ -281,8 +6,8 @@
             currentPage: 1,
             itemsPerPage: 20,
 
-            init: async function () {
-                await this.loadData();
+            init: function () {
+                this.loadData();
                 this.filteredData = [...this.data];
                 this.renderTable();
                 this.populateDropdowns();
@@ -334,32 +59,10 @@
                 }
             },
 
-            loadData: async function () {
-                // Always load from API (no local/demo inventory mode)
-                try {
-                    const [pData, sData] = await Promise.all([
-                        App.apiCall('/products', 'GET'),
-                        App.apiCall('/suppliers', 'GET')
-                    ]);
-
-                    this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
-                    this.suppliers = (sData && sData.success && Array.isArray(sData.data)) ? sData.data : [];
-
-                    // Keep sales local for now (used for print report aggregation)
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                } catch (err) {
-                    const status = err && err.status ? err.status : null;
-                    const msg = err && err.message ? err.message : '';
-                    if (status === 401) {
-                        App.showToast('Session expired. Please login again.', 'error');
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                    App.showToast(msg || 'Failed to load inventory from server', 'error');
-                    this.data = [];
-                    this.suppliers = [];
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                }
+            loadData: function () {
+                this.data = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.suppliers = JSON.parse(localStorage.getItem(App.KEYS.SUPPLIERS)) || [];
+                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
             },
 
             populateDropdowns: function () {
@@ -572,7 +275,6 @@
 
             processImportedData: function (data) {
                 let addedCount = 0;
-                const toCreate = [];
 
                 data.forEach(row => {
                     const name = this.findKey(row, ['Name', 'name', 'Description', 'Item', 'Description (Name)']);
@@ -580,6 +282,7 @@
 
                     if (name || sku) {
                         const newItem = {
+                            id: Date.now() + Math.random().toString(36).substr(2, 9),
                             name: name || 'New Item',
                             sku: sku || ('SKU-' + Date.now()),
                             category: this.findKey(row, ['Category', 'category']) || 'Uncategorized',
@@ -593,41 +296,17 @@
                             date: new Date().toISOString()
                         };
 
-                        toCreate.push(newItem);
+                        this.data.push(newItem);
                         addedCount++;
                     }
                 });
 
                 if (addedCount > 0) {
-                    (async () => {
-                        try {
-                            App.showToast(`Importing ${addedCount} parts to server...`, 'info');
-                            // Sequential import to avoid overwhelming the API / DB
-                            for (const item of toCreate) {
-                                await App.apiCall('/products', 'POST', {
-                                    sku: item.sku,
-                                    name: item.name,
-                                    category: item.category,
-                                    stock: item.stock,
-                                    minStock: item.minStock,
-                                    unit: item.unit,
-                                    cost: item.cost,
-                                    price: item.price,
-                                    vat: item.vat,
-                                    supplier: item.supplier
-                                });
-                            }
-                            await this.loadData();
-                            this.filteredData = [...this.data];
-                            this.currentPage = 1;
-                            this.renderTable();
-                            App.showToast(`Imported ${addedCount} parts to server.`);
-                        } catch (err) {
-                            console.error('Import failed:', err);
-                            const msg = err && err.message ? err.message : '';
-                            App.showToast(msg || 'Import failed', 'error');
-                        }
-                    })();
+                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(Inventory.data));
+                    this.filteredData = [...this.data];
+                    this.currentPage = 1;
+                    this.renderTable();
+                    App.showToast(`Imported ${addedCount} parts.`);
                 }
             },
 
@@ -742,28 +421,33 @@
                 };
 
                 try {
-                    const endpoint = isEdit ? `/products/${id}` : '/products';
-                    const method = isEdit ? 'PATCH' : 'POST';
-                    await App.apiCall(endpoint, method, part);
-
-                    await this.loadData();
-                    this.filterData(); // refresh table & pagination with latest server state
+                    const session = App.getCurrentUser && App.getCurrentUser();
+                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                    const canSyncServer = isMigrated || (session && session.token);
+                    if (canSyncServer) {
+                        const endpoint = isEdit ? `/products/${id}` : '/products';
+                        const method = isEdit ? 'PATCH' : 'POST';
+                        const result = await App.apiCall(endpoint, method, part);
+                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
+                        await App.loadData();
+                        this.loadData();
+                        this.filterData(); // This will refresh table and keep pagination correct
+                    } else {
+                        const localPart = { ...part, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
+                        if (isEdit) {
+                            const index = this.data.findIndex(i => i.id?.toString() === id.toString());
+                            if (index !== -1) this.data[index] = localPart;
+                        } else {
+                            this.data.push(localPart);
+                        }
+                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
+                        this.filterData();
+                    }
                     this.closeModal();
-                    App.showToast('Part saved successfully');
+                    App.showToast(canSyncServer ? 'Part saved to server' : 'Part saved locally');
                 } catch (error) {
                     console.error('Save failed:', error);
-                    const status = error && error.status ? error.status : null;
-                    const msg = error && error.message ? error.message : '';
-                    if (status === 401) {
-                        App.showToast('Session expired. Please login again.', 'error');
-                        window.location.href = 'index.html';
-                        return;
-                    }
-                    if (status === 403) {
-                        App.showToast('Insufficient permissions to save inventory item.', 'error');
-                        return;
-                    }
-                    App.showToast(msg || 'Failed to save part', 'error');
+                    App.showToast(error.message || 'Failed to save part', 'error');
                 }
             },
 
@@ -796,24 +480,22 @@
             delete: async function (id) {
                 if (confirm('Are you sure?')) {
                     try {
-                        await App.apiCall(`/products/${id}`, 'DELETE');
-                        await this.loadData();
-                        this.filterData();
+                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                        if (isMigrated) {
+                            const result = await App.apiCall(`/products/${id}`, 'DELETE');
+                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
+                            await App.loadData();
+                            this.loadData();
+                            this.filterData();
+                        } else {
+                            this.data = this.data.filter(i => i.id?.toString() !== id.toString());
+                            localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
+                            this.filterData();
+                        }
                         App.showToast('Part deleted', 'error');
                     } catch (error) {
                         console.error('Delete failed:', error);
-                        const status = error && error.status ? error.status : null;
-                        const msg = error && error.message ? error.message : '';
-                        if (status === 401) {
-                            App.showToast('Session expired. Please login again.', 'error');
-                            window.location.href = 'index.html';
-                            return;
-                        }
-                        if (status === 403) {
-                            App.showToast('Insufficient permissions to delete inventory item.', 'error');
-                            return;
-                        }
-                        App.showToast(msg || 'Failed to delete part', 'error');
+                        App.showToast(error.message || 'Failed to delete part', 'error');
                     }
                 }
             },
@@ -911,7 +593,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await App.init();
-            await Inventory.init();
+            Inventory.init();
 
             // Header User Info (with safety checks)
             const user = App.getCurrentUser();
@@ -925,11 +607,7 @@
                 if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n =>
                     n[0]).join('').toUpperCase() || 'U';
             }
-            // keep listener for keyboard accessibility / any cases where inline onclick is stripped
             const addBtn = document.getElementById('addNewBtn');
             if (addBtn) addBtn.addEventListener('click', () => Inventory.openModal());
         });
-    </script>
-</body>
-
-</html>
+    

@@ -16,6 +16,31 @@ exports.ProductService = void 0;
 const db_js_1 = require("../../database/db.js");
 const crypto_1 = __importDefault(require("crypto"));
 class ProductService {
+    static isUuid(v) {
+        return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+    }
+    /**
+     * Accept either a category UUID (`categoryId`) or a legacy category name (`category`).
+     * If a name is provided and does not exist, create it.
+     */
+    static resolveCategoryId(data) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const raw = (data === null || data === void 0 ? void 0 : data.categoryId) || (data === null || data === void 0 ? void 0 : data.category);
+            if (!raw)
+                return null;
+            if (this.isUuid(raw))
+                return raw;
+            const name = String(raw).trim();
+            if (!name)
+                return null;
+            const [rows] = yield db_js_1.pool.execute('SELECT id FROM categories WHERE name = ? LIMIT 1', [name]);
+            if (rows && rows[0] && rows[0].id)
+                return rows[0].id;
+            const id = crypto_1.default.randomUUID();
+            yield db_js_1.pool.execute('INSERT INTO categories (id, name, parent_category_id, description, is_active) VALUES (?, ?, NULL, NULL, TRUE)', [id, name]);
+            return id;
+        });
+    }
     static getAll(params) {
         return __awaiter(this, void 0, void 0, function* () {
             let query = `
@@ -83,12 +108,13 @@ class ProductService {
     static create(data) {
         return __awaiter(this, void 0, void 0, function* () {
             const id = crypto_1.default.randomUUID();
+            const categoryId = yield this.resolveCategoryId(data);
             yield db_js_1.pool.execute('INSERT INTO products (id, sku, name, description, category_id, brand, model, unit_of_measure, reorder_level, unit_cost, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                 id,
                 data.sku,
                 data.name,
                 data.description || null,
-                data.categoryId || data.category || null,
+                categoryId,
                 data.brand || null,
                 data.model || null,
                 data.unit || data.unitOfMeasure || 'piece',
@@ -115,8 +141,7 @@ class ProductService {
                 reorderLevel: 'reorder_level',
                 unit: 'unit_of_measure',
                 unitOfMeasure: 'unit_of_measure',
-                category: 'category_id',
-                categoryId: 'category_id'
+                // `category` / `categoryId` handled separately below
             };
             Object.keys(data).forEach((key) => {
                 // Handle special mapping or fall back to snake_case
@@ -124,9 +149,16 @@ class ProductService {
                 // Skip stock if passed here, as it belongs to inventory table
                 if (key === 'stock' || dbKey === 'id' || dbKey === 'is_active')
                     return;
+                if (key === 'category' || key === 'categoryId')
+                    return;
                 fields.push(`${dbKey} = ?`);
                 values.push(data[key]);
             });
+            if (data.categoryId !== undefined || data.category !== undefined) {
+                const categoryId = yield this.resolveCategoryId(data);
+                fields.push('category_id = ?');
+                values.push(categoryId);
+            }
             if (fields.length > 0) {
                 values.push(id);
                 yield db_js_1.pool.execute(`UPDATE products SET ${fields.join(', ')} WHERE id = ?`, values);
