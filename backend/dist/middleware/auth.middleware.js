@@ -55,7 +55,16 @@ function requireRole(...allowedRoles) {
                 },
             });
         }
-        if (!allowedRoles.includes(req.user.role)) {
+        // Role compatibility / legacy aliases:
+        // Treat "admin" and "super_admin" as equivalent for authorization checks.
+        const roleAliases = {
+            admin: ['super_admin'],
+            super_admin: ['admin'],
+        };
+        const userRole = req.user.role;
+        const effectiveRoles = new Set([userRole, ...((roleAliases[userRole] || []))]);
+        const hasAllowedRole = allowedRoles.some((r) => effectiveRoles.has(r));
+        if (!hasAllowedRole) {
             return res.status(403).json({
                 success: false,
                 error: {

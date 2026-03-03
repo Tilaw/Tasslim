@@ -80,7 +80,7 @@
             <div class="card">
                 <div class="d-flex justify-between align-center mb-20">
                     <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-primary" onclick="Inventory.openModal()">
+                        <button class="btn btn-primary" id="addNewBtn">
                             <i class="fas fa-plus"></i> <span data-i18n="add">Add New</span>
                         </button>
                         <button class="btn" style="background: #f39c12; color: white;"
@@ -695,8 +695,10 @@
                 };
 
                 try {
+                    const session = App.getCurrentUser && App.getCurrentUser();
                     const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-                    if (isMigrated) {
+                    const canSyncServer = isMigrated || (session && session.token);
+                    if (canSyncServer) {
                         const endpoint = isEdit ? `/products/${id}` : '/products';
                         const method = isEdit ? 'PATCH' : 'POST';
                         const result = await App.apiCall(endpoint, method, part);
@@ -716,7 +718,7 @@
                         this.filterData();
                     }
                     this.closeModal();
-                    App.showToast('Part saved successfully');
+                    App.showToast(canSyncServer ? 'Part saved to server' : 'Part saved locally');
                 } catch (error) {
                     console.error('Save failed:', error);
                     App.showToast(error.message || 'Failed to save part', 'error');
@@ -879,9 +881,10 @@
                 if (userInitialsEl) userInitialsEl.textContent = fullName.split(' ').filter(Boolean).map(n =>
                     n[0]).join('').toUpperCase() || 'U';
             }
+            const addBtn = document.getElementById('addNewBtn');
+            if (addBtn) addBtn.addEventListener('click', () => Inventory.openModal());
         });
     </script>
 </body>
 
 </html>
-
