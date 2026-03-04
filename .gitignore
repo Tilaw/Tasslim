@@ -7,7 +7,5 @@ backend/.env
 .DS_Store
 npm-debug.log
 yarn-error.log
-frontend/node_modules/
-frontend
-js/env.js
+frontend/js/env.js
 backend/dist
