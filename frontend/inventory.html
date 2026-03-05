@@ -150,16 +150,23 @@
                     </table>
                 </div>
 
-                <!-- Mobile Card List -->
-                <div id="inventoryMobileList" class="mobile-data-list">
-                    <!-- Populated by JS -->
-                </div>
-
-                <!-- Pagination Controls -->
-                <div id="paginationControls"
+                <!-- Pagination Controls - desktop only, sits directly below the table -->
+                <div id="paginationControls" class="desktop-only-table"
                     style="margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; padding: 10px 0;">
                     <!-- JS -->
                 </div>
+
+                <!-- Mobile Card List (hidden on desktop, shown on mobile only) -->
+                <div id="inventoryMobileList" class="mobile-data-list" style="display: none;">
+                    <!-- Populated by JS -->
+                </div>
+
+                <style>
+                    @media (max-width: 768px) {
+                        #inventoryMobileList { display: block !important; }
+                    }
+                </style>
+
             </div>
         </main>
     </div>
