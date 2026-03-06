@@ -96,6 +96,8 @@
                     <div style="display: flex; gap: 10px;">
                         <select id="categoryFilter" class="form-control" onchange="Inventory.filterItems()"
                             style="width: 150px; height: 40px;">
+                            <!-- Default to all categories so clearing search restores the original full list -->
+                            <option value="" selected>All Categories</option>
                             <option value="Electricals & Lighting" data-i18n="cat_elec_light">Electricals & Lighting
                             </option>
                             <option value="Body & Controls" data-i18n="cat_body_ctrl">Body & Controls</option>
