@@ -31,12 +31,20 @@ export class TransactionService {
         return rows;
     }
 
+    /** Normalize date to MySQL DATETIME format (YYYY-MM-DD HH:mm:ss). */
+    private static toMySQLDateTime(value: string | Date | undefined): string {
+        const d = value ? new Date(value) : new Date();
+        const iso = d.toISOString();
+        return iso.replace('T', ' ').slice(0, 19);
+    }
+
     static async create(data: any, userId: string) {
         const connection = await pool.getConnection();
         await connection.beginTransaction();
 
         try {
             const id = crypto.randomUUID();
+            const createdAt = this.toMySQLDateTime(data.date);
 
             // 1. Create transaction record
             await connection.execute(
@@ -51,14 +59,15 @@ export class TransactionService {
                     data.referenceId || null,
                     data.notes || null,
                     userId,
-                    data.date || new Date().toISOString().replace('T', ' ').slice(0, 19)
+                    createdAt
                 ]
             );
 
-            // 2. Update inventory quantity
+            // 2. Ensure inventory row exists, then apply quantity delta (issue = negative)
             await connection.execute(
-                'UPDATE inventory SET quantity = quantity + ? WHERE product_id = ?',
-                [data.quantity, data.productId]
+                `INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0)
+                 ON DUPLICATE KEY UPDATE quantity = quantity + ?`,
+                [crypto.randomUUID(), data.productId, data.quantity]
             );
 
             await connection.commit();

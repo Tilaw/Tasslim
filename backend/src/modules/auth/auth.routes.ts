@@ -1,13 +1,14 @@
 import { Router } from 'express';
 import { AuthController } from './auth.controller.js';
 import { validate } from '../../middleware/validation.middleware.js';
-import { loginSchema, registerSchema } from './auth.validation.js';
+import { loginSchema, registerSchema, refreshSchema } from './auth.validation.js';
 import { authMiddleware, requireRole } from '../../middleware/auth.middleware.js';
 
 const router = Router();
 
-// Public login endpoint
+// Public auth endpoints
 router.post('/login', validate(loginSchema), AuthController.login);
+router.post('/refresh', validate(refreshSchema), AuthController.refresh);
 
 // User management endpoints – restricted to admin-level roles
 router.post(

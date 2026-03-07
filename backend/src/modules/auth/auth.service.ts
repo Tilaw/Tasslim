@@ -54,6 +54,40 @@ export class AuthService {
         };
     }
 
+    /** Issue a new access token using a valid refresh token (no password). */
+    static async refresh(refreshToken: string) {
+        if (!refreshToken || typeof refreshToken !== 'string') {
+            throw new Error('Refresh token required');
+        }
+        const decoded = jwt.verify(refreshToken, process.env.JWT_SECRET as string) as { userId: string };
+        const [rows]: any = await pool.execute(
+            `SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, r.name as role
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE u.id = ?`,
+            [decoded.userId]
+        );
+        const user = rows[0];
+        if (!user || !user.is_active) {
+            throw new Error('User not found or inactive');
+        }
+        const token = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            process.env.JWT_SECRET as string,
+            { expiresIn: (process.env.JWT_EXPIRES_IN || '15m') as any }
+        );
+        return {
+            token,
+            user: {
+                id: user.id,
+                email: user.email,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                role: user.role,
+            },
+        };
+    }
+
     static async register(userData: any) {
         const passwordHash = await bcrypt.hash(userData.password, 10);
         const userId = crypto.randomUUID();

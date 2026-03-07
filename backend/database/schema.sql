@@ -106,7 +106,7 @@ CREATE TABLE inventory (
 CREATE TABLE inventory_transactions (
     id CHAR(36) PRIMARY KEY DEFAULT (UUID()),
     product_id CHAR(36) NOT NULL,
-    transaction_type ENUM('purchase', 'sale', 'return', 'adjustment') NOT NULL,
+    transaction_type ENUM('purchase', 'sale', 'return', 'adjustment', 'issue') NOT NULL,
     quantity INT NOT NULL,
     mechanic_id CHAR(36) NULL,
     bike_id CHAR(36) NULL,
