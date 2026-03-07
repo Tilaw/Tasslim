@@ -8,5 +8,7 @@ const validation_middleware_js_1 = require("../../middleware/validation.middlewa
 const transactions_validation_js_1 = require("./transactions.validation.js");
 const router = (0, express_1.Router)();
 router.get('/', auth_middleware_js_1.authMiddleware, transactions_controller_js_1.TransactionController.getAll);
-router.post('/', auth_middleware_js_1.authMiddleware, (0, auth_middleware_js_1.requireRole)('super_admin', 'store_manager', 'inventory_manager'), (0, validation_middleware_js_1.validate)(transactions_validation_js_1.createTransactionSchema), transactions_controller_js_1.TransactionController.create);
+router.post('/', auth_middleware_js_1.authMiddleware, 
+// Allow admins, managers, and staff to create issue/transaction records
+(0, auth_middleware_js_1.requireRole)('super_admin', 'store_manager', 'inventory_manager', 'admin', 'staff'), (0, validation_middleware_js_1.validate)(transactions_validation_js_1.createTransactionSchema), transactions_controller_js_1.TransactionController.create);
 exports.transactionRoutes = router;
