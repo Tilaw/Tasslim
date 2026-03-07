@@ -20,4 +20,15 @@ export class TransactionController {
             next(error);
         }
     }
+
+    static async revertGroup(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const raw = (req.params as any).referenceId;
+            const referenceId = Array.isArray(raw) ? raw[0] : raw;
+            const result = await TransactionService.revertGroup(referenceId, req.user!.userId);
+            res.json({ success: true, data: result });
+        } catch (error) {
+            next(error);
+        }
+    }
 }

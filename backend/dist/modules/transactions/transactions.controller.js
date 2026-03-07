@@ -34,5 +34,17 @@ class TransactionController {
             }
         });
     }
+    static revertGroup(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { referenceId } = req.params;
+                const result = yield transactions_service_js_1.TransactionService.revertGroup(referenceId, req.user.userId);
+                res.json({ success: true, data: result });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
 }
 exports.TransactionController = TransactionController;

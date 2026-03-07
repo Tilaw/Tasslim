@@ -486,7 +486,12 @@ const App = {
                                 bike: t.bike_plate_number || '',
                                 status: 'completed',
                                 user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                                total: 0
+                                total: 0,
+                                // Rider / receiver tracking (for issue-part history)
+                                riderName: t.rider_name || '',
+                                riderNumber: t.rider_phone || '',
+                                riderId: t.rider_id || '',
+                                receiverName: t.receiver_name || ''
                             };
                         }
 

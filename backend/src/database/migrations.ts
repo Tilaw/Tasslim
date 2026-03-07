@@ -211,6 +211,22 @@ export async function migrate() {
             await pool.query('ALTER TABLE inventory_transactions MODIFY COLUMN transaction_type VARCHAR(50) NOT NULL');
         }
 
+        // Ensure rider / receiver tracking columns exist on inventory_transactions
+        const txExtraCols = [
+            { name: 'rider_name', type: 'VARCHAR(100)' },
+            { name: 'rider_phone', type: 'VARCHAR(50)' },
+            { name: 'rider_id', type: 'VARCHAR(100)' },
+            { name: 'receiver_name', type: 'VARCHAR(100)' },
+            { name: 'is_reverted', type: 'TINYINT(1) DEFAULT 0' }
+        ];
+
+        for (const col of txExtraCols) {
+            if (!(await columnExists('inventory_transactions', col.name))) {
+                console.log(`[database]: Adding missing column ${col.name} to inventory_transactions table...`);
+                await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN ${col.name} ${col.type}`);
+            }
+        }
+
         // Allow same reference_id for multiple transaction lines (one issuance = one reference, multiple parts)
         try {
             const [idx]: any = await pool.query(

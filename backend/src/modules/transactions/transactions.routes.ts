@@ -16,4 +16,13 @@ router.post(
     TransactionController.create
 );
 
+// Revert an issuance/transaction group by its reference ID (e.g. Issue ID shown in UI)
+router.delete(
+    '/group/:referenceId',
+    authMiddleware,
+    // Admins and staff (plus managers) can revert any issuance group
+    requireRole('super_admin', 'store_manager', 'inventory_manager', 'admin', 'staff'),
+    TransactionController.revertGroup
+);
+
 export const transactionRoutes = router;

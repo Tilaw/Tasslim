@@ -11,7 +11,7 @@ export class TransactionService {
       LEFT JOIN users u ON t.created_by = u.id 
       LEFT JOIN mechanics m ON t.mechanic_id = m.id
       LEFT JOIN bikes b ON t.bike_id = b.id
-      WHERE 1=1
+      WHERE (t.is_reverted IS NULL OR t.is_reverted = 0)
     `;
         const values: any[] = [];
 
@@ -48,7 +48,7 @@ export class TransactionService {
 
             // 1. Create transaction record
             await connection.execute(
-                'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     id,
                     data.productId,
@@ -59,7 +59,11 @@ export class TransactionService {
                     data.referenceId || null,
                     data.notes || null,
                     userId,
-                    createdAt
+                    createdAt,
+                    data.riderName || null,
+                    data.riderNumber || data.riderPhone || null,
+                    data.riderId || null,
+                    data.receiverName || null
                 ]
             );
 
@@ -72,6 +76,69 @@ export class TransactionService {
 
             await connection.commit();
             return { id, ...data };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    /**
+     * Revert (logically delete) an issuance/transaction group identified by referenceId.
+     * This restores inventory by subtracting each transaction's quantity from the inventory total
+     * and marks the original rows as reverted so they no longer appear in listings.
+     */
+    static async revertGroup(referenceId: string, userId: string) {
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            let matchBy: 'reference_id' | 'id' = 'reference_id';
+            let rows: any[] = [];
+
+            // First try to match by reference_id (multiple rows per issuance group)
+            const [byRef]: any = await connection.execute(
+                'SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
+                [referenceId]
+            );
+            rows = byRef;
+
+            // Fallback: if nothing matched, treat the provided value as a single transaction id
+            if (!rows || rows.length === 0) {
+                const [byId]: any = await connection.execute(
+                    'SELECT id, product_id, quantity FROM inventory_transactions WHERE id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
+                    [referenceId]
+                );
+                rows = byId;
+                matchBy = 'id';
+            }
+
+            if (!rows || rows.length === 0) {
+                await connection.rollback();
+                const err: any = new Error('Issuance group not found or already reverted');
+                err.status = 404;
+                throw err;
+            }
+
+            // For each transaction line, reverse its effect on inventory.
+            // Original quantity may be negative for "issue" – subtracting it restores stock.
+            for (const row of rows) {
+                await connection.execute(
+                    'UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?',
+                    [row.quantity, row.product_id]
+                );
+            }
+
+            // Mark all matched transactions as reverted
+            const whereColumn = matchBy === 'reference_id' ? 'reference_id' : 'id';
+            await connection.execute(
+                `UPDATE inventory_transactions SET is_reverted = 1 WHERE ${whereColumn} = ? AND (is_reverted IS NULL OR is_reverted = 0)`,
+                [referenceId]
+            );
+
+            await connection.commit();
+            return { referenceId, revertedCount: rows.length, revertedBy: userId };
         } catch (error) {
             await connection.rollback();
             throw error;

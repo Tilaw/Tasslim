@@ -26,7 +26,7 @@ class TransactionService {
       LEFT JOIN users u ON t.created_by = u.id 
       LEFT JOIN mechanics m ON t.mechanic_id = m.id
       LEFT JOIN bikes b ON t.bike_id = b.id
-      WHERE 1=1
+      WHERE (t.is_reverted IS NULL OR t.is_reverted = 0)
     `;
             const values = [];
             if (params.productId) {
@@ -42,14 +42,21 @@ class TransactionService {
             return rows;
         });
     }
+    /** Normalize date to MySQL DATETIME format (YYYY-MM-DD HH:mm:ss). */
+    static toMySQLDateTime(value) {
+        const d = value ? new Date(value) : new Date();
+        const iso = d.toISOString();
+        return iso.replace('T', ' ').slice(0, 19);
+    }
     static create(data, userId) {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield db_js_1.pool.getConnection();
             yield connection.beginTransaction();
             try {
                 const id = crypto_1.default.randomUUID();
+                const createdAt = this.toMySQLDateTime(data.date);
                 // 1. Create transaction record
-                yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                     id,
                     data.productId,
                     data.transactionType,
@@ -59,12 +66,53 @@ class TransactionService {
                     data.referenceId || null,
                     data.notes || null,
                     userId,
-                    data.date || new Date().toISOString().replace('T', ' ').slice(0, 19)
+                    createdAt,
+                    data.riderName || null,
+                    data.riderNumber || data.riderPhone || null,
+                    data.riderId || null,
+                    data.receiverName || null
                 ]);
-                // 2. Update inventory quantity
-                yield connection.execute('UPDATE inventory SET quantity = quantity + ? WHERE product_id = ?', [data.quantity, data.productId]);
+                // 2. Ensure inventory row exists, then apply quantity delta (issue = negative)
+                yield connection.execute(`INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0)
+                 ON DUPLICATE KEY UPDATE quantity = quantity + ?`, [crypto_1.default.randomUUID(), data.productId, data.quantity]);
                 yield connection.commit();
                 return Object.assign({ id }, data);
+            }
+            catch (error) {
+                yield connection.rollback();
+                throw error;
+            }
+            finally {
+                connection.release();
+            }
+        });
+    }
+    /**
+     * Revert (logically delete) an issuance/transaction group identified by referenceId.
+     * This restores inventory by subtracting each transaction's quantity from the inventory total
+     * and marks the original rows as reverted so they no longer appear in listings.
+     */
+    static revertGroup(referenceId, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const connection = yield db_js_1.pool.getConnection();
+            yield connection.beginTransaction();
+            try {
+                const [rows] = yield connection.execute('SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                if (!rows || rows.length === 0) {
+                    yield connection.rollback();
+                    const err = new Error('Issuance group not found or already reverted');
+                    err.status = 404;
+                    throw err;
+                }
+                // For each transaction line, reverse its effect on inventory.
+                // Original quantity may be negative for "issue" – subtracting it restores stock.
+                for (const row of rows) {
+                    yield connection.execute('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?', [row.quantity, row.product_id]);
+                }
+                // Mark all transactions in this reference group as reverted
+                yield connection.execute('UPDATE inventory_transactions SET is_reverted = 1 WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                yield connection.commit();
+                return { referenceId, revertedCount: rows.length, revertedBy: userId };
             }
             catch (error) {
                 yield connection.rollback();

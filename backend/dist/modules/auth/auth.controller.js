@@ -27,6 +27,21 @@ class AuthController {
             }
         });
     }
+    static refresh(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const { refreshToken } = req.body;
+                const result = yield auth_service_js_1.AuthService.refresh(refreshToken);
+                res.json({ success: true, data: result });
+            }
+            catch (error) {
+                res.status(401).json({
+                    success: false,
+                    error: { code: 'INVALID_TOKEN', message: error.message || 'Invalid or expired refresh token' },
+                });
+            }
+        });
+    }
     static register(req, res, next) {
         return __awaiter(this, void 0, void 0, function* () {
             try {

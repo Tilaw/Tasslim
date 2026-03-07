@@ -686,88 +686,94 @@
 
     <script>
         const PickItem = {
-            version: "1.2.0-debug",
+            version: "1.3.0-db-only",
             data: [],
-            mappings: [],
             sales: [],
             selectedParts: [],
             selectedBike: null,
 
-            init: function () {
-                console.log('PickItem Initializing, Version:', this.version);
-                this.loadData();
+            init: async function () {
+                console.log('PickItem Initializing (DB-backed only), Version:', this.version);
+                await this.loadData();
                 this.renderHistory();
                 this.populateMechanics();
+
+                // Lightweight polling to keep this page in sync with server-side changes
+                setInterval(async () => {
+                    try {
+                        await this.loadData();
+                        this.renderHistory();
+                    } catch (e) {
+                        console.warn('Background sync failed:', e);
+                    }
+                }, 20000);
             },
 
-            loadData: function () {
-                this.data = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                const localMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                const allSales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+            // Load all required data strictly from the backend APIs (no localStorage for issues)
+            loadData: async function () {
+                try {
+                    const [pData, mData, bData, tData] = await Promise.all([
+                        App.apiCall('/products', 'GET'),
+                        App.apiCall('/mechanics', 'GET'),
+                        App.apiCall('/bikes', 'GET'),
+                        App.apiCall('/transactions?type=issue', 'GET')
+                    ]);
 
-                // Always keep a copy of all sales, but only "issue" type is relevant here
-                this.sales = allSales.filter(s => s && (s.type === 'issue' || !s.type));
+                    this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
 
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-                if (!isMigrated) {
-                    // Legacy/local-only mode: keep existing mappings behaviour (per-browser history)
-                    this.mappings = localMappings;
-                    return;
-                }
+                    // Keep mechanics and bikes in memory for this page only
+                    this._mechanics = (mData && mData.success && Array.isArray(mData.data)) ? mData.data : [];
+                    this._bikes = (bData && bData.success && Array.isArray(bData.data)) ? bData.data : [];
 
-                // When using the central database, build mappings from sales so that
-                // all admins see a unified issuance history (not just their own browser).
-                const generatedMappings = [];
+                    // Group issue transactions into "sales-like" structures for the history UI
+                    const transactions = (tData && tData.success && Array.isArray(tData.data)) ? tData.data : [];
+                    const groups = {};
 
-                this.sales.forEach(tx => {
-                    const pickedDate = tx.date || tx.pickedDate || tx.createdAt;
-                    const bike = tx.bike || tx.bikePlate || (tx.bike_plate_number || '');
-                    const mechanicName = tx.mechanic || tx.mechanicName || '';
-                    const issueId = tx.id;
+                    transactions.forEach(t => {
+                        const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
+                        if (!groups[key]) {
+                            groups[key] = {
+                                id: t.reference_id || t.id,
+                                date: t.created_at,
+                                type: t.transaction_type,
+                                items: [],
+                                mechanic: t.mechanic_name || '',
+                                bike: t.bike_plate_number || '',
+                                status: 'completed',
+                                user: (t.first_name || '') + ' ' + (t.last_name || ''),
+                                total: 0,
+                                riderName: t.rider_name || '',
+                                riderNumber: t.rider_phone || '',
+                                riderId: t.rider_id || '',
+                                receiverName: t.receiver_name || ''
+                            };
+                        }
 
-                    (tx.items || []).forEach(item => {
-                        const keyProductId = item.productId || item.id || null;
-
-                        generatedMappings.push({
-                            id: `${issueId}_${keyProductId || item.name}`,
-                            groupId: issueId,
-                            issueId: issueId,
-                            productId: keyProductId,
-                            productName: item.name,
-                            mechanicName,
-                            bikePlate: bike,
-                            quantity: item.qty || item.quantity || 1,
-                            pickedDate: pickedDate,
-                            date: pickedDate
+                        const qty = Math.abs(t.quantity);
+                        groups[key].items.push({
+                            productId: t.product_id,
+                            name: t.product_name,
+                            sku: t.product_sku,
+                            qty: qty,
+                            price: 0,
+                            total: 0
                         });
                     });
-                });
 
-                // Merge with any legacy local mappings to avoid losing older offline records
-                const mergedMap = new Map();
-
-                localMappings.forEach(m => {
-                    const key = `${(m.groupId || m.issueId || m.id || '').toString()}_${(m.productId || m.productName || '').toString()}`;
-                    mergedMap.set(key, m);
-                });
-
-                generatedMappings.forEach(m => {
-                    const key = `${(m.groupId || m.issueId || m.id || '').toString()}_${(m.productId || m.productName || '').toString()}`;
-                    mergedMap.set(key, m);
-                });
-
-                this.mappings = Array.from(mergedMap.values());
-
-                // Persist back so other pages (e.g. mechanic/bike history) can reuse unified mappings
-                try {
-                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(this.mappings));
-                } catch (e) {
-                    console.warn('Failed to persist merged mappings', e);
+                    this.sales = Object.values(groups);
+                } catch (err) {
+                    console.error('Failed to load issue-part data from server:', err);
+                    const msg = err && err.message ? err.message : '';
+                    App.showToast(msg || 'Failed to load issue history from server', 'error');
+                    this.data = [];
+                    this.sales = [];
+                    this._mechanics = [];
+                    this._bikes = [];
                 }
             },
 
             populateMechanics: function () {
-                const mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                const mechanics = this._mechanics || [];
                 const select = document.getElementById('modalMechanicSelect');
                 const receiverSelect = document.getElementById('receiverName');
                 if (!select || !receiverSelect) return;
@@ -852,7 +858,7 @@
             handleBikeSearch: function (e) {
                 const query = e.target.value.toLowerCase();
                 const dropdown = document.getElementById('modalBikeSuggestions');
-                const bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                const bikes = this._bikes || [];
 
                 if (query.length < 1) {
                     dropdown.style.display = 'none';
@@ -1097,91 +1103,41 @@
                 }
 
                 try {
-                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
                     const currentUser = App.getCurrentUser();
-                    const groupId = Date.now();
 
+                    // Resolve mechanic and bike IDs from in-memory lists
+                    const b = (this._bikes || []).find(bike => bike.plate === this.selectedBike || bike.plate_number === this.selectedBike);
+                    const m = (this._mechanics || []).find(mech => mech.name === mechanicName);
+
+                    // Persist each issued part as a transaction line in the central database
                     for (const part of itemsToIssue) {
-                        const productIndex = this.data.findIndex(p => p.id?.toString() === part.id?.toString());
-                        if (productIndex !== -1) {
-                            this.data[productIndex].stock -= 1;
-                        }
-
-                        this.mappings.push({
-                            id: Date.now() + Math.random(),
-                            groupId: groupId,
-                            issueId: issueId,
+                        await App.apiCall('/transactions', 'POST', {
                             productId: part.id,
-                            productName: part.name,
-                            mechanicName: mechanicName,
-                            bikePlate: this.selectedBike,
-                            quantity: 1,
+                            transactionType: 'issue',
+                            quantity: -1,
+                            mechanicId: m ? m.id : null,
+                            bikeId: b ? b.id : null,
+                            referenceId: issueId,
+                            date: pickedDateTime,
+                            notes: `Dynamic Row Issue to ${mechanicName}. Rider: ${riderName}`,
                             riderName,
                             riderNumber,
                             riderId,
-                            receiverName,
-                            pickedDate: pickedDateTime,
-                            date: new Date().toISOString()
+                            receiverName
                         });
                     }
 
-                    this.sales.push({
-                        id: groupId,
-                        date: pickedDateTime,
-                        type: 'issue',
-                        items: itemsToIssue.map(p => ({
-                            productId: p.id,
-                            name: p.name,
-                            sku: p.sku,
-                            qty: 1,
-                            price: p.price,
-                            total: p.price
-                        })),
-                        total: itemsToIssue.reduce((sum, p) => sum + (p.price || 0), 0),
-                        mechanic: mechanicName,
-                        bike: this.selectedBike,
-                        riderName,
-                        riderNumber,
-                        riderId,
-                        receiverName,
-                        status: 'completed',
-                        user: currentUser ? currentUser.name : 'Unknown'
-                    });
-
-                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
-                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(this.mappings));
-                    localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-
-                    if (isMigrated) {
-                        try {
-                            const bikesStore = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
-                            const b = bikesStore.find(bike => bike.plate === this.selectedBike);
-                            const mechsStore = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                            const m = mechsStore.find(mech => mech.name === mechanicName);
-
-                            for (const part of itemsToIssue) {
-                                await App.apiCall('/transactions', 'POST', {
-                                    productId: part.id,
-                                    transactionType: 'issue',
-                                    quantity: -1,
-                                    mechanicId: m ? m.id : null,
-                                    bikeId: b ? b.id : null,
-                                    referenceId: issueId,
-                                    date: pickedDateTime,
-                                    notes: `Dynamic Row Issue to ${mechanicName}. Rider: ${riderName}`
-                                });
-                            }
-                        } catch (apiError) { console.warn('Sync failed:', apiError); }
-                    }
+                    // Reload from server so this page always reflects authoritative DB state
+                    await this.loadData();
 
                     App.showToast('Issuance recorded successfully!');
                     this.closeModal();
                     this.renderHistory();
-                    window.dispatchEvent(new Event('storage'));
 
                 } catch (err) {
                     console.error('Issue failed:', err);
-                    App.showToast('Failed to complete issuance.', 'error');
+                    const msg = err && err.message ? err.message : '';
+                    App.showToast(msg || 'Failed to complete issuance.', 'error');
                 }
             },
 
@@ -1265,21 +1221,28 @@
                         const tx = this.sales.find(s => s.id.toString() === id.toString());
                         if (!tx) return;
 
-                        tx.items.forEach(it => {
-                            const product = this.data.find(p => p.id?.toString() === it.productId?.toString());
-                            if (product) product.stock += it.qty;
-                        });
+                        // Use central API so all devices see the deletion and inventory is restored centrally
+                        await App.apiCall(`/transactions/group/${encodeURIComponent(tx.id)}`, 'DELETE');
 
-                        this.sales = this.sales.filter(s => s.id.toString() !== id.toString());
-                        this.mappings = this.mappings.filter(m => (m.groupId || m.issueId || m.id).toString() !== id.toString());
-
-                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.data));
-                        localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-                        localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(this.mappings));
-
+                        // Reload from server so this page always reflects authoritative DB state
+                        await this.loadData();
                         this.renderHistory();
                         App.showToast('Issuance group reverted.');
-                    } catch (err) { App.showToast('Revert failed.', 'error'); }
+                    } catch (err) {
+                        console.error('Revert failed:', err);
+                        const status = err && err.status ? err.status : null;
+                        const msg = err && err.message ? err.message : '';
+
+                        // If server has no record (old/offline issuance), fall back to local-only removal
+                        if (status === 404) {
+                            // Just reload from server (which won't include this group) to keep UI consistent
+                            await this.loadData();
+                            this.renderHistory();
+                            App.showToast('Issuance not found on server (may be legacy or already reverted).', 'info');
+                        } else {
+                            App.showToast(msg || 'Revert failed.', 'error');
+                        }
+                    }
                 });
             },
 
@@ -1290,19 +1253,21 @@
                 dateSpan.textContent = new Date().toLocaleString();
                 tbody.innerHTML = '';
 
-                // For report, we use individual mappings to show each part itemized
-                [...this.mappings].reverse().forEach(m => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${new Date(m.pickedDate).toLocaleDateString()}</td>
-                        <td>${new Date(m.date).toLocaleString()}</td>
-                        <td>${m.issueId || '-'}</td>
-                        <td>${m.productName}</td>
-                        <td>${m.mechanicName}</td>
-                        <td>${m.bikePlate}</td>
-                        <td>${m.quantity}</td>
-                    `;
-                    tbody.appendChild(row);
+                // For report, we use server-backed sales to show each part itemized
+                [...this.sales].slice().reverse().forEach(tx => {
+                    (tx.items || []).forEach(it => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${new Date(tx.date).toLocaleDateString()}</td>
+                            <td>${new Date(tx.date).toLocaleString()}</td>
+                            <td>${tx.id || '-'}</td>
+                            <td>${it.name}</td>
+                            <td>${tx.mechanic}</td>
+                            <td>${tx.bike}</td>
+                            <td>${it.qty}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
                 });
                 window.print();
             }
