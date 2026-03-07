@@ -702,8 +702,68 @@
 
             loadData: function () {
                 this.data = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                this.mappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                const localMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
+                const allSales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+
+                // Always keep a copy of all sales, but only "issue" type is relevant here
+                this.sales = allSales.filter(s => s && (s.type === 'issue' || !s.type));
+
+                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                if (!isMigrated) {
+                    // Legacy/local-only mode: keep existing mappings behaviour (per-browser history)
+                    this.mappings = localMappings;
+                    return;
+                }
+
+                // When using the central database, build mappings from sales so that
+                // all admins see a unified issuance history (not just their own browser).
+                const generatedMappings = [];
+
+                this.sales.forEach(tx => {
+                    const pickedDate = tx.date || tx.pickedDate || tx.createdAt;
+                    const bike = tx.bike || tx.bikePlate || (tx.bike_plate_number || '');
+                    const mechanicName = tx.mechanic || tx.mechanicName || '';
+                    const issueId = tx.id;
+
+                    (tx.items || []).forEach(item => {
+                        const keyProductId = item.productId || item.id || null;
+
+                        generatedMappings.push({
+                            id: `${issueId}_${keyProductId || item.name}`,
+                            groupId: issueId,
+                            issueId: issueId,
+                            productId: keyProductId,
+                            productName: item.name,
+                            mechanicName,
+                            bikePlate: bike,
+                            quantity: item.qty || item.quantity || 1,
+                            pickedDate: pickedDate,
+                            date: pickedDate
+                        });
+                    });
+                });
+
+                // Merge with any legacy local mappings to avoid losing older offline records
+                const mergedMap = new Map();
+
+                localMappings.forEach(m => {
+                    const key = `${(m.groupId || m.issueId || m.id || '').toString()}_${(m.productId || m.productName || '').toString()}`;
+                    mergedMap.set(key, m);
+                });
+
+                generatedMappings.forEach(m => {
+                    const key = `${(m.groupId || m.issueId || m.id || '').toString()}_${(m.productId || m.productName || '').toString()}`;
+                    mergedMap.set(key, m);
+                });
+
+                this.mappings = Array.from(mergedMap.values());
+
+                // Persist back so other pages (e.g. mechanic/bike history) can reuse unified mappings
+                try {
+                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(this.mappings));
+                } catch (e) {
+                    console.warn('Failed to persist merged mappings', e);
+                }
             },
 
             populateMechanics: function () {
