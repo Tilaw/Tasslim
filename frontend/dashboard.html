@@ -831,8 +831,13 @@
                 this.renderLowStock(lowStockItems);
                 const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
                 this.renderRecentAdditions(additions);
-                this.calculateIssuedTotals();
+
+                // Issue counts must come only from the transactions API so they match
+                // the issue-part page and DB; never use localStorage (which can include
+                // reverted issues or stale data). Start at 0, then await server.
+                this.issuedTotals = {};
                 this.renderFlowGrid(this.inventory);
+                await this.syncIssueTotalsFromServer();
             },
 
             calculateIssuedTotals: function () {
@@ -1017,6 +1022,35 @@
                     (p.category || '').toLowerCase().includes(query)
                 );
                 this.renderFlowGrid(filtered);
+            },
+
+            // Fetch issue/issuance data only from the transactions API so the dashboard
+            // matches the issue-part page and DB. When API returns 0 issues or fails,
+            // show 0 so we never display deleted or stale counts.
+            syncIssueTotalsFromServer: async function () {
+                try {
+                    const tData = await App.apiCall('/transactions?type=issue', 'GET');
+                    if (!tData || !tData.success || !Array.isArray(tData.data)) {
+                        this.issuedTotals = {};
+                        this.renderFlowGrid(this.inventory);
+                        return;
+                    }
+
+                    const serverTotals = {};
+                    tData.data.forEach(t => {
+                        const productId = t.product_id != null ? t.product_id.toString() : null;
+                        if (!productId) return;
+                        const qty = Math.abs(Number(t.quantity) || 0);
+                        serverTotals[productId] = (serverTotals[productId] || 0) + qty;
+                    });
+
+                    this.issuedTotals = serverTotals;
+                    this.renderFlowGrid(this.inventory);
+                } catch (err) {
+                    console.error('Failed to sync issued totals from server:', err);
+                    this.issuedTotals = {};
+                    this.renderFlowGrid(this.inventory);
+                }
             }
         };
 
