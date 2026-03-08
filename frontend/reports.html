@@ -1103,16 +1103,47 @@
                 `).join('');
             },
 
-            deleteTransaction: function (id) {
+            deleteTransaction: async function (id) {
                 if (!confirm('Are you sure you want to delete this record? The items will be returned to stock.')) return;
 
                 const index = this.sales.findIndex(s => String(s.id) === String(id));
                 if (index === -1) return;
 
                 const transaction = this.sales[index];
+                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
 
-                // Return stock
-                if (transaction.items && Array.isArray(transaction.items)) {
+                // If we have a real backend, use the central transactions API so all devices stay in sync.
+                if (isMigrated && transaction) {
+                    try {
+                        await App.apiCall(`/transactions/group/${encodeURIComponent(transaction.id)}`, 'DELETE');
+
+                        // Reload authoritative data from server → App.loadData updates localStorage snapshots
+                        await App.loadData();
+                        this.syncData();
+                        this.generate();
+
+                        App.showToast('Record deleted and stock restored from server.');
+                        return;
+                    } catch (err) {
+                        console.error('Reports: deleteTransaction API revert failed', err);
+                        const status = err && err.status ? err.status : null;
+                        const msg = err && err.message ? err.message : '';
+
+                        if (status === 404) {
+                            App.showToast('Issuance not found on server (may be legacy or already reverted).', 'info');
+                            await App.loadData();
+                            this.syncData();
+                            this.generate();
+                            return;
+                        }
+
+                        App.showToast(msg || 'Failed to delete record from server.', 'error');
+                        return;
+                    }
+                }
+
+                // Fallback: legacy local-only behavior (pre-migration / offline mode)
+                if (transaction && transaction.items && Array.isArray(transaction.items)) {
                     const invMap = new Map((this.inventory || []).map(i => [String(i.id), i]));
                     let inventoryChanged = false;
 
@@ -1129,15 +1160,13 @@
                     }
                 }
 
-                // Remove transaction
                 this.sales.splice(index, 1);
                 localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
 
-                // Refresh UI
                 this.syncData();
-                this.generate(); // Refresh tables
+                this.generate();
 
-                alert('Record deleted and stock restored.');
+                alert('Record deleted and stock restored (local mode).');
             },
 
             syncData: function () {
@@ -1431,7 +1460,7 @@
                 return [...new Set(this.mechanics.map(m => m.name))].sort();
             },
 
-            generateInvoiceFromBuilder: function () {
+            generateInvoiceFromBuilder: async function () {
                 const mech = document.getElementById('builderMechSelect')?.value;
                 if (!mech) {
                     alert('Please select a mechanic.');
@@ -1443,41 +1472,112 @@
                     return;
                 }
 
-                try {
-                    const itemsForTransaction = [];
-                    const inventoryUpdates = [];
-                    const invById = new Map((this.inventory || []).map(i => [String(i.id), i]));
+                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
 
-                    for (const [id, data] of this.builderSelectedParts) {
-                        const item = invById.get(String(id));
-                        if (!item) continue;
+                // Shared preparation: collect items and validate against current inventory snapshot
+                const itemsForTransaction = [];
+                const invById = new Map((this.inventory || []).map(i => [String(i.id), i]));
 
-                        const q = Math.max(1, Number(data.qty) || 1);
-                        const currentStock = Number(item.stock) || 0;
-                        if (q > currentStock) {
-                            throw new Error(`Insufficient stock for "${item.name}". Requested ${q}, available ${currentStock}.`);
-                        }
+                for (const [id, data] of this.builderSelectedParts) {
+                    const item = invById.get(String(id));
+                    if (!item) continue;
 
-                        itemsForTransaction.push({
-                            productId: item.id,
-                            name: item.name,
-                            qty: q,
-                            price: Number(item.price) || 0,
-                            total: (Number(item.price) || 0) * q,
-                            bikePlate: data.bikePlate
-                        });
-
-                        inventoryUpdates.push({ id: item.id, newStock: currentStock - q });
+                    const q = Math.max(1, Number(data.qty) || 1);
+                    const currentStock = Number(item.stock) || 0;
+                    if (q > currentStock) {
+                        alert(`Insufficient stock for "${item.name}". Requested ${q}, available ${currentStock}.`);
+                        return;
                     }
 
-                    // 1) Update Inventory
+                    itemsForTransaction.push({
+                        productId: item.id,
+                        name: item.name,
+                        qty: q,
+                        price: Number(item.price) || 0,
+                        total: (Number(item.price) || 0) * q,
+                        bikePlate: data.bikePlate
+                    });
+                }
+
+                if (itemsForTransaction.length === 0) {
+                    alert('No valid parts selected.');
+                    return;
+                }
+
+                // If we have a backend, create real issue transactions via the API (like issue-part does)
+                if (isMigrated) {
+                    try {
+                        const allBikes = this.bikes || [];
+                        const allMechs = this.mechanics || [];
+
+                        const mechRow = allMechs.find(m => m && m.name === mech);
+                        const referenceId = 'INV-' + Date.now().toString();
+                        const nowIso = new Date().toISOString();
+
+                        const payload = itemsForTransaction.map(it => {
+                            const bikePlate = (it.bikePlate || Array.from(this.builderSelectedBikes)[0] || '').toString();
+                            const bikeRow = allBikes.find(b => b && (b.plate === bikePlate || b.plate_number === bikePlate));
+                            return {
+                                productId: it.productId,
+                                transactionType: 'issue',
+                                quantity: -it.qty,
+                                mechanicId: mechRow ? mechRow.id : null,
+                                bikeId: bikeRow ? bikeRow.id : null,
+                                referenceId,
+                                date: nowIso,
+                                notes: 'Technician issue from reports builder'
+                            };
+                        });
+
+                        // Prefer batch endpoint, fall back to one-by-one if needed
+                        try {
+                            const res = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
+                            if (!res || !res.success) {
+                                throw new Error('Batch issue creation failed');
+                            }
+                        } catch (batchErr) {
+                            for (const tx of payload) {
+                                await App.apiCall('/transactions', 'POST', tx);
+                            }
+                        }
+
+                        // Refresh local snapshot from server and re-render
+                        await App.loadData();
+                        this.syncData();
+                        this.generate();
+
+                        this.printTechnicianIssue(mech, itemsForTransaction);
+                        this.closeBuilderModal();
+                        return;
+                    } catch (e) {
+                        console.error('Reports: generateInvoiceFromBuilder (API mode) failed', e);
+                        alert(e.message || 'Failed to create technician issue via server.');
+                        return;
+                    }
+                }
+
+                // Legacy local-only behavior for non-migrated / offline mode
+                try {
+                    const inventoryUpdates = [];
+                    const invByIdLocal = new Map((this.inventory || []).map(i => [String(i.id), i]));
+
+                    itemsForTransaction.forEach(it => {
+                        const item = invByIdLocal.get(String(it.productId));
+                        if (!item) return;
+                        const currentStock = Number(item.stock) || 0;
+                        const newStock = currentStock - it.qty;
+                        if (newStock < 0) {
+                            throw new Error(`Insufficient stock for "${item.name}".`);
+                        }
+                        inventoryUpdates.push({ id: item.id, newStock });
+                    });
+
                     inventoryUpdates.forEach(u => {
                         const invItem = this.inventory.find(i => String(i.id) === String(u.id));
                         if (invItem) invItem.stock = u.newStock;
                     });
                     localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
 
-                    // 2) Record Sales Transaction
                     const currentUser = (() => { try { return App.getCurrentUser(); } catch { return null; } })();
                     const transaction = {
                         id: Date.now() + Math.floor(Math.random() * 1000),
@@ -1495,7 +1595,6 @@
                     this.sales.push(transaction);
                     localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
 
-                    // Sync with MAPPINGS for History completeness
                     const currentMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
                     itemsForTransaction.forEach(it => {
                         currentMappings.push({
@@ -1512,13 +1611,12 @@
                     });
                     localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(currentMappings));
 
-                    // 3) Print
                     this.printTechnicianIssue(mech, itemsForTransaction);
                     this.closeBuilderModal();
                     this.generate();
 
                 } catch (e) {
-                    console.error('Reports: generateInvoiceFromBuilder failed', e);
+                    console.error('Reports: generateInvoiceFromBuilder failed (local mode)', e);
                     alert(e.message || 'Failed to generate invoice.');
                 }
             },
