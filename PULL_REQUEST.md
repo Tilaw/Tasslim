@@ -54,6 +54,23 @@ This PR fixes inconsistent issue counts across devices, ensures deleted issues a
 
 ---
 
+### 7. Purchase restock and POS sales now update central inventory via API (no device-only localStorage)
+
+- **Problem:** Restocking on the purchase page and selling via the POS updated only `localStorage` (`spi_inventory` / `spi_sales`). Other devices (and fresh page loads) read inventory from the backend, so stock changes from these flows were not reflected on the dashboard or inventory page, causing inconsistencies.
+- **Why:** `purchase-order.html` and `pos.html` mutated `App.KEYS.INVENTORY` and `App.KEYS.SALES` directly on the client without creating corresponding `inventory_transactions` in the database. The backend (and any device using it as source of truth) never saw these movements.
+- **Fix:**
+  - **Purchase restock (`purchase-order.html`):**
+    - `PurchaseOrder.processImport` is now `async` and builds a `transactions` array for all valid restock lines, with `transactionType: 'purchase'`, positive `quantity`, and a shared `referenceId` (`PO-<timestamp>`).
+    - The page calls `POST /api/v1/transactions/batch` with `{ transactions }`, falling back to one-by-one `POST /transactions` on 404/old backends. On success it calls `App.loadData()` so `spi_inventory`/`spi_sales` snapshots are refreshed from the server; the success card still shows the same “Items Restocked” details.
+    - Direct writes to `localStorage` for inventory in this flow have been removed; stock is now updated only by the backend in `inventory` and `inventory_transactions`.
+  - **POS checkout (`pos.html`):**
+    - `POS.checkout` is now `async` and converts the current cart into a `transactions` payload with `transactionType: 'sale'` and **negative** `quantity` (so central inventory is decremented), using a shared sale reference (`SALE-<timestamp>`).
+    - It calls `POST /api/v1/transactions/batch` first, with fallback to per-line `POST /transactions`. After a successful call it invokes `App.loadData()` to sync the frontend caches from the latest backend state, reloads inventory into POS, and re-renders products so stock indicators match the database.
+    - The old behavior that adjusted `this.inventory` and wrote `App.KEYS.INVENTORY`/`App.KEYS.SALES` directly has been removed; receipts now show the shared sale reference instead of a purely local timestamp id.
+  - **Shared behavior:**
+    - Both flows show a loading state on their primary actions while API calls are in progress, and report clear error toasts if the server call fails, avoiding any silent local-only updates.
+    - Inventory and transaction history views (dashboard, inventory, reports, issue-part) now see consistent stock movements because all adds/removals go through `inventory_transactions` and the central `inventory` table.
+
 ## Changes by area
 
 ### Backend
