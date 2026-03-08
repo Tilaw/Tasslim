@@ -43,6 +43,22 @@ export class TransactionService {
         await connection.beginTransaction();
 
         try {
+            // Idempotency guard: avoid creating duplicate issue lines for the same
+            // reference/product/type combination when clients retry or double-submit.
+            if (data.referenceId) {
+                const [existing]: any = await connection.execute(
+                    'SELECT id FROM inventory_transactions WHERE reference_id = ? AND product_id = ? AND transaction_type = ? AND (is_reverted IS NULL OR is_reverted = 0) LIMIT 1',
+                    [data.referenceId, data.productId, data.transactionType]
+                );
+
+                if (Array.isArray(existing) && existing.length > 0) {
+                    // No-op – treat as success so callers can safely retry without
+                    // inflating stock movements or duplicating history entries.
+                    await connection.rollback();
+                    return { id: existing[0].id, ...data, duplicate: true };
+                }
+            }
+
             const id = crypto.randomUUID();
             const createdAt = this.toMySQLDateTime(data.date);
 
@@ -86,32 +102,51 @@ export class TransactionService {
 
     /**
      * Revert (logically delete) an issuance/transaction group identified by referenceId.
-     * This restores inventory by subtracting each transaction's quantity from the inventory total
-     * and marks the original rows as reverted so they no longer appear in listings.
+     * Restores inventory for each line and marks rows as reverted so they no longer appear in listings.
+     * When matching by single transaction id, also reverts sibling rows (same created_at + mechanic_id)
+     * so the whole logical group is removed and never "remains" in the DB.
      */
     static async revertGroup(referenceId: string, userId: string) {
         const connection = await pool.getConnection();
         await connection.beginTransaction();
 
         try {
-            let matchBy: 'reference_id' | 'id' = 'reference_id';
             let rows: any[] = [];
 
-            // First try to match by reference_id (multiple rows per issuance group)
+            // 1) Try to match by reference_id (normal case: one issuance = one reference_id, multiple rows)
             const [byRef]: any = await connection.execute(
                 'SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
                 [referenceId]
             );
             rows = byRef;
 
-            // Fallback: if nothing matched, treat the provided value as a single transaction id
+            // 2) Fallback: treat as single transaction id (e.g. legacy groups without reference_id)
             if (!rows || rows.length === 0) {
                 const [byId]: any = await connection.execute(
-                    'SELECT id, product_id, quantity FROM inventory_transactions WHERE id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
+                    'SELECT id, product_id, quantity, created_at, mechanic_id, reference_id FROM inventory_transactions WHERE id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
                     [referenceId]
                 );
-                rows = byId;
-                matchBy = 'id';
+                const one = Array.isArray(byId) && byId.length > 0 ? byId[0] : null;
+                if (one) {
+                    // If this row has reference_id, revert entire group by reference_id
+                    if (one.reference_id) {
+                        const [byRef2]: any = await connection.execute(
+                            'SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)',
+                            [one.reference_id]
+                        );
+                        rows = byRef2;
+                    } else {
+                        // Legacy: no reference_id – revert all siblings (same created_at + mechanic_id)
+                        const [siblings]: any = await connection.execute(
+                            `SELECT id, product_id, quantity FROM inventory_transactions 
+                             WHERE (is_reverted IS NULL OR is_reverted = 0) 
+                             AND created_at = ? AND (mechanic_id <=> ?) 
+                             AND transaction_type = 'issue'`,
+                            [one.created_at, one.mechanic_id]
+                        );
+                        rows = siblings || [];
+                    }
+                }
             }
 
             if (!rows || rows.length === 0) {
@@ -121,8 +156,7 @@ export class TransactionService {
                 throw err;
             }
 
-            // For each transaction line, reverse its effect on inventory.
-            // Original quantity may be negative for "issue" – subtracting it restores stock.
+            // Restore inventory for each transaction (issue = negative qty, so subtract qty to restore)
             for (const row of rows) {
                 await connection.execute(
                     'UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?',
@@ -130,11 +164,12 @@ export class TransactionService {
                 );
             }
 
-            // Mark all matched transactions as reverted
-            const whereColumn = matchBy === 'reference_id' ? 'reference_id' : 'id';
+            // Mark all matched rows as reverted (by their ids so we don't touch other groups)
+            const ids = rows.map((r: any) => r.id);
+            const placeholders = ids.map(() => '?').join(',');
             await connection.execute(
-                `UPDATE inventory_transactions SET is_reverted = 1 WHERE ${whereColumn} = ? AND (is_reverted IS NULL OR is_reverted = 0)`,
-                [referenceId]
+                `UPDATE inventory_transactions SET is_reverted = 1 WHERE id IN (${placeholders}) AND (is_reverted IS NULL OR is_reverted = 0)`,
+                ids
             );
 
             await connection.commit();

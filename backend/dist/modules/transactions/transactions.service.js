@@ -53,6 +53,17 @@ class TransactionService {
             const connection = yield db_js_1.pool.getConnection();
             yield connection.beginTransaction();
             try {
+                // Idempotency guard: avoid creating duplicate issue lines for the same
+                // reference/product/type combination when clients retry or double-submit.
+                if (data.referenceId) {
+                    const [existing] = yield connection.execute('SELECT id FROM inventory_transactions WHERE reference_id = ? AND product_id = ? AND transaction_type = ? AND (is_reverted IS NULL OR is_reverted = 0) LIMIT 1', [data.referenceId, data.productId, data.transactionType]);
+                    if (Array.isArray(existing) && existing.length > 0) {
+                        // No-op – treat as success so callers can safely retry without
+                        // inflating stock movements or duplicating history entries.
+                        yield connection.rollback();
+                        return Object.assign(Object.assign({ id: existing[0].id }, data), { duplicate: true });
+                    }
+                }
                 const id = crypto_1.default.randomUUID();
                 const createdAt = this.toMySQLDateTime(data.date);
                 // 1. Create transaction record
