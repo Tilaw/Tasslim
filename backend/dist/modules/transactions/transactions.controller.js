@@ -34,5 +34,30 @@ class TransactionController {
             }
         });
     }
+    static createBatch(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const items = req.body.transactions;
+                const result = yield transactions_service_js_1.TransactionService.createBatch(items, req.user.userId);
+                res.status(201).json({ success: true, data: result });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
+    static revertGroup(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const raw = req.params.referenceId;
+                const referenceId = Array.isArray(raw) ? raw[0] : raw;
+                const result = yield transactions_service_js_1.TransactionService.revertGroup(referenceId, req.user.userId);
+                res.json({ success: true, data: result });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
 }
 exports.TransactionController = TransactionController;

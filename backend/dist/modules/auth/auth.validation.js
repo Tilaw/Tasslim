@@ -1,11 +1,16 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.registerSchema = exports.loginSchema = void 0;
+exports.registerSchema = exports.refreshSchema = exports.loginSchema = void 0;
 const zod_1 = require("zod");
 exports.loginSchema = zod_1.z.object({
     body: zod_1.z.object({
         email: zod_1.z.string().min(1, 'Email or username is required'), // Accept email OR username
         password: zod_1.z.string().min(1, 'Password is required'),
+    }),
+});
+exports.refreshSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        refreshToken: zod_1.z.string().min(1, 'Refresh token is required'),
     }),
 });
 exports.registerSchema = zod_1.z.object({

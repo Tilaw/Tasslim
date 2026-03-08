@@ -7,6 +7,12 @@ export const loginSchema = z.object({
     }),
 });
 
+export const refreshSchema = z.object({
+    body: z.object({
+        refreshToken: z.string().min(1, 'Refresh token is required'),
+    }),
+});
+
 export const registerSchema = z.object({
     body: z.object({
         email: z.string().min(1, 'Email or username is required'),

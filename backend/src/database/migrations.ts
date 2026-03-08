@@ -144,7 +144,7 @@ export async function migrate() {
             quantity INT NOT NULL,
             mechanic_id VARCHAR(36) NULL,
             bike_id VARCHAR(36) NULL,
-            reference_id VARCHAR(100) UNIQUE,
+            reference_id VARCHAR(100),
             notes TEXT,
             created_by VARCHAR(36),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -199,6 +199,46 @@ export async function migrate() {
                 console.log(`[database]: Adding missing column ${col.name} to bikes table...`);
                 await pool.query(`ALTER TABLE bikes ADD COLUMN ${col.name} ${col.type}`);
             }
+        }
+
+        // Ensure inventory_transactions.transaction_type accepts 'issue' (ENUM may only have purchase,sale,return,adjustment)
+        const [txCol]: any = await pool.query(
+            `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'inventory_transactions' AND COLUMN_NAME = 'transaction_type'`,
+            [process.env.DB_NAME]
+        );
+        if (txCol && txCol[0] && typeof txCol[0].COLUMN_TYPE === 'string' && txCol[0].COLUMN_TYPE.toLowerCase().includes('enum') && !txCol[0].COLUMN_TYPE.toLowerCase().includes('issue')) {
+            console.log('[database]: Altering inventory_transactions.transaction_type to VARCHAR(50) to support "issue"...');
+            await pool.query('ALTER TABLE inventory_transactions MODIFY COLUMN transaction_type VARCHAR(50) NOT NULL');
+        }
+
+        // Ensure rider / receiver tracking columns exist on inventory_transactions
+        const txExtraCols = [
+            { name: 'rider_name', type: 'VARCHAR(100)' },
+            { name: 'rider_phone', type: 'VARCHAR(50)' },
+            { name: 'rider_id', type: 'VARCHAR(100)' },
+            { name: 'receiver_name', type: 'VARCHAR(100)' },
+            { name: 'is_reverted', type: 'TINYINT(1) DEFAULT 0' }
+        ];
+
+        for (const col of txExtraCols) {
+            if (!(await columnExists('inventory_transactions', col.name))) {
+                console.log(`[database]: Adding missing column ${col.name} to inventory_transactions table...`);
+                await pool.query(`ALTER TABLE inventory_transactions ADD COLUMN ${col.name} ${col.type}`);
+            }
+        }
+
+        // Allow same reference_id for multiple transaction lines (one issuance = one reference, multiple parts)
+        try {
+            const [idx]: any = await pool.query(
+                `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'inventory_transactions' AND COLUMN_NAME = 'reference_id' AND NON_UNIQUE = 0`,
+                [process.env.DB_NAME]
+            );
+            if (idx && idx.length > 0) {
+                console.log('[database]: Dropping UNIQUE on inventory_transactions.reference_id...');
+                await pool.query('ALTER TABLE inventory_transactions DROP INDEX reference_id');
+            }
+        } catch (e) {
+            // Index might not exist or have different name; ignore
         }
 
         // Ensure Default Roles exist

@@ -15,6 +15,19 @@ export class AuthController {
         }
     }
 
+    static async refresh(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { refreshToken } = req.body;
+            const result = await AuthService.refresh(refreshToken);
+            res.json({ success: true, data: result });
+        } catch (error: any) {
+            res.status(401).json({
+                success: false,
+                error: { code: 'INVALID_TOKEN', message: error.message || 'Invalid or expired refresh token' },
+            });
+        }
+    }
+
     static async register(req: Request, res: Response, next: NextFunction) {
         try {
             const result = await AuthService.register(req.body);

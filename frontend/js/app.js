@@ -29,32 +29,27 @@ const App = {
     },
 
     /**
-     * Helper for API calls
+     * Helper for API calls. On 401 (invalid/expired token), tries to refresh the token once and retries.
+     * @param {string} endpoint - API path (e.g. '/transactions')
+     * @param {string} method - GET, POST, etc.
+     * @param {object|null} data - Body for POST/PATCH
+     * @param {boolean} _retriedAfterRefresh - Internal: skip refresh to avoid loop
      */
-    apiCall: async function (endpoint, method = 'GET', data = null) {
+    apiCall: async function (endpoint, method = 'GET', data = null, _retriedAfterRefresh = false) {
         const session = JSON.parse(localStorage.getItem(this.KEYS.SESSION));
         const headers = {
             'Content-Type': 'application/json'
         };
 
-        // Add Bearer token if we have one
         if (session && session.token) {
             headers['Authorization'] = `Bearer ${session.token}`;
         }
 
-        const options = {
-            method,
-            headers
-        };
-
-        if (data) {
-            options.body = JSON.stringify(data);
-        }
+        const options = { method, headers };
+        if (data) options.body = JSON.stringify(data);
 
         try {
             const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
-
-            // Check if response is actually JSON
             const contentType = response.headers.get("content-type");
             if (!contentType || !contentType.includes("application/json")) {
                 const text = await response.text();
@@ -69,6 +64,40 @@ const App = {
             if (!response.ok) {
                 const err = new Error(result.error?.message || result.error || 'API Request failed');
                 err.status = response.status;
+
+                // 401 and token expired: try refresh once, then retry this request
+                if (response.status === 401 && !_retriedAfterRefresh && session && session.refreshToken) {
+                    const isAuthEndpoint = (endpoint === '/auth/refresh' || endpoint.startsWith('/auth/'));
+                    const isTokenError = (result.error?.message || '').toLowerCase().includes('token') || (result.error?.message || '').toLowerCase().includes('expired');
+                    if (!isAuthEndpoint && isTokenError) {
+                        try {
+                            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ refreshToken: session.refreshToken })
+                            });
+                            const refreshData = await refreshRes.json();
+                            if (refreshData.success && refreshData.data && refreshData.data.token) {
+                                session.token = refreshData.data.token;
+                                if (refreshData.data.refreshToken) session.refreshToken = refreshData.data.refreshToken;
+                                localStorage.setItem(this.KEYS.SESSION, JSON.stringify(session));
+                                return this.apiCall(endpoint, method, data, true);
+                            }
+                        } catch (refreshErr) {
+                            console.warn('[api]: Token refresh failed', refreshErr);
+                        }
+                    }
+                }
+
+                if (response.status === 401) {
+                    localStorage.removeItem(this.KEYS.SESSION);
+                    if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
+                        this.showToast('Session expired. Please sign in again.', 'error');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
                 throw err;
             }
 
@@ -442,6 +471,7 @@ const App = {
 
                 if (tData.success) {
                     // Map transactions to 'sales' format (Grouping by reference_id or fingerprint)
+                    // and treat the backend as the single source of truth for all devices.
                     const transactions = tData.data;
                     const groups = {};
 
@@ -457,7 +487,12 @@ const App = {
                                 bike: t.bike_plate_number || '',
                                 status: 'completed',
                                 user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                                total: 0
+                                total: 0,
+                                // Rider / receiver tracking (for issue-part history)
+                                riderName: t.rider_name || '',
+                                riderNumber: t.rider_phone || '',
+                                riderId: t.rider_id || '',
+                                receiverName: t.receiver_name || ''
                             };
                         }
 
@@ -474,24 +509,9 @@ const App = {
                     });
 
                     const mappedSales = Object.values(groups);
-                    if (mappedSales.length > 0) {
-                        // Merge with existing local sales to avoid data loss for unsynced records
-                        const localSales = JSON.parse(localStorage.getItem(this.KEYS.SALES)) || [];
-                        const localMap = new Map();
-
-                        // Index local sales by ID
-                        localSales.forEach(s => {
-                            if (s && s.id) localMap.set(s.id.toString(), s);
-                        });
-
-                        // Overwrite/Add backend records
-                        mappedSales.forEach(s => {
-                            if (s && s.id) localMap.set(s.id.toString(), s);
-                        });
-
-                        const merged = Array.from(localMap.values());
-                        localStorage.setItem(this.KEYS.SALES, JSON.stringify(merged));
-                    }
+                    // Always overwrite local sales with the latest snapshot from the server
+                    // so deletes/reverts are reflected consistently across devices.
+                    localStorage.setItem(this.KEYS.SALES, JSON.stringify(mappedSales));
                 }
 
             } catch (error) {

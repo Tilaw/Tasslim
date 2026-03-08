@@ -48,6 +48,34 @@ class AuthService {
             };
         });
     }
+    /** Issue a new access token using a valid refresh token (no password). */
+    static refresh(refreshToken) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (!refreshToken || typeof refreshToken !== 'string') {
+                throw new Error('Refresh token required');
+            }
+            const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_SECRET);
+            const [rows] = yield db_js_1.pool.execute(`SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, r.name as role
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE u.id = ?`, [decoded.userId]);
+            const user = rows[0];
+            if (!user || !user.is_active) {
+                throw new Error('User not found or inactive');
+            }
+            const token = jsonwebtoken_1.default.sign({ userId: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET, { expiresIn: (process.env.JWT_EXPIRES_IN || '15m') });
+            return {
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    firstName: user.first_name,
+                    lastName: user.last_name,
+                    role: user.role,
+                },
+            };
+        });
+    }
     static register(userData) {
         return __awaiter(this, void 0, void 0, function* () {
             var _a, _b;
