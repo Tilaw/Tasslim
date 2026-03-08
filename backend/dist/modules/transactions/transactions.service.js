@@ -97,7 +97,17 @@ class TransactionService {
             const connection = yield db_js_1.pool.getConnection();
             yield connection.beginTransaction();
             try {
-                const [rows] = yield connection.execute('SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                let matchBy = 'reference_id';
+                let rows = [];
+                // First try to match by reference_id (multiple rows per issuance group)
+                const [byRef] = yield connection.execute('SELECT id, product_id, quantity FROM inventory_transactions WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                rows = byRef;
+                // Fallback: if nothing matched, treat the provided value as a single transaction id
+                if (!rows || rows.length === 0) {
+                    const [byId] = yield connection.execute('SELECT id, product_id, quantity FROM inventory_transactions WHERE id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                    rows = byId;
+                    matchBy = 'id';
+                }
                 if (!rows || rows.length === 0) {
                     yield connection.rollback();
                     const err = new Error('Issuance group not found or already reverted');
@@ -109,8 +119,9 @@ class TransactionService {
                 for (const row of rows) {
                     yield connection.execute('UPDATE inventory SET quantity = quantity - ? WHERE product_id = ?', [row.quantity, row.product_id]);
                 }
-                // Mark all transactions in this reference group as reverted
-                yield connection.execute('UPDATE inventory_transactions SET is_reverted = 1 WHERE reference_id = ? AND (is_reverted IS NULL OR is_reverted = 0)', [referenceId]);
+                // Mark all matched transactions as reverted
+                const whereColumn = matchBy === 'reference_id' ? 'reference_id' : 'id';
+                yield connection.execute(`UPDATE inventory_transactions SET is_reverted = 1 WHERE ${whereColumn} = ? AND (is_reverted IS NULL OR is_reverted = 0)`, [referenceId]);
                 yield connection.commit();
                 return { referenceId, revertedCount: rows.length, revertedBy: userId };
             }

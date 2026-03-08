@@ -471,6 +471,7 @@ const App = {
 
                 if (tData.success) {
                     // Map transactions to 'sales' format (Grouping by reference_id or fingerprint)
+                    // and treat the backend as the single source of truth for all devices.
                     const transactions = tData.data;
                     const groups = {};
 
@@ -508,24 +509,9 @@ const App = {
                     });
 
                     const mappedSales = Object.values(groups);
-                    if (mappedSales.length > 0) {
-                        // Merge with existing local sales to avoid data loss for unsynced records
-                        const localSales = JSON.parse(localStorage.getItem(this.KEYS.SALES)) || [];
-                        const localMap = new Map();
-
-                        // Index local sales by ID
-                        localSales.forEach(s => {
-                            if (s && s.id) localMap.set(s.id.toString(), s);
-                        });
-
-                        // Overwrite/Add backend records
-                        mappedSales.forEach(s => {
-                            if (s && s.id) localMap.set(s.id.toString(), s);
-                        });
-
-                        const merged = Array.from(localMap.values());
-                        localStorage.setItem(this.KEYS.SALES, JSON.stringify(merged));
-                    }
+                    // Always overwrite local sales with the latest snapshot from the server
+                    // so deletes/reverts are reflected consistently across devices.
+                    localStorage.setItem(this.KEYS.SALES, JSON.stringify(mappedSales));
                 }
 
             } catch (error) {
