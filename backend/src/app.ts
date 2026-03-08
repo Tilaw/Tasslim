@@ -15,6 +15,7 @@ import { mechanicRoutes } from './modules/mechanics/mechanics.routes.js';
 import { bikeRoutes } from './modules/bikes/bikes.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
 import { migrationRoutes } from './modules/system/migration.routes.js';
+import { issueContextRoutes } from './modules/issue-context/issue-context.routes.js';
 
 import { logger } from './utils/logger.js';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware.js';
@@ -62,6 +63,7 @@ app.use('/api/v1/mechanics', mechanicRoutes);
 app.use('/api/v1/bikes', bikeRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/migration', migrationRoutes);
+app.use('/api/v1/issue-context', issueContextRoutes);
 
 // Catch-all for API 404s (matches any /api/v1 route not handled above)
 app.use('/api/v1', notFoundHandler);

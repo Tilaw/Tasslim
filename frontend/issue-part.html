@@ -692,85 +692,118 @@
             selectedParts: [],
             selectedBike: null,
             _isSubmitting: false,
+            _pollTimer: null,
+            _lastSalesKey: '',
 
             init: async function () {
                 console.log('PickItem Initializing (DB-backed only), Version:', this.version);
                 await this.loadData();
                 this.renderHistory();
                 this.populateMechanics();
-
-                // Lightweight polling to keep this page in sync with server-side changes
-                setInterval(async () => {
-                    try {
-                        await this.loadData();
-                        this.renderHistory();
-                    } catch (e) {
-                        console.warn('Background sync failed:', e);
-                    }
-                }, 20000);
+                this._startPolling();
             },
 
-            // Load all required data strictly from the backend APIs (no localStorage for issues)
+            _startPolling: function () {
+                var self = this;
+                var POLL_MS = (typeof navigator !== 'undefined' && /Mobi|Android/i.test(navigator.userAgent)) ? 45000 : 20000;
+
+                function tick() {
+                    if (document.hidden) return;
+                    self.loadData().then(function () {
+                        var newKey = (self.sales.length + '_' + (self.sales[0] && self.sales[0].id ? self.sales[0].id : ''));
+                        if (newKey !== self._lastSalesKey) {
+                            self._lastSalesKey = newKey;
+                            self.renderHistory();
+                        }
+                    }).catch(function (e) { console.warn('Background sync failed:', e); });
+                }
+
+                function schedule() {
+                    self._pollTimer = setInterval(tick, POLL_MS);
+                }
+
+                document.addEventListener('visibilitychange', function () {
+                    if (document.hidden) {
+                        if (self._pollTimer) clearInterval(self._pollTimer);
+                        self._pollTimer = null;
+                    } else {
+                        tick();
+                        schedule();
+                    }
+                });
+                schedule();
+            },
+
+            // Load data: prefer single GET /issue-context (1 round-trip); fallback to 4 parallel calls
             loadData: async function () {
+                try {
+                    var ctx = await App.apiCall('/issue-context', 'GET');
+                    if (ctx && ctx.success && ctx.data) {
+                        var d = ctx.data;
+                        this.data = Array.isArray(d.products) ? d.products : [];
+                        this._mechanics = Array.isArray(d.mechanics) ? d.mechanics : [];
+                        this._bikes = Array.isArray(d.bikes) ? d.bikes : [];
+                        this._applyTransactions(Array.isArray(d.transactions) ? d.transactions : []);
+                        return;
+                    }
+                } catch (e) {
+                    if (e && (e.status === 404 || e.message && e.message.indexOf('404') !== -1)) { /* old backend */ }
+                    else { console.warn('issue-context failed, using fallback:', e); }
+                }
+
                 try {
                     const [pData, mData, bData, tData] = await Promise.all([
                         App.apiCall('/products', 'GET'),
                         App.apiCall('/mechanics', 'GET'),
                         App.apiCall('/bikes', 'GET'),
-                        App.apiCall('/transactions?type=issue', 'GET')
+                        App.apiCall('/transactions?type=issue&limit=250', 'GET')
                     ]);
-
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
-
-                    // Keep mechanics and bikes in memory for this page only
                     this._mechanics = (mData && mData.success && Array.isArray(mData.data)) ? mData.data : [];
                     this._bikes = (bData && bData.success && Array.isArray(bData.data)) ? bData.data : [];
-
-                    // Group issue transactions into "sales-like" structures for the history UI
-                    const transactions = (tData && tData.success && Array.isArray(tData.data)) ? tData.data : [];
-                    const groups = {};
-
-                    transactions.forEach(t => {
-                        const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
-                        if (!groups[key]) {
-                            groups[key] = {
-                                id: t.reference_id || t.id,
-                                date: t.created_at,
-                                type: t.transaction_type,
-                                items: [],
-                                mechanic: t.mechanic_name || '',
-                                bike: t.bike_plate_number || '',
-                                status: 'completed',
-                                user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                                total: 0,
-                                riderName: t.rider_name || '',
-                                riderNumber: t.rider_phone || '',
-                                riderId: t.rider_id || '',
-                                receiverName: t.receiver_name || ''
-                            };
-                        }
-
-                        const qty = Math.abs(t.quantity);
-                        groups[key].items.push({
-                            productId: t.product_id,
-                            name: t.product_name,
-                            sku: t.product_sku,
-                            qty: qty,
-                            price: 0,
-                            total: 0
-                        });
-                    });
-
-                    this.sales = Object.values(groups);
+                    this._applyTransactions((tData && tData.success && Array.isArray(tData.data)) ? tData.data : []);
                 } catch (err) {
                     console.error('Failed to load issue-part data from server:', err);
-                    const msg = err && err.message ? err.message : '';
-                    App.showToast(msg || 'Failed to load issue history from server', 'error');
+                    App.showToast((err && err.message) || 'Failed to load issue history from server', 'error');
                     this.data = [];
                     this.sales = [];
                     this._mechanics = [];
                     this._bikes = [];
                 }
+            },
+
+            _applyTransactions: function (transactions) {
+                var groups = {};
+                transactions.forEach(function (t) {
+                    var key = t.reference_id || ('tx_' + t.created_at + '_' + t.mechanic_id);
+                    if (!groups[key]) {
+                        groups[key] = {
+                            id: t.reference_id || t.id,
+                            date: t.created_at,
+                            type: t.transaction_type,
+                            items: [],
+                            mechanic: t.mechanic_name || '',
+                            bike: t.bike_plate_number || '',
+                            status: 'completed',
+                            user: (t.first_name || '') + ' ' + (t.last_name || ''),
+                            total: 0,
+                            riderName: t.rider_name || '',
+                            riderNumber: t.rider_phone || '',
+                            riderId: t.rider_id || '',
+                            receiverName: t.receiver_name || ''
+                        };
+                    }
+                    var qty = Math.abs(t.quantity);
+                    groups[key].items.push({
+                        productId: t.product_id,
+                        name: t.product_name,
+                        sku: t.product_sku,
+                        qty: qty,
+                        price: 0,
+                        total: 0
+                    });
+                });
+                this.sales = Object.values(groups);
             },
 
             populateMechanics: function () {
@@ -1118,13 +1151,10 @@
                 try {
                     const currentUser = App.getCurrentUser();
 
-                    // Resolve mechanic and bike IDs from in-memory lists
-                    const b = (this._bikes || []).find(bike => bike.plate === this.selectedBike || bike.plate_number === this.selectedBike);
-                    const m = (this._mechanics || []).find(mech => mech.name === mechanicName);
-
-                    // Persist each issued part as a transaction line in the central database
-                    for (const part of itemsToIssue) {
-                        await App.apiCall('/transactions', 'POST', {
+                    var b = (this._bikes || []).find(function (bike) { return bike.plate === this.selectedBike || bike.plate_number === this.selectedBike; }.bind(this));
+                    var m = (this._mechanics || []).find(function (mech) { return mech.name === mechanicName; });
+                    var payload = itemsToIssue.map(function (part) {
+                        return {
                             productId: part.id,
                             transactionType: 'issue',
                             quantity: -1,
@@ -1132,15 +1162,24 @@
                             bikeId: b ? b.id : null,
                             referenceId: issueId,
                             date: pickedDateTime,
-                            notes: `Dynamic Row Issue to ${mechanicName}. Rider: ${riderName}`,
-                            riderName,
-                            riderNumber,
-                            riderId,
-                            receiverName
-                        });
+                            notes: 'Dynamic Row Issue to ' + mechanicName + '. Rider: ' + riderName,
+                            riderName: riderName,
+                            riderNumber: riderNumber,
+                            riderId: riderId,
+                            receiverName: receiverName
+                        };
+                    });
+
+                    // Prefer single batch request (faster on mobile); fallback to one-by-one
+                    try {
+                        var batchRes = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
+                        if (!batchRes || !batchRes.success) throw new Error('Batch failed');
+                    } catch (batchErr) {
+                        for (var i = 0; i < payload.length; i++) {
+                            await App.apiCall('/transactions', 'POST', payload[i]);
+                        }
                     }
 
-                    // Reload from server so this page always reflects authoritative DB state
                     await this.loadData();
 
                     App.showToast('Issuance recorded successfully!');

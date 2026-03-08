@@ -21,6 +21,16 @@ export class TransactionController {
         }
     }
 
+    static async createBatch(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const items = (req.body as any).transactions;
+            const result = await TransactionService.createBatch(items, req.user!.userId);
+            res.status(201).json({ success: true, data: result });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async revertGroup(req: AuthRequest, res: Response, next: NextFunction) {
         try {
             const raw = (req.params as any).referenceId;

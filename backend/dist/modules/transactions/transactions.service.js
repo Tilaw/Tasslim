@@ -38,6 +38,9 @@ class TransactionService {
                 values.push(params.type);
             }
             query += ' ORDER BY t.created_at DESC';
+            const limit = Math.min(Math.max(0, parseInt(params.limit, 10) || 0), 500);
+            if (limit > 0)
+                query += ' LIMIT ' + limit;
             const [rows] = yield db_js_1.pool.execute(query, values);
             return rows;
         });
@@ -88,6 +91,44 @@ class TransactionService {
                  ON DUPLICATE KEY UPDATE quantity = quantity + ?`, [crypto_1.default.randomUUID(), data.productId, data.quantity]);
                 yield connection.commit();
                 return Object.assign({ id }, data);
+            }
+            catch (error) {
+                yield connection.rollback();
+                throw error;
+            }
+            finally {
+                connection.release();
+            }
+        });
+    }
+    /** Create multiple transaction lines in one DB transaction (e.g. one issuance with N parts). */
+    static createBatch(items, userId) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const connection = yield db_js_1.pool.getConnection();
+            yield connection.beginTransaction();
+            try {
+                const created = [];
+                for (const data of items) {
+                    if (data.referenceId) {
+                        const [existing] = yield connection.execute('SELECT id FROM inventory_transactions WHERE reference_id = ? AND product_id = ? AND transaction_type = ? AND (is_reverted IS NULL OR is_reverted = 0) LIMIT 1', [data.referenceId, data.productId, data.transactionType]);
+                        if (Array.isArray(existing) && existing.length > 0) {
+                            created.push(Object.assign(Object.assign({ id: existing[0].id }, data), { duplicate: true }));
+                            continue;
+                        }
+                    }
+                    const id = crypto_1.default.randomUUID();
+                    const createdAt = this.toMySQLDateTime(data.date);
+                    yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                        id, data.productId, data.transactionType, data.quantity,
+                        data.mechanicId || null, data.bikeId || null, data.referenceId || null, data.notes || null,
+                        userId, createdAt,
+                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null
+                    ]);
+                    yield connection.execute(`INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity = quantity + ?`, [crypto_1.default.randomUUID(), data.productId, data.quantity]);
+                    created.push(Object.assign({ id }, data));
+                }
+                yield connection.commit();
+                return created;
             }
             catch (error) {
                 yield connection.rollback();

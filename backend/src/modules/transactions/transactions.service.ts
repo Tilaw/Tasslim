@@ -27,6 +27,9 @@ export class TransactionService {
 
         query += ' ORDER BY t.created_at DESC';
 
+        const limit = Math.min(Math.max(0, parseInt(params.limit, 10) || 0), 500);
+        if (limit > 0) query += ' LIMIT ' + limit;
+
         const [rows] = await pool.execute(query, values);
         return rows;
     }
@@ -92,6 +95,52 @@ export class TransactionService {
 
             await connection.commit();
             return { id, ...data };
+        } catch (error) {
+            await connection.rollback();
+            throw error;
+        } finally {
+            connection.release();
+        }
+    }
+
+    /** Create multiple transaction lines in one DB transaction (e.g. one issuance with N parts). */
+    static async createBatch(items: any[], userId: string) {
+        const connection = await pool.getConnection();
+        await connection.beginTransaction();
+
+        try {
+            const created: any[] = [];
+            for (const data of items) {
+                if (data.referenceId) {
+                    const [existing]: any = await connection.execute(
+                        'SELECT id FROM inventory_transactions WHERE reference_id = ? AND product_id = ? AND transaction_type = ? AND (is_reverted IS NULL OR is_reverted = 0) LIMIT 1',
+                        [data.referenceId, data.productId, data.transactionType]
+                    );
+                    if (Array.isArray(existing) && existing.length > 0) {
+                        created.push({ id: existing[0].id, ...data, duplicate: true });
+                        continue;
+                    }
+                }
+
+                const id = crypto.randomUUID();
+                const createdAt = this.toMySQLDateTime(data.date);
+                await connection.execute(
+                    'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    [
+                        id, data.productId, data.transactionType, data.quantity,
+                        data.mechanicId || null, data.bikeId || null, data.referenceId || null, data.notes || null,
+                        userId, createdAt,
+                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null
+                    ]
+                );
+                await connection.execute(
+                    `INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity = quantity + ?`,
+                    [crypto.randomUUID(), data.productId, data.quantity]
+                );
+                created.push({ id, ...data });
+            }
+            await connection.commit();
+            return created;
         } catch (error) {
             await connection.rollback();
             throw error;
