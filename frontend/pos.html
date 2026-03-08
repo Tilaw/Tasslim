@@ -232,6 +232,7 @@
 
             loadInventory: function () {
                 this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.categories = new Set();
                 this.inventory.forEach(item => this.categories.add(item.category));
             },
 
@@ -386,45 +387,75 @@
                 document.getElementById('cartTotal').textContent = App.formatCurrency(total);
             },
 
-            checkout: function () {
+            checkout: async function () {
                 if (this.cart.length === 0) {
                     App.showToast('Cart is empty', 'error');
                     return;
                 }
 
-                // 1. Create Sale Record
-                const sale = {
-                    id: Date.now(),
-                    date: new Date().toISOString(),
-                    items: [...this.cart],
-                    total: this.cart.reduce((sum, i) => sum + (i.price * i.qty), 0),
-                    user: App.getCurrentUser().name
-                };
+                const now = new Date();
+                const saleRef = 'SALE-' + now.getTime().toString();
+                const total = this.cart.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
-                // 2. Update Inventory Stock
-                this.cart.forEach(cartItem => {
-                    const productIndex = this.inventory.findIndex(p => p.id === cartItem.id);
-                    if (productIndex !== -1) {
-                        this.inventory[productIndex].stock -= cartItem.qty;
+                const transactions = this.cart.map(item => ({
+                    productId: item.id,
+                    transactionType: 'sale',
+                    // Negative quantity so central inventory is decremented
+                    quantity: -item.qty,
+                    referenceId: saleRef,
+                    date: now.toISOString(),
+                    notes: 'POS sale'
+                }));
+
+                const payBtn = document.querySelector('.cart-footer .btn.btn-primary');
+                const originalBtnHtml = payBtn ? payBtn.innerHTML : null;
+                if (payBtn) {
+                    payBtn.disabled = true;
+                    payBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                }
+
+                try {
+                    // Prefer batch create; fall back to one-by-one if unavailable
+                    try {
+                        const res = await App.apiCall('/transactions/batch', 'POST', { transactions });
+                        if (!res || !res.success) {
+                            throw new Error('Batch sale failed');
+                        }
+                    } catch (batchErr) {
+                        for (const tx of transactions) {
+                            await App.apiCall('/transactions', 'POST', tx);
+                        }
                     }
-                });
 
-                // 3. Save to LocalStorage
-                const sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                sales.push(sale);
-                localStorage.setItem(App.KEYS.SALES, JSON.stringify(sales));
-                localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+                    // Refresh cached inventory/sales so dashboard, reports, etc. see updated stock
+                    try {
+                        await App.loadData();
+                    } catch (syncErr) {
+                        console.warn('Post-sale sync failed, but server update likely succeeded:', syncErr);
+                    }
 
-                // 4. Show Success
-                document.getElementById('receiptId').textContent = sale.id;
-                document.getElementById('receiptTotal').textContent = App.formatCurrency(sale.total);
-                document.getElementById('receiptModal').classList.add('open');
+                    // Show receipt using shared sale reference
+                    document.getElementById('receiptId').textContent = saleRef;
+                    document.getElementById('receiptTotal').textContent = App.formatCurrency(total);
+                    document.getElementById('receiptModal').classList.add('open');
 
-                // 5. Reset
-                this.cart = [];
-                this.renderCart();
-                this.loadInventory(); // Refresh stock in UI
-                this.renderProducts('All');
+                    // Reset cart and reload products from latest inventory snapshot
+                    this.cart = [];
+                    this.renderCart();
+                    this.loadInventory();
+                    this.renderProducts('All');
+                } catch (err) {
+                    console.error('Checkout failed:', err);
+                    const msg = err && err.message ? err.message : '';
+                    App.showToast(msg || 'Failed to complete sale on server.', 'error');
+                } finally {
+                    if (payBtn) {
+                        payBtn.disabled = false;
+                        if (originalBtnHtml !== null) {
+                            payBtn.innerHTML = originalBtnHtml;
+                        }
+                    }
+                }
             },
 
             closeReceipt: function () {

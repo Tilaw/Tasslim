@@ -648,23 +648,76 @@
                 }
             },
 
-            processImport: function () {
+            processImport: async function () {
                 const validItems = this.pendingItems.filter(i => i.isValid);
                 if (validItems.length === 0) {
                     App.showToast('No valid items to process.', 'error');
                     return;
                 }
 
-                // Update Local Storage
-                validItems.forEach(item => {
-                    const idx = this.inventory.findIndex(p => p.sku === item.sku);
-                    if (idx !== -1) {
-                        this.inventory[idx].stock += item.qty;
-                    }
-                });
+                // Build transactions payload for backend (purchase = positive quantity)
+                const now = new Date();
+                const referenceId = 'PO-' + now.getTime().toString();
 
-                localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
-                this.showSuccess(validItems);
+                const transactions = validItems.map(item => {
+                    const product = this.inventory.find(p => p.sku === item.sku);
+                    if (!product || !product.id) return null;
+
+                    return {
+                        productId: product.id,
+                        transactionType: 'purchase',
+                        quantity: item.qty,
+                        referenceId,
+                        date: now.toISOString(),
+                        notes: 'Restock via purchase-order page'
+                    };
+                }).filter(Boolean);
+
+                if (transactions.length === 0) {
+                    App.showToast('No matching products found on server for the selected SKUs.', 'error');
+                    return;
+                }
+
+                const confirmBtn = document.querySelector('#previewStep .btn.btn-primary');
+                const originalBtnHtml = confirmBtn ? confirmBtn.innerHTML : null;
+                if (confirmBtn) {
+                    confirmBtn.disabled = true;
+                    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                }
+
+                try {
+                    // Prefer batch endpoint for performance; fall back to single creates
+                    try {
+                        const res = await App.apiCall('/transactions/batch', 'POST', { transactions });
+                        if (!res || !res.success) {
+                            throw new Error('Batch restock failed');
+                        }
+                    } catch (batchErr) {
+                        for (const tx of transactions) {
+                            await App.apiCall('/transactions', 'POST', tx);
+                        }
+                    }
+
+                    // Refresh cached inventory/sales from backend so other pages see correct stock
+                    try {
+                        await App.loadData();
+                    } catch (syncErr) {
+                        console.warn('Post-restock sync failed, but server update likely succeeded:', syncErr);
+                    }
+
+                    this.showSuccess(validItems);
+                } catch (err) {
+                    console.error('Restock failed:', err);
+                    const msg = err && err.message ? err.message : '';
+                    App.showToast(msg || 'Failed to restock inventory from server.', 'error');
+                } finally {
+                    if (confirmBtn) {
+                        confirmBtn.disabled = false;
+                        if (originalBtnHtml !== null) {
+                            confirmBtn.innerHTML = originalBtnHtml;
+                        }
+                    }
+                }
             },
 
             showSuccess: function (items) {
