@@ -72,10 +72,12 @@
                             data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
                             data-i18n="mechanics">Mechanics</span></a></li>
-                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
-                            data-i18n="users">Users</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
                 </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
@@ -292,8 +294,8 @@
                 lastBikeRecord: null,
                 allFilteredChanges: [],
 
-                init: function () {
-                    this.loadData();
+                init: async function () {
+                    await this.loadData();
                     this.renderMechanics();
                     this.renderTable();
 
@@ -317,11 +319,27 @@
                     });
                 },
 
-                loadData: function () {
-                    this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
-                    this.changes = JSON.parse(localStorage.getItem(App.KEYS.OIL_CHANGES)) || [];
-                    this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                    this.riders = JSON.parse(localStorage.getItem('riders_info')) || [];
+                loadData: async function () {
+                    try {
+                        const [bikesRes, mechRes, oilRes] = await Promise.all([
+                            App.apiCall('/bikes', 'GET'),
+                            App.apiCall('/mechanics', 'GET'),
+                            App.apiCall('/oil-changes?limit=200', 'GET')
+                        ]);
+
+                        this.bikes = bikesRes && bikesRes.success && Array.isArray(bikesRes.data) ? bikesRes.data : [];
+                        this.mechanics = mechRes && mechRes.success && Array.isArray(mechRes.data) ? mechRes.data : [];
+                        this.changes = oilRes && oilRes.success && Array.isArray(oilRes.data) ? oilRes.data : [];
+                    } catch (err) {
+                        console.error('Failed to load oil change data from server', err);
+                        App.showToast('Failed to load oil change data from server', 'error');
+                        this.bikes = [];
+                        this.mechanics = [];
+                        this.changes = [];
+                    }
+
+                    // Optional: keep rider suggestions in-memory only for now
+                    this.riders = [];
                     this.populateRiderSuggestions();
                 },
 
@@ -448,7 +466,7 @@
 
                         // Suggest/Auto-fill Rider Details
                         const bikeChanges = this.changes.filter(c => c.bikeId.toString() === bike.id.toString())
-                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+                            .sort((a, b) => new Date(b.changeDate || b.date) - new Date(a.changeDate || a.date));
 
                         const riderInput = document.getElementById('riderName');
                         const phoneInput = document.getElementById('riderPhone');
@@ -489,11 +507,11 @@
                     const bikeId = this.selectedBikeIds[0];
                     const bikeChanges = this.changes
                         .filter(c => c.bikeId.toString() === bikeId.toString())
-                        .sort((a, b) => new Date(b.date) - new Date(a.date));
+                        .sort((a, b) => new Date(b.changeDate || b.date) - new Date(a.changeDate || a.date));
 
                     if (bikeChanges.length > 0) {
                         this.lastBikeRecord = bikeChanges[0];
-                        statusDiv.innerHTML = `Last Mileage: ${this.lastBikeRecord.mileage} km (on ${new Date(this.lastBikeRecord.date).toLocaleDateString()})`;
+                        statusDiv.innerHTML = `Last Mileage: ${this.lastBikeRecord.mileage} km (on ${new Date(this.lastBikeRecord.changeDate || this.lastBikeRecord.date).toLocaleDateString()})`;
                     } else {
                         this.lastBikeRecord = null;
                         statusDiv.innerHTML = "First oil change record for this bike.";
@@ -552,33 +570,18 @@
                     for (const bikeId of this.selectedBikeIds) {
                         const bike = this.bikes.find(b => b.id.toString() === bikeId.toString());
 
-                        let lastRec = null;
-                        const bikeChanges = this.changes
-                            .filter(c => c.bikeId.toString() === bikeId.toString())
-                            .sort((a, b) => new Date(b.date) - new Date(a.date));
-                        if (bikeChanges.length > 0) lastRec = bikeChanges[0];
-
-                        const diff = lastRec ? (mileage - lastRec.mileage) : 0;
-
-                        const newRecord = {
-                            id: Date.now() + Math.random(),
-                            bikeId: bikeId,
-                            bikePlate: bike ? bike.plate : 'Unknown',
-                            riderName: document.getElementById('riderName').value,
-                            riderPhone: document.getElementById('riderPhone').value,
-                            mechanicId: mechanicId,
-                            mechanicName: mechanic ? mechanic.name : 'Unknown',
+                        const payload = {
+                            bikeId: bike ? bike.id : bikeId,
+                            mechanicId: mechanic ? mechanic.id : mechanicId,
+                            changeDate: date || new Date().toISOString(),
                             oilType: oilType,
                             mileage: mileage,
-                            diff: diff,
-                            date: new Date(date).toISOString(),
-                            status: (diff >= 1000 && lastRec) ? 'overdue' : 'good'
+                            riderName: document.getElementById('riderName').value,
+                            riderPhone: document.getElementById('riderPhone').value
                         };
 
-                        this.changes.push(newRecord);
+                        await App.apiCall('/oil-changes', 'POST', payload);
                     }
-
-                    localStorage.setItem(App.KEYS.OIL_CHANGES, JSON.stringify(this.changes));
 
                     App.showToast(`Saved oil change for ${this.selectedBikeIds.length} bike(s)`);
                     document.getElementById('oilChangeForm').reset();
@@ -589,7 +592,7 @@
                     document.getElementById('bikeBtnText').textContent = 'Select Bike(s)';
                     document.getElementById('mileageStatus').style.display = 'none';
 
-                    this.populateRiderSuggestions();
+                    await this.loadData();
                     this.renderTable();
                 },
 
@@ -598,7 +601,7 @@
                     tbody.innerHTML = '';
 
                     const source = data || this.changes;
-                    const sorted = [...source].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50);
+                    const sorted = [...source].sort((a, b) => new Date(b.changeDate || b.date) - new Date(a.changeDate || a.date)).slice(0, 50);
 
                     if (sorted.length === 0) {
                         tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">No records found</td></tr>';
@@ -607,11 +610,20 @@
 
                     sorted.forEach(record => {
                         const row = document.createElement('tr');
-                        const isOver = record.diff >= 1000 && record.diff > 0;
+                        const bikeRecords = this.changes
+                            .filter(c => c.bikeId.toString() === record.bikeId.toString())
+                            .sort((a, b) => new Date(b.changeDate || b.date) - new Date(a.changeDate || a.date));
+                        let diff = 0;
+                        const index = bikeRecords.findIndex(r => r.id === record.id);
+                        if (index !== -1 && index < bikeRecords.length - 1) {
+                            const prev = bikeRecords[index + 1];
+                            diff = record.mileage - prev.mileage;
+                        }
+                        const isOver = diff >= 1000 && diff > 0;
 
                         row.innerHTML = `
-                        <td>${new Date(record.date).toLocaleDateString()}</td>
-                        <td><strong>${record.bikePlate}</strong></td>
+                        <td>${new Date(record.changeDate || record.date).toLocaleDateString()}</td>
+                        <td><strong>${record.bikePlate || record.bikePlateNumber || record.bikeId}</strong></td>
                         <td>
                             <div style="font-weight: 600;">${record.riderName || '-'}</div>
                             <div style="font-size: 0.75rem; color: #94a3b8;">${record.riderPhone || ''}</div>
@@ -619,7 +631,7 @@
                         <td>${record.mechanicName || 'N/A'}</td>
                         <td>${record.oilType}</td>
                         <td>${record.mileage} km</td>
-                        <td>${record.diff > 0 ? record.diff + ' km' : 'Initial'}</td>
+                        <td>${diff > 0 ? diff + ' km' : 'Initial'}</td>
                         <td>
                             <span class="mileage-badge ${isOver ? 'mileage-bad' : 'mileage-good'}">
                                 <span class="status-indicator ${isOver ? 'status-red' : 'status-green'}"></span>
@@ -664,12 +676,12 @@
 
                     if (period === 'month') {
                         filtered = records.filter(r => {
-                            const d = new Date(r.date);
+                            const d = new Date(r.changeDate || r.date);
                             return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                         });
                     } else if (period === 'year') {
                         filtered = records.filter(r => {
-                            const d = new Date(r.date);
+                            const d = new Date(r.changeDate || r.date);
                             return d.getFullYear() === now.getFullYear();
                         });
                     }
@@ -697,7 +709,7 @@
                                 <tbody>
                                     ${filtered.map(r => `
                                         <tr>
-                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${new Date(r.date).toLocaleDateString()}</td>
+                                            <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${new Date(r.changeDate || r.date).toLocaleDateString()}</td>
                                             <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${r.mileage} km</td>
                                             <td style="padding: 10px; border-bottom: 1px solid #f1f5f9;">${r.riderName || '-'}</td>
                                         </tr>
@@ -719,11 +731,7 @@
                 },
 
                 deleteRecord: function (id) {
-                    if (!confirm('Are you sure you want to delete this?')) return;
-                    this.changes = this.changes.filter(c => c.id.toString() !== id.toString());
-                    localStorage.setItem(App.KEYS.OIL_CHANGES, JSON.stringify(this.changes));
-                    this.renderTable();
-                    App.showToast('Record deleted');
+                    App.showToast('Delete is not yet supported for oil change records on the server.', 'info');
                 }
             };
 
