@@ -1,121 +1,120 @@
-# Pull Request: Issues/Transactions consistency, revert fix, dashboard alignment & issue-part performance
+# Pull Request: Centralized inventory updates for purchase restock, POS sales, and technician issues
 
 ## Summary
 
-This PR fixes inconsistent issue counts across devices, ensures deleted issues are fully reverted in the database, aligns the dashboard with the transactions API and issue-part page, and optimizes the issue-part page for faster loading (especially on mobile).
+This PR removes device-only `localStorage` as a source of truth for stock movements. Restocks from the purchase page, sales from the POS, and technician issue actions from the reports page now all go through the backend transactions API so the dashboard, inventory, reports, and all devices stay consistent.
 
 ---
 
 ## Issues addressed
 
-### 1. Dashboard not using the right API for issues
+### 1. Purchase restock / POS sales not reflected on dashboard and inventory
 
-- **Problem:** The dashboard was not consistently using the transactions API for “issues” data. Different devices showed different issue counts.
-- **Why:** The dashboard (and other pages) relied on `localStorage` (`spi_sales`) for issue-related stats. That cache could be stale, device-specific, or include reverted issues.
-- **Fix:** The dashboard now loads issue totals only from the backend via `GET /transactions?type=issue`. It no longer derives issue counts from `localStorage`. On init it sets `issuedTotals = {}`, then awaits `syncIssueTotalsFromServer()` so the first meaningful paint uses server data.
+- **Problem:** After restocking items on the purchase page or completing a sale in the POS, stock changes appeared on that device only and were lost on reload. The dashboard and inventory page, which read from the backend, did not reflect these changes, leading to inconsistent stock across pages and devices.
+- **Why:** `purchase-order.html` and `pos.html` directly mutated `App.KEYS.INVENTORY` (and, in POS, `App.KEYS.SALES`) in `localStorage` without creating corresponding records in the `inventory_transactions` table. The backend remained unaware of these movements, so any view sourced from the API stayed stale.
+- **Fix (high level):** Both flows were moved to use the existing transactions API (`/transactions` and `/transactions/batch`) as the single source of truth, and then refresh the cached inventory snapshot via `App.loadData()` so all frontend pages stay in sync with the database.
 
-### 2. Inconsistency of issue counts across devices/accounts
+### 2. Reports page issuing/deleting technician issues only in localStorage
 
-- **Problem:** Different devices or accounts saw different numbers for “Total Issued” and related metrics.
-- **Why:** Each device had its own `localStorage` snapshot of “sales” (including issue groups). Sync timing and revert behavior differed, so counts diverged.
-- **Fix:** Issue counts on the dashboard are now read only from `GET /transactions?type=issue`. All devices see the same source of truth. When the API returns 0 issues or the request fails, the dashboard shows 0 instead of stale or inflated values.
-
-### 3. Duplicate issue creation (one action creating multiple records)
-
-- **Problem:** Some devices sometimes created duplicate issue records for a single user action (e.g. double-tap or retry).
-- **Why:** No idempotency on the server and no guard against double-submit in the UI.
-- **Fix:**
-  - **Backend:** Before inserting a transaction, the create handler checks for an existing non-reverted row with the same `reference_id`, `product_id`, and `transaction_type`. If found, it returns success without inserting or updating inventory (idempotent no-op).
-  - **Frontend:** The “Confirm Issuance” button is disabled and shows a loading state while the request is in progress (`_isSubmitting`), and re-enabled only in `finally`, preventing double submissions.
-
-### 4. Deleted issues still present in the database
-
-- **Problem:** When a user “deleted” (reverted) an issue, it could still appear in the DB or in listings.
-- **Why:** For groups **without** `reference_id` (e.g. legacy data), the UI sent a single transaction `id`. The backend reverted only that one row; other rows in the same logical group (same `created_at` + `mechanic_id`) were left active.
-- **Fix:** In `revertGroup`, when the request is handled as a single-transaction id:
-  - If that row has a `reference_id`, the backend now reverts **all** rows with that `reference_id`.
-  - If it has no `reference_id`, it finds all “sibling” rows (same `created_at`, `mechanic_id`, `transaction_type = 'issue'`) and reverts **all** of them.
-  - Revert is applied by updating a set of row ids (`id IN (...)`), so the whole group is marked `is_reverted = 1` and inventory is corrected for each line.
-
-### 5. Dashboard not matching issue-part page and DB (and not showing 0 when appropriate)
-
-- **Problem:** The dashboard could show non-zero issue counts when the issue-part page and DB showed 0, or keep showing old counts after issues were reverted.
-- **Why:** Issue stats were partly or fully derived from `localStorage` and were not reset on API failure or empty response.
-- **Fix:** The dashboard uses only the transactions API for issue metrics. On success it builds `issuedTotals` from the response and re-renders. If the response is missing/invalid or the request throws, it sets `issuedTotals = {}` and re-renders so “Total Issued” and the flow grid show 0.
-
-### 6. Issue-part page slow on mobile
-
-- **Problem:** The issue-part page felt slow on mobile due to multiple network round-trips and unnecessary work.
-- **Why:** The page made four separate API calls (products, mechanics, bikes, transactions) on load and on every poll, and submitted each issued part with a separate POST. Polling ran at a fixed interval even when the tab was hidden.
-- **Fix:**
-  - **Single bootstrap endpoint:** New `GET /api/v1/issue-context` returns in one response `{ products, mechanics, bikes, transactions }` (transactions limited to 250 issue rows). The frontend prefers this; if the endpoint is missing (e.g. old backend), it falls back to four parallel calls and uses `limit=250` for transactions.
-  - **Batch create:** New `POST /api/v1/transactions/batch` accepts `{ transactions: [...] }` (max 50) and creates all lines in one DB transaction. The issue-part page uses this when creating an issuance with one or more parts; on 404 or error it falls back to one-by-one POSTs.
-  - **Smarter polling:** Polling uses the Page Visibility API: when the tab is hidden, the timer is cleared; when it becomes visible again, one immediate load runs and the interval is restarted. On mobile the interval is 45s; on desktop 20s. History is re-rendered only when the fetched data actually changed (simple fingerprint of `sales.length` and first id), reducing DOM updates.
+- **Problem:** On `reports.html`, the “Technician Issue” builder and delete actions adjusted inventory and “issue” records only in `localStorage` (`spi_inventory`, `spi_sales`, and `spi_mappings`). The backend inventory and `inventory_transactions` table were never updated, so other devices and pages could not see or audit these changes.
+- **Why:** `Reports.generateInvoiceFromBuilder` and `Reports.deleteTransaction` treated `localStorage` as the primary database, updating stock and issue history directly on the client instead of using the central transactions API.
+- **Fix (high level):** When the system is migrated to the backend (`DB_MIGRATED = true`), the reports page now uses the same `/transactions` and `/transactions/batch` endpoints as the rest of the app:
+  - Creating technician issues from the builder generates real `issue` transactions in the backend.
+  - Deleting a technician issue calls the server’s group-revert endpoint so inventory is restored centrally and consistently.
 
 ---
 
-### 7. Purchase restock and POS sales now update central inventory via API (no device-only localStorage)
-
-- **Problem:** Restocking on the purchase page and selling via the POS updated only `localStorage` (`spi_inventory` / `spi_sales`). Other devices (and fresh page loads) read inventory from the backend, so stock changes from these flows were not reflected on the dashboard or inventory page, causing inconsistencies.
-- **Why:** `purchase-order.html` and `pos.html` mutated `App.KEYS.INVENTORY` and `App.KEYS.SALES` directly on the client without creating corresponding `inventory_transactions` in the database. The backend (and any device using it as source of truth) never saw these movements.
-- **Fix:**
-  - **Purchase restock (`purchase-order.html`):**
-    - `PurchaseOrder.processImport` is now `async` and builds a `transactions` array for all valid restock lines, with `transactionType: 'purchase'`, positive `quantity`, and a shared `referenceId` (`PO-<timestamp>`).
-    - The page calls `POST /api/v1/transactions/batch` with `{ transactions }`, falling back to one-by-one `POST /transactions` on 404/old backends. On success it calls `App.loadData()` so `spi_inventory`/`spi_sales` snapshots are refreshed from the server; the success card still shows the same “Items Restocked” details.
-    - Direct writes to `localStorage` for inventory in this flow have been removed; stock is now updated only by the backend in `inventory` and `inventory_transactions`.
-  - **POS checkout (`pos.html`):**
-    - `POS.checkout` is now `async` and converts the current cart into a `transactions` payload with `transactionType: 'sale'` and **negative** `quantity` (so central inventory is decremented), using a shared sale reference (`SALE-<timestamp>`).
-    - It calls `POST /api/v1/transactions/batch` first, with fallback to per-line `POST /transactions`. After a successful call it invokes `App.loadData()` to sync the frontend caches from the latest backend state, reloads inventory into POS, and re-renders products so stock indicators match the database.
-    - The old behavior that adjusted `this.inventory` and wrote `App.KEYS.INVENTORY`/`App.KEYS.SALES` directly has been removed; receipts now show the shared sale reference instead of a purely local timestamp id.
-  - **Shared behavior:**
-    - Both flows show a loading state on their primary actions while API calls are in progress, and report clear error toasts if the server call fails, avoiding any silent local-only updates.
-    - Inventory and transaction history views (dashboard, inventory, reports, issue-part) now see consistent stock movements because all adds/removals go through `inventory_transactions` and the central `inventory` table.
-
 ## Changes by area
 
-### Backend
+### Frontend – purchase restock (`purchase-order.html`)
 
-- **`transactions.service.ts`**
-  - `getAll`: Added optional `limit` query support (capped at 500) for smaller payloads.
-  - `create`: Idempotency check: if a non-reverted row exists for the same `reference_id` + `product_id` + `transaction_type`, return without inserting.
-  - `createBatch`: New method to insert multiple transaction lines (and apply inventory deltas) in a single DB transaction; duplicate check per item when `referenceId` is present.
-  - `revertGroup`: When matching by single transaction id, revert the full group (by `reference_id` or by siblings with same `created_at` + `mechanic_id`); mark reverted by list of ids.
-- **`transactions.controller.ts`**
-  - New `createBatch` action: reads `req.body.transactions` and calls `TransactionService.createBatch`.
-- **`transactions.routes.ts`**
-  - New `POST /batch` route with validation.
-- **`transactions.validation.ts`**
-  - Extracted shared transaction item schema (including optional rider fields); added `createBatchTransactionsSchema` for `body.transactions` (array, 1–50 items).
-- **New module `issue-context`**
-  - `GET /api/v1/issue-context`: Aggregates products (all), mechanics (all), bikes (all), and issue transactions (type=issue, limit=250) in one response. Uses existing services in parallel.
+- **Before:** `PurchaseOrder.processImport` incremented `this.inventory[idx].stock` for each valid SKU and wrote the result back to `localStorage` (`App.KEYS.INVENTORY`), then showed a success card. No backend call was made, so the database inventory stayed unchanged.
+- **After:**
+  - `PurchaseOrder.processImport` is now `async`. It builds a `transactions` array from all valid restock lines, each entry containing:
+    - `productId`: resolved from the matched inventory item’s `id`
+    - `transactionType: 'purchase'`
+    - `quantity`: positive restock quantity
+    - `referenceId`: a shared batch reference (`PO-<timestamp>`)
+    - `date` and a short `notes` field describing the source (“Restock via purchase-order page”).
+  - It calls `POST /api/v1/transactions/batch` with `{ transactions }`, and if that fails due to missing endpoint or older backend, falls back to sending each transaction via `POST /transactions`.
+  - After a successful server update, it calls `App.loadData()` to resync the local inventory/sales caches from the backend so the dashboard and inventory page see the updated stock.
+  - The old code that directly modified `this.inventory` and wrote `localStorage.setItem(App.KEYS.INVENTORY, ...)` has been removed; all stock changes now go through the backend.
+  - The UX remains the same for the user: the same success card is shown with “Items Restocked”, but it now represents server-confirmed state.
 
-### Frontend
+### Frontend – POS sales (`pos.html`)
 
-- **`dashboard.html`**
-  - Issue totals come only from the API. Init sets `issuedTotals = {}`, then awaits `syncIssueTotalsFromServer()`.
-  - `syncIssueTotalsFromServer`: On non-success or non-array response, or on catch, sets `issuedTotals = {}` and re-renders so the dashboard shows 0 when there are no issues or when the request fails.
-- **`issue-part.html`**
-  - **Load:** Prefers `GET /issue-context`; on failure or missing endpoint, uses `Promise.all` of GET products, mechanics, bikes, and `GET /transactions?type=issue&limit=250`. Shared logic for mapping transactions into `sales` moved to `_applyTransactions`.
-  - **Submit:** Builds a single payload array and calls `POST /transactions/batch`; on failure, falls back to one POST per part.
-  - **Polling:** Visibility-based: stop timer when tab hidden, run one load + restart timer when visible. Mobile poll interval 45s, desktop 20s. Re-render history only when a simple fingerprint of `sales` (length + first id) changes.
+- **Before:** `POS.checkout` decremented in-memory `this.inventory[productIndex].stock`, appended a synthetic `sale` object into `App.KEYS.SALES`, and wrote the updated inventory back to `App.KEYS.INVENTORY`. The backend never recorded these sales as inventory transactions and did not adjust the central stock.
+- **After:**
+  - `POS.checkout` is now `async`. It converts each cart line into a transaction object:
+    - `productId`: product `id`
+    - `transactionType: 'sale'`
+    - `quantity`: **negative** of the sold quantity (so central inventory is decremented)
+    - `referenceId`: shared sale reference (`SALE-<timestamp>`)
+    - `date` and `notes: 'POS sale'`.
+  - It submits this batch via `POST /api/v1/transactions/batch`, with fallback to per-line `POST /transactions` if the batch route is unavailable.
+  - On success, it calls `App.loadData()` to refresh the local cache from the authoritative backend inventory and then:
+    - Clears the cart and re-renders it.
+    - Reloads inventory from `App.KEYS.INVENTORY` and re-renders the product grid so in-stock / low-stock / out-of-stock badges match the database.
+    - Shows a receipt using the shared `SALE-<timestamp>` reference and the computed total.
+  - All direct writes to `App.KEYS.INVENTORY` and synthetic `App.KEYS.SALES` entries for this flow have been removed, so there is no longer any device-only stock state.
+
+### Frontend – Reports technician issues (`reports.html`)
+
+- **Deleting technician issues**
+  - **Before:** `Reports.deleteTransaction` manually added quantities back into `this.inventory`, wrote `App.KEYS.INVENTORY` and `App.KEYS.SALES` to `localStorage`, and treated that as the source of truth.
+  - **After (migrated / backend mode):**
+    - When `DB_MIGRATED` is `true`, `Reports.deleteTransaction` calls `DELETE /api/v1/transactions/group/{id}` (same pattern as `issue-part.html`) so the backend reverts the entire issue group and restores inventory in the database.
+    - After a successful call, it invokes `App.loadData()`, then `Reports.syncData()` and `Reports.generate()` so the reports UI refreshes from the authoritative backend snapshot.
+    - If the server returns 404 (legacy or already-reverted group), the UI reloads from the backend and shows an informational toast instead of silently mutating local data.
+  - **Offline / legacy mode:** When `DB_MIGRATED` is not set, the previous local-only behavior is preserved as a fallback: it adjusts `this.inventory` and `this.sales` in `localStorage` and refreshes the UI.
+
+- **Creating technician issues from the builder**
+  - **Before:** `Reports.generateInvoiceFromBuilder`:
+    - Validated selected parts against `this.inventory`.
+    - Decremented local `inventory` and wrote it to `App.KEYS.INVENTORY`.
+    - Created a synthetic `type: 'issue'` record in `App.KEYS.SALES` and added entries to `App.KEYS.MAPPINGS`, without touching the backend.
+  - **After (migrated / backend mode):**
+    - The builder still validates requested quantities against the current `this.inventory` snapshot but then builds a `transactions` payload:
+      - One row per selected part with:
+        - `productId`
+        - `transactionType: 'issue'`
+        - `quantity: -qty` (issuing parts reduces stock)
+        - `mechanicId`: resolved from the selected mechanic name
+        - `bikeId`: resolved from the selected bike plate (per part where provided, or from the selected bike set)
+        - Shared `referenceId` (`INV-<timestamp>`)
+        - `date` and `notes: 'Technician issue from reports builder'`.
+    - It calls `POST /api/v1/transactions/batch` with `{ transactions }`, falling back to individual `POST /transactions` calls on error or older backends.
+    - On success, it runs `App.loadData()`, followed by `Reports.syncData()` and `Reports.generate()`, so the reports tables, stats, and mechanic issue history reflect the new server-backed issues.
+    - The print flow (`printTechnicianIssue`) still uses the collected `itemsForTransaction` to render a technician-facing document, but that document now corresponds to real backend transactions.
+  - **Offline / legacy mode:** When `DB_MIGRATED` is not set, the former local-only logic remains as a fallback, updating `App.KEYS.INVENTORY`, `App.KEYS.SALES`, and `App.KEYS.MAPPINGS` for environments without a backend.
+
+### Shared UX / safety improvements
+
+- All three flows (purchase restock, POS checkout, and reports technician issues) now:
+  - Use the central `inventory_transactions` API as the single source of truth whenever a backend is available.
+  - Refresh their local view via `App.loadData()` after successful writes, so dashboard, inventory, reports, and issue-part pages all see the same stock and history.
+  - Preserve legacy localStorage behavior only as an explicit offline fallback when `DB_MIGRATED` is not enabled.
 
 ---
 
 ## Testing suggestions
 
-- **Dashboard vs issue-part:** With 0 issues in DB, dashboard shows 0 for Total Issued and flow grid; create issues on one device, confirm dashboard and issue-part match; revert an issue, confirm both drop to the same count and dashboard can show 0.
-- **Revert whole group:** Create an issue with multiple parts (with `reference_id`). Revert it from the UI; confirm all related rows are `is_reverted = 1` and no longer returned by `GET /transactions?type=issue`.
-- **Duplicate submit:** Rapid double-click “Confirm Issuance”; only one set of records should be created (idempotency and button guard).
-- **Issue-part performance:** On a slow connection or mobile, confirm first load uses one request when backend supports `/issue-context`, and that creating an issuance with several parts uses one batch request when `/transactions/batch` is available.
-- **Old backend:** With a backend that does not have `/issue-context` or `/transactions/batch`, issue-part page still loads (fallback to 4 calls and single POSTs) and behavior remains correct.
+- **Purchase restock consistency**
+  - Restock an existing SKU via the purchase page.
+  - Reload the dashboard and inventory page (and/or open them on another device) and confirm the stock levels reflect the new quantity.
+  - Verify the corresponding `inventory_transactions` rows are created with `transaction_type = 'purchase'` and correct quantities.
 
----
+- **POS sale consistency**
+  - From the POS page, sell a few items that have sufficient stock.
+  - Reload the inventory page and dashboard and confirm stock has decreased by the sold quantity and low-stock badges update correctly.
+  - Check that the backend has `inventory_transactions` records with `transaction_type = 'sale'` and negative quantities.
 
-## API additions (backward compatible)
+- **Reports technician issues**
+  - Use the reports builder to generate a technician issue for a mechanic and one or more bikes; confirm:
+    - The related `inventory_transactions` rows are created with `transaction_type = 'issue'` and negative quantities.
+    - Reports mechanic issue tables and stats update correctly after `App.loadData()`.
+  - Delete an existing technician issue from the reports page and confirm:
+    - The corresponding transaction group is reverted via the API (no longer returned by `GET /transactions?type=issue`).
+    - Inventory for each affected product increases by the issued quantity in the backend and is reflected across all pages after reload.
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/issue-context` | Returns `{ products, mechanics, bikes, transactions }` for the issue-part page (transactions limited to 250 issue rows). |
-| POST | `/api/v1/transactions/batch` | Body: `{ transactions: [ {...}, ... ] }`. Creates up to 50 transaction lines in one DB transaction. Same validation as single create per item. |
 
-Existing endpoints are unchanged; frontend falls back when these are not available.
