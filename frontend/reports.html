@@ -887,6 +887,8 @@
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a></li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span data-i18n="bikes">Bikes</span></a></li>
@@ -1245,10 +1247,10 @@
 
             init: function () {
                 try {
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                    this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                    this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                    this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                    this.sales = App.getSales();
+                    this.inventory = App.getInventory();
+                    this.mechanics = App.getMechanics();
+                    this.bikes = App.getBikes();
                     this.filteredSales = this.sales;
                     this.populateFilters();
                     this.generate();
@@ -1413,9 +1415,7 @@
                 if (index === -1) return;
 
                 const transaction = this.sales[index];
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-
-                if (isMigrated && transaction) {
+                if (transaction) {
                     try {
                         await App.apiCall(`/transactions/group/${encodeURIComponent(transaction.id)}`, 'DELETE');
                         await App.loadData();
@@ -1438,34 +1438,13 @@
                         return;
                     }
                 }
-
-                if (transaction && transaction.items && Array.isArray(transaction.items)) {
-                    const invMap = new Map((this.inventory || []).map(i => [String(i.id), i]));
-                    let inventoryChanged = false;
-                    transaction.items.forEach(item => {
-                        const invItem = invMap.get(String(item.productId));
-                        if (invItem) {
-                            invItem.stock = (Number(invItem.stock) || 0) + (Number(item.qty) || 0);
-                            inventoryChanged = true;
-                        }
-                    });
-                    if (inventoryChanged) {
-                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
-                    }
-                }
-
-                this.sales.splice(index, 1);
-                localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-                this.syncData();
-                this.generate();
-                alert('Record deleted and stock restored (local mode).');
             },
 
             syncData: function () {
-                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                this.sales = App.getSales();
+                this.inventory = App.getInventory();
+                this.mechanics = App.getMechanics();
+                this.bikes = App.getBikes();
             },
 
             getUniqueSortedStrings: function (values) {
@@ -2199,6 +2178,7 @@
                         <div style="font-weight: bold; color: #6366f1;">Invoice #${transaction.id.toString().slice(-8).toUpperCase()}</div>
                         <div><strong>Date:</strong> ${new Date(transaction.date).toLocaleString()}</div>
                         <div><strong>Technician:</strong> ${transaction.mechanic || 'Not Specified'}</div>
+                        <div><strong>Bike Plate:</strong> ${transaction.bike || 'Not Specified'}</div>
                     </div>
                 `;
                 this.openPrintWindow('Tasslim Spare part inventory invoice', metaHtml, transaction.items || []);

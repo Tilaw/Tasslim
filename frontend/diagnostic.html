@@ -194,7 +194,7 @@
             let hasData = false;
 
             keys.forEach(({ key, label }) => {
-                const data = JSON.parse(localStorage.getItem(App.KEYS[key])) || [];
+                const data = (App.state[key.toLowerCase()] || []);
                 const count = data.length;
                 const status = count > 0 ? '✅ Has Data' : '⚠️ Empty';
                 if (count > 0) hasData = true;
@@ -212,110 +212,32 @@
         }
 
         function addSampleData() {
-            if (!confirm('This will add sample data to localStorage. Continue?')) return;
-
-            // Sample mechanics
-            const mechanics = [
-                { id: 1, name: 'Ahmed Ali', phone: '0501234567', specialty: 'Engine' },
-                { id: 2, name: 'Mohammed Hassan', phone: '0507654321', specialty: 'Electrical' }
-            ];
-
-            // Sample bikes
-            const bikes = [
-                { id: 1, plate: 'ABC-123', model: 'Honda CBR', year: 2020 },
-                { id: 2, plate: 'XYZ-789', model: 'Yamaha R1', year: 2021 }
-            ];
-
-            // Sample inventory
-            const inventory = [
-                { id: 1, name: 'Oil Filter', sku: 'OF-001', stock: 50, cost: 15, price: 25, supplier: 'AutoParts Co' },
-                { id: 2, name: 'Brake Pads', sku: 'BP-002', stock: 30, cost: 45, price: 75, supplier: 'AutoParts Co' },
-                { id: 3, name: 'Spark Plug', sku: 'SP-003', stock: 100, cost: 5, price: 12, supplier: 'MotorSupply' }
-            ];
-
-            // Sample sales (issue transactions)
-            const sales = [
-                {
-                    id: Date.now() - 100000,
-                    date: new Date(Date.now() - 86400000).toISOString(),
-                    type: 'issue',
-                    mechanic: 'Ahmed Ali',
-                    bike: 'ABC-123',
-                    items: [{ name: 'Oil Filter', qty: 2, price: 25 }],
-                    total: 50,
-                    user: 'admin'
-                },
-                {
-                    id: Date.now() - 50000,
-                    date: new Date().toISOString(),
-                    type: 'issue',
-                    mechanic: 'Mohammed Hassan',
-                    bike: 'XYZ-789',
-                    items: [{ name: 'Brake Pads', qty: 1, price: 75 }, { name: 'Spark Plug', qty: 4, price: 12 }],
-                    total: 123,
-                    user: 'admin'
-                }
-            ];
-
-            localStorage.setItem(App.KEYS.MECHANICS, JSON.stringify(mechanics));
-            localStorage.setItem(App.KEYS.BIKES, JSON.stringify(bikes));
-            localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(inventory));
-            localStorage.setItem(App.KEYS.SALES, JSON.stringify(sales));
-
-            alert('✅ Sample data added successfully!');
-            checkData();
+            alert('Sample data seeding via browser storage has been removed in favor of real API-driven data.');
         }
 
         function exportData() {
-            const data = {};
-            Object.keys(App.KEYS).forEach(key => {
-                const storageKey = App.KEYS[key];
-                const value = localStorage.getItem(storageKey);
-                if (value) {
-                    data[storageKey] = value;
-                }
-            });
-
-            const exportText = JSON.stringify(data, null, 2);
+            const snapshot = {
+                inventory: App.getInventory(),
+                mechanics: App.getMechanics(),
+                bikes: App.getBikes(),
+                sales: App.getSales()
+            };
+            const exportText = JSON.stringify(snapshot, null, 2);
             document.getElementById('exportData').value = exportText;
             document.getElementById('exportSection').style.display = 'block';
             document.getElementById('importSection').style.display = 'none';
         }
 
         function importData() {
-            document.getElementById('importSection').style.display = 'block';
-            document.getElementById('exportSection').style.display = 'none';
+            alert('Importing raw data into browser storage is no longer supported. Please use backend tools or migrations.');
         }
 
         function doImport() {
-            const importText = document.getElementById('importData').value;
-            if (!importText.trim()) {
-                alert('Please paste data to import!');
-                return;
-            }
-
-            try {
-                const data = JSON.parse(importText);
-                Object.keys(data).forEach(key => {
-                    localStorage.setItem(key, data[key]);
-                });
-                alert('✅ Data imported successfully!');
-                checkData();
-                document.getElementById('importSection').style.display = 'none';
-            } catch (e) {
-                alert('❌ Error importing data: ' + e.message);
-            }
+            alert('Import is disabled in the new architecture.');
         }
 
         function clearAll() {
-            if (!confirm('⚠️ This will DELETE ALL data! Are you sure?')) return;
-
-            Object.keys(App.KEYS).forEach(key => {
-                localStorage.removeItem(App.KEYS[key]);
-            });
-
-            alert('✅ All data cleared!');
-            checkData();
+            alert('Data clearing from browser storage is no longer necessary – data lives in the central database.');
         }
 
         // Auto-run on load

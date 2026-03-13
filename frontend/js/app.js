@@ -13,7 +13,7 @@ const API_BASE_URL = (window.CONFIG && window.CONFIG.API)
 
 
 const App = {
-    // Data Keys for LocalStorage
+    // Data Keys (no longer tied to localStorage; kept for consistency)
     KEYS: {
         USERS: 'spi_users',
         INVENTORY: 'spi_inventory',
@@ -23,10 +23,24 @@ const App = {
         BIKES: 'spi_bikes',
         SESSION: 'spi_session',
         MAPPINGS: 'spi_mappings',
+        OIL_CHANGES: 'spi_oil_changes',
         DB_MIGRATED: 'spi_db_migrated',
         LOGIN_ATTEMPTS: 'spi_login_attempts',
         LOCKOUT_TIME: 'spi_lockout_time'
     },
+
+    // In-memory application state hydrated from the backend APIs
+    state: {
+        inventory: [],
+        suppliers: [],
+        mechanics: [],
+        bikes: [],
+        sales: [],
+        oilChanges: []
+    },
+
+    _sessionCache: null,
+
 
     /**
      * Helper for API calls. On 401 (invalid/expired token), tries to refresh the token once and retries.
@@ -36,7 +50,7 @@ const App = {
      * @param {boolean} _retriedAfterRefresh - Internal: skip refresh to avoid loop
      */
     apiCall: async function (endpoint, method = 'GET', data = null, _retriedAfterRefresh = false) {
-        const session = JSON.parse(localStorage.getItem(this.KEYS.SESSION));
+        const session = this.getCurrentUser();
         const headers = {
             'Content-Type': 'application/json'
         };
@@ -78,9 +92,12 @@ const App = {
                             });
                             const refreshData = await refreshRes.json();
                             if (refreshData.success && refreshData.data && refreshData.data.token) {
-                                session.token = refreshData.data.token;
-                                if (refreshData.data.refreshToken) session.refreshToken = refreshData.data.refreshToken;
-                                localStorage.setItem(this.KEYS.SESSION, JSON.stringify(session));
+                                const updatedSession = {
+                                    ...(session || {}),
+                                    token: refreshData.data.token,
+                                    refreshToken: refreshData.data.refreshToken || (session && session.refreshToken)
+                                };
+                                this._setSession(updatedSession);
                                 return this.apiCall(endpoint, method, data, true);
                             }
                         } catch (refreshErr) {
@@ -90,7 +107,7 @@ const App = {
                 }
 
                 if (response.status === 401) {
-                    localStorage.removeItem(this.KEYS.SESSION);
+                    this._setSession(null);
                     if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
                         this.showToast('Session expired. Please sign in again.', 'error');
                         window.location.href = 'index.html';
@@ -338,13 +355,13 @@ const App = {
             this._initPromise = (async () => {
                 await this.loadData();
                 // Load language preference
-                const savedLang = localStorage.getItem('spi_lang');
+                const savedLang = sessionStorage.getItem('spi_lang');
                 if (savedLang) {
                     this.currentLang = savedLang;
                 }
 
                 // Load Sidebar State (Persistence)
-                const sidebarState = localStorage.getItem('spi_sidebar_active');
+                const sidebarState = sessionStorage.getItem('spi_sidebar_active');
                 if (sidebarState === 'true') {
                     const sidebar = document.querySelector('.sidebar');
                     if (sidebar) sidebar.classList.add('active');
@@ -364,7 +381,7 @@ const App = {
 
     toggleLanguage: function () {
         this.currentLang = this.currentLang === 'en' ? 'ar' : 'en';
-        localStorage.setItem('spi_lang', this.currentLang);
+        sessionStorage.setItem('spi_lang', this.currentLang);
         this.updateContent();
     },
 
@@ -390,181 +407,143 @@ const App = {
     },
 
     /**
-     * Load data from LocalStorage or initialize with defaults
-     * If migrated, syncs with Backend API.
+     * Load data from Backend API into in-memory state.
+     * No localStorage caching – DB is the single source of truth.
      */
     loadData: async function () {
         const session = this.getCurrentUser();
-        const isMigrated = localStorage.getItem(this.KEYS.DB_MIGRATED) === 'true';
+        if (!session || !session.token) {
+            return;
+        }
 
-        // 1. Backend Sync if migrated AND we have an active session with a token
-        if ((isMigrated || session) && session && session.token) {
-            // If we have a session but flag is missing, we might be on a new origin/port.
-            // We'll try to sync; if it succeeds, we'll set the migration flag permanently.
-            try {
-                const [pData, mData, bData, sData, tData] = await Promise.all([
-                    this.apiCall('/products'),
-                    this.apiCall('/mechanics'),
-                    this.apiCall('/bikes'),
-                    this.apiCall('/suppliers'),
-                    this.apiCall('/transactions')
-                ]);
+        try {
+            const [pData, mData, bData, sData, tData, oData] = await Promise.all([
+                this.apiCall('/products'),
+                this.apiCall('/mechanics'),
+                this.apiCall('/bikes'),
+                this.apiCall('/suppliers'),
+                this.apiCall('/transactions'),
+                this.apiCall('/oil-changes?limit=500')
+            ]);
 
-                if (pData.success) {
-                    if (pData.data.length > 0 || localStorage.getItem(this.KEYS.INVENTORY) === null) {
-                        const mapped = pData.data.map(p => ({
-                            id: p.id,
-                            name: p.name,
-                            sku: p.sku,
-                            category: p.category,
-                            cost: p.cost,
-                            price: p.price,
-                            stock: p.stock || 0,
-                            minStock: p.minStock,
-                            brand: p.brand,
-                            model: p.model,
-                            unit: p.unit
-                        }));
-                        localStorage.setItem(this.KEYS.INVENTORY, JSON.stringify(mapped));
+            if (pData && pData.success) {
+                this.state.inventory = pData.data.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    sku: p.sku,
+                    category: p.category,
+                    cost: p.cost,
+                    price: p.price,
+                    stock: p.stock || 0,
+                    minStock: p.minStock,
+                    brand: p.brand,
+                    model: p.model,
+                    unit: p.unit
+                }));
+            }
+
+            if (mData && mData.success) {
+                this.state.mechanics = mData.data.map(m => ({
+                    id: m.id,
+                    code: m.code,
+                    uniqueCode: m.uniqueCode,
+                    name: m.name,
+                    passport: m.passportNumber,
+                    phone: m.phone,
+                    specialization: m.specialization
+                }));
+            }
+
+            if (bData && bData.success) {
+                this.state.bikes = bData.data.map(b => ({
+                    id: b.id,
+                    plate: b.plate,
+                    category: b.category || 'Private',
+                    kind: b.kind || '',
+                    color: b.color || '',
+                    ownership: b.ownership || '',
+                    regRenew: b.regRenew || '',
+                    regExp: b.regExp || '',
+                    insExp: b.insExp || '',
+                    location: b.location || '',
+                    accident: b.accident || '',
+                    customer: b.customer,
+                    phone: b.phone
+                }));
+            }
+
+            if (sData && sData.success) {
+                this.state.suppliers = sData.data;
+            }
+
+            if (oData && oData.success) {
+                this.state.oilChanges = (oData.data || []).map((o) => ({
+                    id: o.id,
+                    bikeId: o.bikeId,
+                    bikePlate: o.bikePlate,
+                    mechanicId: o.mechanicId,
+                    mechanicName: o.mechanicName,
+                    date: o.changeDate,
+                    changeDate: o.changeDate,
+                    oilType: o.oilType,
+                    mileage: o.mileage,
+                    riderName: o.riderName,
+                    riderPhone: o.riderPhone,
+                    createdAt: o.createdAt
+                }));
+            }
+
+            if (tData && tData.success) {
+                const transactions = tData.data;
+                const groups = {};
+
+                transactions.forEach(t => {
+                    const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
+                    if (!groups[key]) {
+                        groups[key] = {
+                            id: t.reference_id || t.id,
+                            date: t.created_at,
+                            type: t.transaction_type,
+                            items: [],
+                            mechanic: t.mechanic_name || '',
+                            bike: t.bike_plate_number || '',
+                            status: 'completed',
+                            user: (t.first_name || '') + ' ' + (t.last_name || ''),
+                            total: 0,
+                            riderName: t.rider_name || '',
+                            riderNumber: t.rider_phone || '',
+                            riderId: t.rider_id || '',
+                            receiverName: t.receiver_name || ''
+                        };
                     }
-                }
 
-                if (mData.success) {
-                    const mapped = mData.data.map(m => ({
-                        id: m.id,
-                        code: m.code,
-                        uniqueCode: m.uniqueCode,
-                        name: m.name,
-                        passport: m.passportNumber,
-                        phone: m.phone,
-                        specialization: m.specialization
-                    }));
-                    localStorage.setItem(this.KEYS.MECHANICS, JSON.stringify(mapped));
-                }
-
-                if (bData.success) {
-                    const mapped = bData.data.map(b => ({
-                        id: b.id,
-                        plate: b.plate,
-                        category: b.category || 'Private',
-                        kind: b.kind || '',
-                        color: b.color || '',
-                        ownership: b.ownership || '',
-                        regRenew: b.regRenew || '',
-                        regExp: b.regExp || '',
-                        insExp: b.insExp || '',
-                        location: b.location || '',
-                        accident: b.accident || '',
-                        customer: b.customer,
-                        phone: b.phone
-                    }));
-                    localStorage.setItem(this.KEYS.BIKES, JSON.stringify(mapped));
-                }
-
-                if (sData.success) {
-                    localStorage.setItem(this.KEYS.SUPPLIERS, JSON.stringify(sData.data));
-                }
-
-                // If we reached here, the sync was successful.
-                // Ensure the migration flag is set so we don't rely only on session existence.
-                localStorage.setItem(this.KEYS.DB_MIGRATED, 'true');
-
-                if (tData.success) {
-                    // Map transactions to 'sales' format (Grouping by reference_id or fingerprint)
-                    // and treat the backend as the single source of truth for all devices.
-                    const transactions = tData.data;
-                    const groups = {};
-
-                    transactions.forEach(t => {
-                        const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
-                        if (!groups[key]) {
-                            groups[key] = {
-                                id: t.reference_id || t.id,
-                                date: t.created_at,
-                                type: t.transaction_type,
-                                items: [],
-                                mechanic: t.mechanic_name || '',
-                                bike: t.bike_plate_number || '',
-                                status: 'completed',
-                                user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                                total: 0,
-                                // Rider / receiver tracking (for issue-part history)
-                                riderName: t.rider_name || '',
-                                riderNumber: t.rider_phone || '',
-                                riderId: t.rider_id || '',
-                                receiverName: t.receiver_name || ''
-                            };
-                        }
-
-                        // We use absolute value for quantity in the frontend 'items' display
-                        const qty = Math.abs(t.quantity);
-                        groups[key].items.push({
-                            productId: t.product_id,
-                            name: t.product_name,
-                            sku: t.product_sku,
-                            qty: qty,
-                            price: 0, // Backend might not store unit price in trans table yet
-                            total: 0
-                        });
+                    const qty = Math.abs(t.quantity);
+                    groups[key].items.push({
+                        productId: t.product_id,
+                        name: t.product_name,
+                        sku: t.product_sku,
+                        qty: qty,
+                        price: 0,
+                        total: 0
                     });
+                });
 
-                    const mappedSales = Object.values(groups);
-                    // Always overwrite local sales with the latest snapshot from the server
-                    // so deletes/reverts are reflected consistently across devices.
-                    localStorage.setItem(this.KEYS.SALES, JSON.stringify(mappedSales));
-                }
-
-            } catch (error) {
-                console.warn('[app]: Sync failed, using local cache', error);
-                // If token is invalid/expired, clear session so user can log in again
-                if (error.message && (error.message.includes('Invalid') || error.message.includes('expired'))) {
-                    localStorage.removeItem(this.KEYS.SESSION);
-                    if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
-                        window.location.href = 'index.html';
-                    }
+                this.state.sales = Object.values(groups);
+            }
+        } catch (error) {
+            console.warn('[app]: Data sync failed', error);
+            if (error.message && (error.message.includes('Invalid') || error.message.includes('expired'))) {
+                this._setSession(null);
+                if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
+                    window.location.href = 'index.html';
                 }
             }
-        }
-
-        // 2. Local Initialization (Fallback/Initial)
-        let users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
-
-        // Ensure admin and staff always exist in local fallback list
-        const hasAdmin = users.some(u => u.email === 'admin');
-        const hasStaff = users.some(u => u.email === 'staff');
-
-        if (!hasAdmin || !hasStaff || users.length === 0) {
-            console.log('[app]: Initializing or repairing local users list...');
-            // Merge defaults with unique existing users
-            const existingOther = users.filter(u => u.email !== 'admin' && u.email !== 'staff');
-            users = [...this.defaults.users, ...existingOther];
-            localStorage.setItem(this.KEYS.USERS, JSON.stringify(users));
-        }
-
-        // Legacy check for old email format
-        if (users[0] && users[0].email === 'admin@shop.com') {
-            localStorage.setItem(this.KEYS.USERS, JSON.stringify(this.defaults.users));
-        }
-        if (!localStorage.getItem(this.KEYS.INVENTORY)) {
-            localStorage.setItem(this.KEYS.INVENTORY, JSON.stringify(this.defaults.inventory));
-        }
-        if (!localStorage.getItem(this.KEYS.SUPPLIERS)) {
-            localStorage.setItem(this.KEYS.SUPPLIERS, JSON.stringify(this.defaults.suppliers));
-        }
-        if (!localStorage.getItem(this.KEYS.MECHANICS)) {
-            localStorage.setItem(this.KEYS.MECHANICS, JSON.stringify(this.defaults.mechanics));
-        }
-        if (!localStorage.getItem(this.KEYS.BIKES)) {
-            localStorage.setItem(this.KEYS.BIKES, JSON.stringify(this.defaults.bikes));
-        }
-        if (!localStorage.getItem(this.KEYS.SALES)) {
-            localStorage.setItem(this.KEYS.SALES, JSON.stringify(this.defaults.sales));
         }
     },
 
     // Check if user is logged in
     checkAuth: function () {
-        const session = JSON.parse(localStorage.getItem(this.KEYS.SESSION));
+        const session = this.getCurrentUser();
         const currentPath = window.location.pathname;
         const isLoginPage = currentPath.includes('index.html') || currentPath.endsWith('/') || currentPath === '';
 
@@ -587,8 +566,8 @@ const App = {
         // Ensure system is fully initialized before checking credentials
         await this.init();
 
-        // Check for brute-force lockout
-        const lockoutTime = localStorage.getItem(this.KEYS.LOCKOUT_TIME);
+        // Check for brute-force lockout (stored per-tab in sessionStorage)
+        const lockoutTime = sessionStorage.getItem(this.KEYS.LOCKOUT_TIME);
         if (lockoutTime) {
             const timeLeft = Math.ceil((parseInt(lockoutTime) + (2 * 60 * 1000) - Date.now()) / 1000);
             if (timeLeft > 0) {
@@ -600,8 +579,8 @@ const App = {
                 };
             } else {
                 // Lockout expired
-                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
-                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
+                sessionStorage.removeItem(this.KEYS.LOCKOUT_TIME);
+                sessionStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
             }
         }
 
@@ -617,54 +596,27 @@ const App = {
 
             if (result.success) {
                 // Successful login - reset security counters
-                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
-                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
+                sessionStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
+                sessionStorage.removeItem(this.KEYS.LOCKOUT_TIME);
 
                 const sessionData = {
                     ...result.data.user,
                     token: result.data.token,
                     refreshToken: result.data.refreshToken
                 };
-                localStorage.setItem(this.KEYS.SESSION, JSON.stringify(sessionData));
-                localStorage.setItem(this.KEYS.DB_MIGRATED, 'true');
+                this._setSession(sessionData);
                 return { success: true, user: sessionData };
             }
             return { success: false, message: 'Invalid response from server' };
         } catch (error) {
-            console.warn(`[auth]: Backend login failed: ${error.message}. Checking local fallback...`);
-
-            // Fallback to local login if backend fails (always allowed for recovery)
-            const users = JSON.parse(localStorage.getItem(this.KEYS.USERS)) || [];
-            console.log(`[auth]: Checking local fallback for ${cleanEmail} against ${users.length} users...`);
-
-            const user = users.find(u => {
-                const uEmail = (u.email || '').trim().toLowerCase();
-                const uPass = (u.password || '').trim();
-                return (uEmail === cleanEmail || uEmail.split('@')[0] === cleanEmail) &&
-                    uPass === cleanPassword;
-            });
-
-            if (user) {
-                // Successful fallback - reset security counters
-                localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, '0');
-                localStorage.removeItem(this.KEYS.LOCKOUT_TIME);
-
-                console.log(`[auth]: Local fallback successful for ${cleanEmail} (${user.role})`);
-                localStorage.setItem(this.KEYS.SESSION, JSON.stringify(user));
-                return {
-                    success: true,
-                    user: user,
-                    source: 'local',
-                    message: 'Authenticated via Local Storage (Offline Mode)'
-                };
-            }
+            console.warn(`[auth]: Backend login failed: ${error.message}`);
 
             // Authentication failed - increment attempts
-            let attempts = parseInt(localStorage.getItem(this.KEYS.LOGIN_ATTEMPTS) || '0') + 1;
-            localStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, attempts.toString());
+            let attempts = parseInt(sessionStorage.getItem(this.KEYS.LOGIN_ATTEMPTS) || '0') + 1;
+            sessionStorage.setItem(this.KEYS.LOGIN_ATTEMPTS, attempts.toString());
 
             if (attempts >= 3) {
-                localStorage.setItem(this.KEYS.LOCKOUT_TIME, Date.now().toString());
+                sessionStorage.setItem(this.KEYS.LOCKOUT_TIME, Date.now().toString());
                 return {
                     success: false,
                     message: 'TOO MANY ATTEMPTS: System locked for 2 minutes for security.'
@@ -673,9 +625,7 @@ const App = {
 
             return {
                 success: false,
-                message: error.message.includes('fetch')
-                    ? 'Security Server Unreachable. Please check your connection or credentials for offline access.'
-                    : error.message
+                message: error.message
             };
         }
     },
@@ -684,12 +634,13 @@ const App = {
      * Logout function
      */
     logout: function () {
-        localStorage.removeItem(this.KEYS.SESSION);
+        this._setSession(null);
         window.location.href = 'index.html';
     },
 
     saveData: function (key, data) {
-        localStorage.setItem(key, JSON.stringify(data));
+        // Legacy helper – now just mirrors into in-memory state map (if used)
+        this.state[key] = data;
     },
 
     toggleSidebar: function () {
@@ -699,7 +650,7 @@ const App = {
         sidebar.classList.toggle('active');
 
         const isActive = sidebar.classList.contains('active');
-        localStorage.setItem('spi_sidebar_active', isActive);
+        sessionStorage.setItem('spi_sidebar_active', isActive);
 
         if (overlay) {
             if (isActive && window.innerWidth <= 768) {
@@ -779,11 +730,35 @@ const App = {
     },
 
     /**
-     * Get current user
+     * Get current user (from sessionStorage-backed cache)
      */
     getCurrentUser: function () {
-        return JSON.parse(localStorage.getItem(this.KEYS.SESSION));
+        if (this._sessionCache) return this._sessionCache;
+        try {
+            const raw = sessionStorage.getItem(this.KEYS.SESSION);
+            this._sessionCache = raw ? JSON.parse(raw) : null;
+            return this._sessionCache;
+        } catch {
+            return null;
+        }
     },
+
+    _setSession: function (session) {
+        this._sessionCache = session || null;
+        if (!session) {
+            sessionStorage.removeItem(this.KEYS.SESSION);
+        } else {
+            sessionStorage.setItem(this.KEYS.SESSION, JSON.stringify(session));
+        }
+    },
+
+    // Simple selectors for hydrated state
+    getInventory: function () { return this.state.inventory || []; },
+    getSuppliers: function () { return this.state.suppliers || []; },
+    getMechanics: function () { return this.state.mechanics || []; },
+    getBikes: function () { return this.state.bikes || []; },
+    getSales: function () { return this.state.sales || []; },
+    getOilChanges: function () { return this.state.oilChanges || []; },
 
     /**
      * Format currency
@@ -909,39 +884,9 @@ const App = {
         });
     },
     async exportToDatabase() {
-        const inventory = JSON.parse(localStorage.getItem(this.KEYS.INVENTORY) || '[]');
-        const sales = JSON.parse(localStorage.getItem(this.KEYS.SALES) || '[]');
-        const suppliers = JSON.parse(localStorage.getItem(this.KEYS.SUPPLIERS) || '[]');
-        const mechanics = JSON.parse(localStorage.getItem(this.KEYS.MECHANICS) || '[]');
-        const bikes = JSON.parse(localStorage.getItem(this.KEYS.BIKES) || '[]');
-
-        if (inventory.length === 0 && sales.length === 0) {
-            this.showToast('No data found to migrate', 'info');
-            return;
-        }
-
-        this.showToast('Migrating data to persistent database...', 'info');
-
-        try {
-            const response = await fetch(`${API_BASE_URL}/migration/import`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ inventory, sales, suppliers, mechanics, bikes })
-            });
-
-            const result = await response.json();
-            if (result.success) {
-                this.showToast('Migration successful!', 'success');
-                localStorage.setItem('spi_db_migrated', 'true');
-                // Optional: reload to use new data source in future steps
-                setTimeout(() => window.location.reload(), 2000);
-            } else {
-                throw new Error(result.error || 'Migration failed');
-            }
-        } catch (error) {
-            console.error('Migration error:', error);
-            this.showToast('Migration failed: ' + error.message, 'error');
-        }
+        // Legacy helper for migrating browser-only data to DB.
+        // In the new architecture all data already lives in the DB, so this is a no-op.
+        this.showToast('Data export is no longer required; all data is stored in the central database.', 'info');
     }
 };
 

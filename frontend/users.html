@@ -37,6 +37,8 @@
                             data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link active"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -152,21 +154,16 @@
             },
 
             loadData: async function () {
-                // If migrated, fetch from backend
-                if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
-                    try {
-                        const result = await App.apiCall('/auth');
-                        if (result.success) {
-                            this.data = result.data;
-                            localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
-                            return;
-                        }
-                    } catch (error) {
-                        console.error('[UserMgr]: Backend fetch failed', error);
+                try {
+                    const result = await App.apiCall('/auth');
+                    if (result.success) {
+                        this.data = result.data;
+                        return;
                     }
+                } catch (error) {
+                    console.error('[UserMgr]: Backend fetch failed', error);
+                    this.data = [];
                 }
-                // Fallback to local storage
-                this.data = JSON.parse(localStorage.getItem(App.KEYS.USERS)) || [];
             },
 
             renderTable: function () {
@@ -222,59 +219,32 @@
                 const password = document.getElementById('userPassword').value;
                 const role = document.getElementById('userRole').value;
 
-                if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
-                    try {
-                        if (isEdit) {
-                            // Update logic (backend might need a user update endpoint, for now we skip or log)
-                            console.warn('[UserMgr]: Backend update not fully implemented, use registration for new users');
-                            App.showToast('Backend update coming soon!', 'info');
-                        } else {
-                            const result = await App.apiCall('/auth/register', 'POST', {
-                                email,
-                                password,
-                                firstName: name.split(' ')[0],
-                                lastName: name.split(' ').slice(1).join(' ') || 'User',
-                                role
-                            });
-
-                            if (result.success) {
-                                App.showToast('User created on permanent server!');
-                            }
-                        }
-                        await this.loadData();
-                        this.renderTable();
-                        this.closeModal();
-                        return;
-                    } catch (error) {
-                        App.showToast('Backend save failed: ' + error.message, 'error');
-                        return;
+                try {
+                    if (isEdit) {
+                        const result = await App.apiCall('/auth/' + id, 'PATCH', {
+                            name,
+                            email,
+                            role,
+                            password: password || undefined
+                        });
+                        if (!result.success) throw new Error(result.error || 'Failed to update user');
+                    } else {
+                        const result = await App.apiCall('/auth/register', 'POST', {
+                            email,
+                            password,
+                            firstName: name.split(' ')[0],
+                            lastName: name.split(' ').slice(1).join(' ') || 'User',
+                            role
+                        });
+                        if (!result.success) throw new Error(result.error || 'Failed to create user');
                     }
+                    await this.loadData();
+                    this.renderTable();
+                    this.closeModal();
+                    App.showToast('User saved successfully');
+                } catch (error) {
+                    App.showToast('Backend save failed: ' + (error.message || 'Unknown error'), 'error');
                 }
-
-                // Local fallback
-                if (isEdit) {
-                    const index = this.data.findIndex(u => u.id?.toString() === id.toString());
-                    if (index !== -1) {
-                        this.data[index].name = name;
-                        this.data[index].email = email;
-                        this.data[index].role = role;
-                        if (password) this.data[index].password = password;
-                    }
-                } else {
-                    const newUser = {
-                        id: Date.now(),
-                        name: name,
-                        email: email,
-                        password: password,
-                        role: role
-                    };
-                    this.data.push(newUser);
-                }
-
-                localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
-                this.renderTable();
-                this.closeModal();
-                App.showToast('User saved successfully');
             },
 
             edit: function (id) {
@@ -291,26 +261,15 @@
 
             delete: async function (id) {
                 if (confirm('Are you sure?')) {
-                    if (localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true') {
-                        try {
-                            const result = await App.apiCall('/auth/' + id, 'DELETE');
-                            if (result.success) {
-                                App.showToast('User deleted from database', 'success');
-                                await this.loadData();
-                                this.renderTable();
-                                return;
-                            }
-                        } catch (error) {
-                            App.showToast('Backend delete failed', 'error');
-                            return;
-                        }
+                    try {
+                        const result = await App.apiCall('/auth/' + id, 'DELETE');
+                        if (!result.success) throw new Error(result.error || 'Failed to delete user');
+                        App.showToast('User deleted from database', 'success');
+                        await this.loadData();
+                        this.renderTable();
+                    } catch (error) {
+                        App.showToast('Backend delete failed: ' + (error.message || 'Unknown error'), 'error');
                     }
-
-                    // Local fallback
-                    this.data = this.data.filter(u => u.id?.toString() !== id.toString());
-                    localStorage.setItem(App.KEYS.USERS, JSON.stringify(this.data));
-                    this.renderTable();
-                    App.showToast('User deleted', 'error');
                 }
             }
         };

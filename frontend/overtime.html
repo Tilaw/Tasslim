@@ -175,8 +175,8 @@
                                     <span id="summaryStatusText">No Activity</span>
                                 </div>
                                 <div class="overtime-sub" style="margin-top:8px;">
-                                    First Tx: <span id="summaryFirstTx">-</span><br>
-                                    Last Tx: <span id="summaryLastTx">-</span><br>
+                                    Logout Time: <span id="summaryLastTx">-</span><br>
+                                    Shift Start: <span id="summaryFirstTx">-</span><br>
                                     Issues Logged: <span id="summaryTxCount">0</span>
                                 </div>
                             </div>
@@ -270,13 +270,13 @@
                     document.getElementById('summaryStatusDot').className = 'dot-offline';
                 } else {
                     const totalMin = data.durationMinutes || 0;
-                    const h = Math.floor(totalMin / 60);
-                    const m = totalMin % 60;
-                    document.getElementById('summaryDuration').textContent =
-                        `${h}h ${m.toString().padStart(2, '0')}m`;
-
                     const first = data.firstTransactionAt ? new Date(data.firstTransactionAt) : null;
                     const last = data.lastTransactionAt ? new Date(data.lastTransactionAt) : null;
+
+                    // Show the mechanic's recorded logout time prominently
+                    document.getElementById('summaryDuration').textContent =
+                        last ? last.toLocaleTimeString() : '—';
+
                     document.getElementById('summaryFirstTx').textContent = first ? first.toLocaleTimeString() : '-';
                     document.getElementById('summaryLastTx').textContent = last ? last.toLocaleTimeString() : '-';
 

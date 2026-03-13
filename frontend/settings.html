@@ -191,32 +191,15 @@
             },
 
             updateMigrationStatus: function () {
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
                 const badge = document.getElementById('migratedBadge');
                 const btn = document.getElementById('migrateBtn');
                 const info = document.getElementById('migrationInfo');
 
-                if (isMigrated) {
-                    badge.textContent = 'Migrated to Database';
-                    badge.className = 'badge badge-success';
-                    btn.style.display = 'none';
-                    info.style.display = 'none';
-                } else {
-                    const hasLocalData = (JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || []).length > 0 ||
-                        (JSON.parse(localStorage.getItem(App.KEYS.SALES)) || []).length > 0;
-
-                    if (hasLocalData) {
-                        badge.textContent = 'Local Mode (Needs Sync)';
-                        badge.className = 'badge badge-warning';
-                        btn.style.display = 'block';
-                        info.style.display = 'block';
-                    } else {
-                        badge.textContent = 'Cloud Mode (Sync Active)';
-                        badge.className = 'badge badge-success';
-                        btn.style.display = 'none';
-                        info.style.display = 'none';
-                    }
-                }
+                // In the new architecture everything runs in cloud/DB mode
+                badge.textContent = 'Cloud Mode (Sync Active)';
+                badge.className = 'badge badge-success';
+                if (btn) btn.style.display = 'none';
+                if (info) info.style.display = 'none';
             },
 
             testConnection: async function () {
@@ -269,20 +252,17 @@
             },
 
             clearCache: function () {
-                if (confirm('This will clear your local browser cache ONLY. Your data on the server will be safe. Do this if you are having sync issues. Continue?')) {
-                    // Keys to keep (session and migration flag)
-                    const session = localStorage.getItem(App.KEYS.SESSION);
-                    const migrated = localStorage.getItem(App.KEYS.DB_MIGRATED);
-                    const lang = localStorage.getItem('spi_lang');
-
-                    localStorage.clear();
-
-                    if (session) localStorage.setItem(App.KEYS.SESSION, session);
-                    if (migrated) localStorage.setItem(App.KEYS.DB_MIGRATED, migrated);
-                    if (lang) localStorage.setItem('spi_lang', lang);
-
-                    App.showToast('Local cache cleared. Reloading...', 'success');
-                    setTimeout(() => window.location.reload(), 1500);
+                if (confirm('This will clear your in-memory app state for this tab. Your data on the server will be safe. Continue?')) {
+                    App.state = {
+                        inventory: [],
+                        suppliers: [],
+                        mechanics: [],
+                        bikes: [],
+                        sales: [],
+                        oilChanges: []
+                    };
+                    App.showToast('State cleared. Reloading...', 'success');
+                    setTimeout(() => window.location.reload(), 500);
                 }
             },
 
@@ -302,34 +282,25 @@
                 }
 
                 try {
-                    const users = JSON.parse(localStorage.getItem(App.KEYS.USERS)) || [];
-                    const index = users.findIndex(u => String(u.id) === String(this.currentUser.id));
+                    // Delegate to Users API; Settings page only edits the current user
+                    App.apiCall('/auth/' + this.currentUser.id, 'PATCH', {
+                        email: newUsername,
+                        password: newPassword || undefined
+                    }).then(result => {
+                        if (!result || !result.success) {
+                            throw new Error(result && result.error ? result.error : 'Failed to update settings');
+                        }
 
-                    if (index === -1) {
-                        App.showToast('User record not found in database', 'error');
-                        return;
-                    }
+                        this.currentUser.email = newUsername;
+                        App._setSession(this.currentUser);
 
-                    // Update main users list
-                    users[index].email = newUsername;
-                    if (newPassword) {
-                        users[index].password = newPassword;
-                    }
-
-                    localStorage.setItem(App.KEYS.USERS, JSON.stringify(users));
-
-                    // Update current session
-                    this.currentUser.email = newUsername;
-                    if (newPassword) {
-                        this.currentUser.password = newPassword;
-                    }
-                    localStorage.setItem(App.KEYS.SESSION, JSON.stringify(this.currentUser));
-
-                    App.showToast('Settings updated successfully!');
-
-                    // Clear password fields
-                    document.getElementById('password').value = '';
-                    document.getElementById('confirmPassword').value = '';
+                        App.showToast('Settings updated successfully!');
+                        document.getElementById('password').value = '';
+                        document.getElementById('confirmPassword').value = '';
+                    }).catch(e => {
+                        console.error('Settings save error:', e);
+                        App.showToast('Failed to save settings: ' + e.message, 'error');
+                    });
                 } catch (e) {
                     console.error('Settings save error:', e);
                     App.showToast('Failed to save settings: ' + e.message, 'error');
