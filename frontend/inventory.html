@@ -386,6 +386,7 @@
                         this.sales = [];
                     }
                 } catch (err) {
+                    console.error('[Inventory Data Load Error]:', err);
                     const status = err && err.status ? err.status : null;
                     const msg = err && err.message ? err.message : '';
                     if (status === 401) {
@@ -393,10 +394,10 @@
                         window.location.href = 'index.html';
                         return;
                     }
-                    App.showToast(msg || 'Failed to load inventory from server', 'error');
-                    this.data = [];
-                    this.suppliers = [];
-                    this.sales = [];
+                    App.showToast('Some inventory data (like transactions) failed to load. ' + (msg || ''), 'warning');
+                    this.data = this.data || [];
+                    this.suppliers = this.suppliers || [];
+                    this.sales = this.sales || [];
                 }
             },
 
