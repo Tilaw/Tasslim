@@ -1701,7 +1701,6 @@
                 if (!mech) { alert('Please select a mechanic.'); return; }
                 if (this.builderSelectedParts.size === 0) { alert('Please add at least one part.'); return; }
 
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
                 const itemsForTransaction = [];
                 const invById = new Map((this.inventory || []).map(i => [String(i.id), i]));
 
@@ -1726,104 +1725,43 @@
 
                 if (itemsForTransaction.length === 0) { alert('No valid parts selected.'); return; }
 
-                if (isMigrated) {
-                    try {
-                        const allBikes = this.bikes || [];
-                        const allMechs = this.mechanics || [];
-                        const mechRow = allMechs.find(m => m && m.name === mech);
-                        const referenceId = 'INV-' + Date.now().toString();
-                        const nowIso = new Date().toISOString();
-
-                        const payload = itemsForTransaction.map(it => {
-                            const bikePlate = (it.bikePlate || Array.from(this.builderSelectedBikes)[0] || '').toString();
-                            const bikeRow = allBikes.find(b => b && (b.plate === bikePlate || b.plate_number === bikePlate));
-                            return {
-                                productId: it.productId,
-                                transactionType: 'issue',
-                                quantity: -it.qty,
-                                mechanicId: mechRow ? mechRow.id : null,
-                                bikeId: bikeRow ? bikeRow.id : null,
-                                referenceId,
-                                date: nowIso,
-                                notes: 'Technician issue from reports builder'
-                            };
-                        });
-
-                        try {
-                            const res = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
-                            if (!res || !res.success) throw new Error('Batch issue creation failed');
-                        } catch (batchErr) {
-                            for (const tx of payload) { await App.apiCall('/transactions', 'POST', tx); }
-                        }
-
-                        await App.loadData();
-                        this.syncData();
-                        this.generate();
-                        this.printTechnicianIssue(mech, itemsForTransaction);
-                        this.closeBuilderModal();
-                        return;
-                    } catch (e) {
-                        console.error('Reports: generateInvoiceFromBuilder (API mode) failed', e);
-                        alert(e.message || 'Failed to create technician issue via server.');
-                        return;
-                    }
-                }
-
                 try {
-                    const inventoryUpdates = [];
-                    const invByIdLocal = new Map((this.inventory || []).map(i => [String(i.id), i]));
-                    itemsForTransaction.forEach(it => {
-                        const item = invByIdLocal.get(String(it.productId));
-                        if (!item) return;
-                        const newStock = (Number(item.stock) || 0) - it.qty;
-                        if (newStock < 0) throw new Error(`Insufficient stock for "${item.name}".`);
-                        inventoryUpdates.push({ id: item.id, newStock });
-                    });
-                    inventoryUpdates.forEach(u => {
-                        const invItem = this.inventory.find(i => String(i.id) === String(u.id));
-                        if (invItem) invItem.stock = u.newStock;
-                    });
-                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+                    const allBikes = this.bikes || [];
+                    const allMechs = this.mechanics || [];
+                    const mechRow = allMechs.find(m => m && m.name === mech);
+                    const referenceId = 'INV-' + Date.now().toString();
+                    const nowIso = new Date().toISOString();
 
-                    const currentUser = (() => { try { return App.getCurrentUser(); } catch { return null; } })();
-                    const transaction = {
-                        id: Date.now() + Math.floor(Math.random() * 1000),
-                        date: new Date().toISOString(),
-                        type: 'issue',
-                        items: itemsForTransaction,
-                        total: itemsForTransaction.reduce((sum, p) => sum + p.total, 0),
-                        mechanic: mech,
-                        bike: Array.from(this.builderSelectedBikes).join(', '),
-                        status: 'completed',
-                        user: currentUser?.name || 'Unknown'
-                    };
-
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                    this.sales.push(transaction);
-                    localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-
-                    const currentMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                    itemsForTransaction.forEach(it => {
-                        currentMappings.push({
-                            id: transaction.id + '_' + it.productId,
-                            issueId: 'INV-' + transaction.id,
+                    const payload = itemsForTransaction.map(it => {
+                        const bikePlate = (it.bikePlate || Array.from(this.builderSelectedBikes)[0] || '').toString();
+                        const bikeRow = allBikes.find(b => b && (b.plate === bikePlate || b.plate_number === bikePlate));
+                        return {
                             productId: it.productId,
-                            productName: it.name,
-                            mechanicName: mech,
-                            bikePlate: it.bikePlate || transaction.bike,
-                            quantity: it.qty,
-                            pickedDate: new Date().toISOString().split('T')[0],
-                            date: new Date().toISOString()
-                        });
+                            transactionType: 'issue',
+                            quantity: -it.qty,
+                            mechanicId: mechRow ? mechRow.id : null,
+                            bikeId: bikeRow ? bikeRow.id : null,
+                            referenceId,
+                            date: nowIso,
+                            notes: 'Technician issue from reports builder'
+                        };
                     });
-                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(currentMappings));
 
+                    try {
+                        const res = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
+                        if (!res || !res.success) throw new Error('Batch issue creation failed');
+                    } catch (batchErr) {
+                        for (const tx of payload) { await App.apiCall('/transactions', 'POST', tx); }
+                    }
+
+                    await App.loadData();
+                    this.syncData();
+                    this.generate();
                     this.printTechnicianIssue(mech, itemsForTransaction);
                     this.closeBuilderModal();
-                    this.generate();
                 } catch (e) {
-                    console.error('Reports: generateInvoiceFromBuilder failed (local mode)', e);
-                    alert(e.message || 'Failed to generate invoice.');
+                    console.error('Reports: generateInvoiceFromBuilder failed', e);
+                    alert(e.message || 'Failed to create technician issue via server.');
                 }
             },
 

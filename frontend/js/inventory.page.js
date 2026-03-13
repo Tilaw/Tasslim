@@ -1,4 +1,4 @@
-﻿
+
         const Inventory = {
             data: [],
             filteredData: [],
@@ -70,8 +70,7 @@
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this.suppliers = (sData && sData.success && Array.isArray(sData.data)) ? sData.data : [];
 
-                    // Keep sales local for now (used for print report aggregation)
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.sales = App.getSales();
                 } catch (err) {
                     const status = err && err.status ? err.status : null;
                     const msg = err && err.message ? err.message : '';
@@ -83,7 +82,7 @@
                     App.showToast(msg || 'Failed to load inventory from server', 'error');
                     this.data = [];
                     this.suppliers = [];
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.sales = App.getSales();
                 }
             },
 
