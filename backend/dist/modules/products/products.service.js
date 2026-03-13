@@ -146,6 +146,11 @@ class ProductService {
                 // `category` / `categoryId` handled separately below
             };
             Object.keys(data).forEach((key) => {
+                // Frontend sends some convenience fields that don't exist as real
+                // columns on the products table – skip them so MySQL doesn't throw
+                // "Unknown column" errors.
+                if (key === 'supplier' || key === 'vat')
+                    return;
                 // Handle special mapping or fall back to snake_case
                 const dbKey = fieldMap[key] || key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
                 // Skip stock if passed here, as it belongs to inventory table

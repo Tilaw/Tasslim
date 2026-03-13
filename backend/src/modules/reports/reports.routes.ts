@@ -11,4 +11,13 @@ router.get(
     ReportsController.getDashboardStats
 );
 
+// Mechanic overtime / active span for a given day.
+router.get(
+    '/mechanic-overtime',
+    authMiddleware,
+    // Allow both admin and staff (plus managers) to view overtime
+    requireRole('super_admin', 'admin', 'store_manager', 'inventory_manager', 'staff'),
+    ReportsController.getMechanicOvertime
+);
+
 export const reportRoutes = router;

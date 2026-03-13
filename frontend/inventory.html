@@ -37,6 +37,8 @@
                             data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -354,8 +356,7 @@
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this.suppliers = (sData && sData.success && Array.isArray(sData.data)) ? sData.data : [];
 
-                    // Keep sales local for now (used for print report aggregation)
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.sales = App.getSales();
                 } catch (err) {
                     const status = err && err.status ? err.status : null;
                     const msg = err && err.message ? err.message : '';
@@ -367,7 +368,7 @@
                     App.showToast(msg || 'Failed to load inventory from server', 'error');
                     this.data = [];
                     this.suppliers = [];
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
+                    this.sales = App.getSales();
                 }
             },
 

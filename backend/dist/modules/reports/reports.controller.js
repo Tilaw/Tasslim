@@ -23,5 +23,18 @@ class ReportsController {
             }
         });
     }
+    static getMechanicOvertime(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const mechanicId = (req.query.mechanicId || req.query.mechanic_id);
+                const date = (req.query.date || '');
+                const result = yield reports_service_js_1.ReportsService.getMechanicOvertime(mechanicId, date);
+                res.json({ success: true, data: result });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
 }
 exports.ReportsController = ReportsController;

@@ -97,6 +97,8 @@
                             data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link active"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -205,9 +207,10 @@
             mechanics: [],
 
             init: function () {
-                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                this.mappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
+                this.sales = App.getSales();
+                // Legacy mappings removed; derive from sales only
+                this.mappings = [];
+                this.mechanics = App.getMechanics();
 
                 this.populateMechanics();
 
@@ -278,36 +281,6 @@
                     txKeySet.add(`${txFingerprint}_${itemsFingerprint}`);
                 });
 
-                // 2. Process Mappings (Legacy/Local Sync)
-                const mappingGroups = new Map();
-                const relevantMappings = this.mappings.filter(m => m.mechanicName === name);
-
-                relevantMappings.forEach(m => {
-                    const dateObj = new Date(m.date);
-                    const dateStr = isNaN(dateObj.getTime()) ? 'Invalid' : dateObj.toDateString();
-                    const txFingerprint = `${m.mechanicName}_${m.bikePlate}_${dateStr}`;
-                    const itemFingerprint = `${m.productId}_${m.quantity}`;
-
-                    if (!txKeySet.has(`${txFingerprint}_${itemFingerprint}`)) {
-                        const groupKey = m.issueId || `legacy_${txFingerprint}_${m.id}`;
-                        if (!mappingGroups.has(groupKey)) {
-                            mappingGroups.set(groupKey, {
-                                id: m.issueId || m.id,
-                                date: m.date,
-                                items: [],
-                                bike: m.bikePlate,
-                                isLegacy: true
-                            });
-                        }
-                        mappingGroups.get(groupKey).items.push({
-                            name: m.productName,
-                            qty: m.quantity
-                        });
-                    }
-                });
-
-                mappingGroups.forEach(tx => combinedHistory.push(tx));
-
                 let filtered = combinedHistory;
                 const now = new Date();
                 if (period === 'week') {
@@ -332,7 +305,7 @@
                 tbody.innerHTML = '';
 
                 // Load inventory for stock lookup
-                const inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                const inventory = App.getInventory();
 
                 if (items.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="4" class="text-center">No issuance records found for this period</td></tr>';

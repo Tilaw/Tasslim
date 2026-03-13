@@ -1,120 +1,120 @@
-# Pull Request: Centralized inventory updates for purchase restock, POS sales, and technician issues
+# Pull Request: Remove localStorage; API-only data and Riders backend module
 
 ## Summary
 
-This PR removes device-only `localStorage` as a source of truth for stock movements. Restocks from the purchase page, sales from the POS, and technician issue actions from the reports page now all go through the backend transactions API so the dashboard, inventory, reports, and all devices stay consistent.
+This PR removes all use of **localStorage** as a cache or source of truth for domain data across the frontend. All pages now read from **in-memory state** hydrated by backend APIs on login (`App.loadData()`), and all mutations (create/update/delete/import) go through the **correct API endpoints**. A new **Riders** backend module (table, service, controller, routes) is added so rider master data is persisted in the database and consumed via `/api/v1/riders`.
 
 ---
 
-## Issues addressed
+## 1. Core app: no localStorage for data; session in sessionStorage
 
-### 1. Purchase restock / POS sales not reflected on dashboard and inventory
+### `frontend/js/app.js`
 
-- **Problem:** After restocking items on the purchase page or completing a sale in the POS, stock changes appeared on that device only and were lost on reload. The dashboard and inventory page, which read from the backend, did not reflect these changes, leading to inconsistent stock across pages and devices.
-- **Why:** `purchase-order.html` and `pos.html` directly mutated `App.KEYS.INVENTORY` (and, in POS, `App.KEYS.SALES`) in `localStorage` without creating corresponding records in the `inventory_transactions` table. The backend remained unaware of these movements, so any view sourced from the API stayed stale.
-- **Fix (high level):** Both flows were moved to use the existing transactions API (`/transactions` and `/transactions/batch`) as the single source of truth, and then refresh the cached inventory snapshot via `App.loadData()` so all frontend pages stay in sync with the database.
-
-### 2. Reports page issuing/deleting technician issues only in localStorage
-
-- **Problem:** On `reports.html`, the “Technician Issue” builder and delete actions adjusted inventory and “issue” records only in `localStorage` (`spi_inventory`, `spi_sales`, and `spi_mappings`). The backend inventory and `inventory_transactions` table were never updated, so other devices and pages could not see or audit these changes.
-- **Why:** `Reports.generateInvoiceFromBuilder` and `Reports.deleteTransaction` treated `localStorage` as the primary database, updating stock and issue history directly on the client instead of using the central transactions API.
-- **Fix (high level):** When the system is migrated to the backend (`DB_MIGRATED = true`), the reports page now uses the same `/transactions` and `/transactions/batch` endpoints as the rest of the app:
-  - Creating technician issues from the builder generates real `issue` transactions in the backend.
-  - Deleting a technician issue calls the server’s group-revert endpoint so inventory is restored centrally and consistently.
+- **In-memory state:** Introduced `App.state` (`inventory`, `suppliers`, `mechanics`, `bikes`, `sales`, `oilChanges`). No domain data is written to localStorage.
+- **loadData():** When the user has a valid session, it calls `/products`, `/mechanics`, `/bikes`, `/suppliers`, `/transactions`, `/oil-changes` and **only** updates `App.state`. Removed all localStorage writes and local/offline fallbacks.
+- **Session:** Auth token and user are stored in **sessionStorage** (per-tab) via `_setSession()` / `getCurrentUser()`. Removed localStorage for `SESSION`, `DB_MIGRATED`, and login-attempt/lockout (lockout now uses sessionStorage).
+- **Getters:** `App.getInventory()`, `getSuppliers()`, `getMechanics()`, `getBikes()`, `getSales()`, `getOilChanges()` return slices of `App.state`.
+- **Login:** Backend-only; removed local user list and offline login fallback.
+- **exportToDatabase():** No-op with a message that data already lives in the central database.
 
 ---
 
-## Changes by area
+## 2. Frontend pages: use `App.get*()` and APIs only
 
-### Frontend – purchase restock (`purchase-order.html`)
+### Bikes (`frontend/bikes.html`)
 
-- **Before:** `PurchaseOrder.processImport` incremented `this.inventory[idx].stock` for each valid SKU and wrote the result back to `localStorage` (`App.KEYS.INVENTORY`), then showed a success card. No backend call was made, so the database inventory stayed unchanged.
-- **After:**
-  - `PurchaseOrder.processImport` is now `async`. It builds a `transactions` array from all valid restock lines, each entry containing:
-    - `productId`: resolved from the matched inventory item’s `id`
-    - `transactionType: 'purchase'`
-    - `quantity`: positive restock quantity
-    - `referenceId`: a shared batch reference (`PO-<timestamp>`)
-    - `date` and a short `notes` field describing the source (“Restock via purchase-order page”).
-  - It calls `POST /api/v1/transactions/batch` with `{ transactions }`, and if that fails due to missing endpoint or older backend, falls back to sending each transaction via `POST /transactions`.
-  - After a successful server update, it calls `App.loadData()` to resync the local inventory/sales caches from the backend so the dashboard and inventory page see the updated stock.
-  - The old code that directly modified `this.inventory` and wrote `localStorage.setItem(App.KEYS.INVENTORY, ...)` has been removed; all stock changes now go through the backend.
-  - The UX remains the same for the user: the same success card is shown with “Items Restocked”, but it now represents server-confirmed state.
+- **loadData():** `this.data = App.getBikes()` (no localStorage).
+- **saveBike():** Always calls `POST /bikes` or `PATCH /bikes/:id`, then `App.loadData()` and `loadData()`.
+- **delete():** Always calls `DELETE /bikes/:id`, then refreshes from server.
+- **Excel import:** Each row is sent with `App.apiCall('/bikes', 'POST', bike)`; duplicates are skipped; then `App.loadData()` and local refresh. No local-only import path.
 
-### Frontend – POS sales (`pos.html`)
+### Inventory (`frontend/inventory.html`, `frontend/js/inventory.page.js`)
 
-- **Before:** `POS.checkout` decremented in-memory `this.inventory[productIndex].stock`, appended a synthetic `sale` object into `App.KEYS.SALES`, and wrote the updated inventory back to `App.KEYS.INVENTORY`. The backend never recorded these sales as inventory transactions and did not adjust the central stock.
-- **After:**
-  - `POS.checkout` is now `async`. It converts each cart line into a transaction object:
-    - `productId`: product `id`
-    - `transactionType: 'sale'`
-    - `quantity`: **negative** of the sold quantity (so central inventory is decremented)
-    - `referenceId`: shared sale reference (`SALE-<timestamp>`)
-    - `date` and `notes: 'POS sale'`.
-  - It submits this batch via `POST /api/v1/transactions/batch`, with fallback to per-line `POST /transactions` if the batch route is unavailable.
-  - On success, it calls `App.loadData()` to refresh the local cache from the authoritative backend inventory and then:
-    - Clears the cart and re-renders it.
-    - Reloads inventory from `App.KEYS.INVENTORY` and re-renders the product grid so in-stock / low-stock / out-of-stock badges match the database.
-    - Shows a receipt using the shared `SALE-<timestamp>` reference and the computed total.
-  - All direct writes to `App.KEYS.INVENTORY` and synthetic `App.KEYS.SALES` entries for this flow have been removed, so there is no longer any device-only stock state.
+- All references to `localStorage.getItem(App.KEYS.SALES)` replaced with `App.getSales()` for report/aggregation data.
 
-### Frontend – Reports technician issues (`reports.html`)
+### Reports (`frontend/reports.html`)
 
-- **Deleting technician issues**
-  - **Before:** `Reports.deleteTransaction` manually added quantities back into `this.inventory`, wrote `App.KEYS.INVENTORY` and `App.KEYS.SALES` to `localStorage`, and treated that as the source of truth.
-  - **After (migrated / backend mode):**
-    - When `DB_MIGRATED` is `true`, `Reports.deleteTransaction` calls `DELETE /api/v1/transactions/group/{id}` (same pattern as `issue-part.html`) so the backend reverts the entire issue group and restores inventory in the database.
-    - After a successful call, it invokes `App.loadData()`, then `Reports.syncData()` and `Reports.generate()` so the reports UI refreshes from the authoritative backend snapshot.
-    - If the server returns 404 (legacy or already-reverted group), the UI reloads from the backend and shows an informational toast instead of silently mutating local data.
-  - **Offline / legacy mode:** When `DB_MIGRATED` is not set, the previous local-only behavior is preserved as a fallback: it adjusts `this.inventory` and `this.sales` in `localStorage` and refreshes the UI.
+- **init() / syncData():** Use `App.getSales()`, `App.getInventory()`, `App.getMechanics()`, `App.getBikes()`.
+- **deleteTransaction():** Only the API path remains: `DELETE /transactions/group/:id`, then `App.loadData()` and `syncData()`. Removed local revert and localStorage writes.
+- **generateInvoiceFromBuilder():** Removed `isMigrated` and the entire local-only branch. Technician issues are created only via `/transactions/batch` (or single `/transactions` fallback), then `App.loadData()`, `syncData()`, and `generate()`.
 
-- **Creating technician issues from the builder**
-  - **Before:** `Reports.generateInvoiceFromBuilder`:
-    - Validated selected parts against `this.inventory`.
-    - Decremented local `inventory` and wrote it to `App.KEYS.INVENTORY`.
-    - Created a synthetic `type: 'issue'` record in `App.KEYS.SALES` and added entries to `App.KEYS.MAPPINGS`, without touching the backend.
-  - **After (migrated / backend mode):**
-    - The builder still validates requested quantities against the current `this.inventory` snapshot but then builds a `transactions` payload:
-      - One row per selected part with:
-        - `productId`
-        - `transactionType: 'issue'`
-        - `quantity: -qty` (issuing parts reduces stock)
-        - `mechanicId`: resolved from the selected mechanic name
-        - `bikeId`: resolved from the selected bike plate (per part where provided, or from the selected bike set)
-        - Shared `referenceId` (`INV-<timestamp>`)
-        - `date` and `notes: 'Technician issue from reports builder'`.
-    - It calls `POST /api/v1/transactions/batch` with `{ transactions }`, falling back to individual `POST /transactions` calls on error or older backends.
-    - On success, it runs `App.loadData()`, followed by `Reports.syncData()` and `Reports.generate()`, so the reports tables, stats, and mechanic issue history reflect the new server-backed issues.
-    - The print flow (`printTechnicianIssue`) still uses the collected `itemsForTransaction` to render a technician-facing document, but that document now corresponds to real backend transactions.
-  - **Offline / legacy mode:** When `DB_MIGRATED` is not set, the former local-only logic remains as a fallback, updating `App.KEYS.INVENTORY`, `App.KEYS.SALES`, and `App.KEYS.MAPPINGS` for environments without a backend.
+### Dashboard, POS, Purchase Order, Mechanics, Users, Bike History, Riders, Mechanic History, Settings, Diagnostic
 
-### Shared UX / safety improvements
-
-- All three flows (purchase restock, POS checkout, and reports technician issues) now:
-  - Use the central `inventory_transactions` API as the single source of truth whenever a backend is available.
-  - Refresh their local view via `App.loadData()` after successful writes, so dashboard, inventory, reports, and issue-part pages all see the same stock and history.
-  - Preserve legacy localStorage behavior only as an explicit offline fallback when `DB_MIGRATED` is not enabled.
+- **Dashboard:** Uses `App.getInventory()`, `App.getSales()`, `App.getSuppliers()`; migration banner removed.
+- **POS / Purchase order:** Inventory loaded with `App.getInventory()`.
+- **Mechanics:** Uses `App.getMechanics()`; save/delete/Excel import use `/mechanics` API only.
+- **Users:** Load/save/delete use `/auth` and `/auth/register`, `/auth/:id` PATCH/DELETE only; no local user list.
+- **Bike history:** Bikes, mappings (derived from `App.getSales()`), and oil changes from `App.getBikes()` and `App.getOilChanges()`.
+- **Riders:** Now fully backed by the new Riders API (see below).
+- **Mechanic history:** Uses `App.getSales()`, `App.getMechanics()`, `App.getInventory()`; legacy mappings removed.
+- **Settings:** Migration status always “Cloud Mode”; clear cache only resets `App.state` and reloads; profile save uses PATCH to auth API and `App._setSession()`.
+- **Diagnostic:** Reads from `App.state` / getters; sample data and import/clear no longer write to localStorage.
 
 ---
 
-## Testing suggestions
+## 3. New Riders backend module (DB + API)
 
-- **Purchase restock consistency**
-  - Restock an existing SKU via the purchase page.
-  - Reload the dashboard and inventory page (and/or open them on another device) and confirm the stock levels reflect the new quantity.
-  - Verify the corresponding `inventory_transactions` rows are created with `transaction_type = 'purchase'` and correct quantities.
+### Database
 
-- **POS sale consistency**
-  - From the POS page, sell a few items that have sufficient stock.
-  - Reload the inventory page and dashboard and confirm stock has decreased by the sold quantity and low-stock badges update correctly.
-  - Check that the backend has `inventory_transactions` records with `transaction_type = 'sale'` and negative quantities.
+- **Table `riders`** (in `backend/src/database/migrations.ts`):
+  - `id` (VARCHAR 36, PK),
+  - `name`, `phone`, `plates` (TEXT, comma-separated bike plates),
+  - `imported` (TINYINT, for “Delete All Imported”),
+  - `created_at`, `updated_at`.
 
-- **Reports technician issues**
-  - Use the reports builder to generate a technician issue for a mechanic and one or more bikes; confirm:
-    - The related `inventory_transactions` rows are created with `transaction_type = 'issue'` and negative quantities.
-    - Reports mechanic issue tables and stats update correctly after `App.loadData()`.
-  - Delete an existing technician issue from the reports page and confirm:
-    - The corresponding transaction group is reverted via the API (no longer returned by `GET /transactions?type=issue`).
-    - Inventory for each affected product increases by the issued quantity in the backend and is reflected across all pages after reload.
+### API
 
+- **Routes** (`backend/src/modules/riders/riders.routes.ts`):
+  - `GET /api/v1/riders` — list all riders
+  - `GET /api/v1/riders/:id` — get one rider
+  - `POST /api/v1/riders` — create (body: `name`, `phone`, `plates`, optional `imported`)
+  - `PATCH /api/v1/riders/:id` — update
+  - `DELETE /api/v1/riders/imported/all` — delete all imported riders (must be registered before `/:id`)
+  - `DELETE /api/v1/riders/:id` — delete one rider
 
+- **Service** (`riders.service.ts`): CRUD + `deleteAllImported()`.
+- **Controller** (`riders.controller.ts`): Handlers for the above routes.
+- **App:** Riders routes mounted at `/api/v1/riders` in `backend/src/app.ts`.
+
+### Riders frontend (`frontend/riders.html`)
+
+- **loadData():** Fetches riders with `App.apiCall('/riders', 'GET')` and sets `this.riders`; mappings and oil changes still from `App.getSales()` and `App.getOilChanges()`.
+- **saveRider():** Creates with `POST /riders` or updates with `PATCH /riders/:id`, then reloads riders and re-renders.
+- **deleteRider():** `DELETE /riders/:id`, then reload and re-render.
+- **handleExcel():** For each row, `POST /riders` with `{ name, phone, plates, imported: true }`, then reload riders.
+- **deleteAllImported():** `DELETE /riders/imported/all`, then reload and re-render.
+- Edit/Report/Delete buttons use string IDs (UUID) safely in `onclick`.
+
+---
+
+## 4. Other fixes (from previous work)
+
+- **Reports – single workshop consumption print:** Bike number (plate) is included in the printed invoice header.
+- **Overtime:** UI shows “Logout Time” (last transaction time) as the main metric; backend unchanged (first/last transaction times).
+
+---
+
+## 5. What’s no longer used
+
+- **localStorage** for: inventory, sales, mechanics, bikes, suppliers, oil changes, mappings, users, riders, DB_MIGRATED. Session and language/sidebar preferences use **sessionStorage** only where needed.
+- **Offline / local-only** code paths for bikes, mechanics, users, and reports (technician issue builder and delete).
+- **Riders** in-memory only or `riders_info` in localStorage; all rider data is now in the DB and accessed via `/api/v1/riders`.
+
+---
+
+## 6. How to test
+
+1. **Backend:** Run migrations (so `riders` table exists), start API server.
+2. **Login:** Use backend credentials; confirm no localStorage usage for domain data (only sessionStorage for token).
+3. **Bikes / Mechanics / Users:** Add, edit, delete, and (where applicable) Excel import; confirm changes persist and reload from server.
+4. **Reports:** Generate technician issue from builder; delete a transaction; confirm data comes from API and print includes bike number where applicable.
+5. **Riders:** Add, edit, delete riders; import Excel; “Delete All Imported”; confirm list loads from `GET /riders` and all mutations hit the new riders API.
+6. **Dashboard, POS, Inventory, Bike history, Mechanic history:** Confirm they show data from `App.get*()` after login (no localStorage for domain data).
+
+---
+
+## 7. Files changed (high level)
+
+- **Frontend:** `app.js`, `bikes.html`, `inventory.html`, `inventory.page.js`, `reports.html`, `dashboard.html`, `pos.html`, `purchase-order.html`, `mechanics.html`, `users.html`, `bike-history.html`, `riders.html`, `mechanic-history.html`, `settings.html`, `diagnostic.html`.
+- **Backend:** `migrations.ts`, `app.ts`, new `modules/riders/` (service, controller, routes).
+- **Docs:** `PULL_REQUEST.md` (this file).

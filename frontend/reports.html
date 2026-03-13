@@ -887,6 +887,8 @@
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span data-i18n="suppliers">Suppliers</span></a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a></li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span data-i18n="bikes">Bikes</span></a></li>
@@ -1245,10 +1247,10 @@
 
             init: function () {
                 try {
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                    this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                    this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                    this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                    this.sales = App.getSales();
+                    this.inventory = App.getInventory();
+                    this.mechanics = App.getMechanics();
+                    this.bikes = App.getBikes();
                     this.filteredSales = this.sales;
                     this.populateFilters();
                     this.generate();
@@ -1413,9 +1415,7 @@
                 if (index === -1) return;
 
                 const transaction = this.sales[index];
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-
-                if (isMigrated && transaction) {
+                if (transaction) {
                     try {
                         await App.apiCall(`/transactions/group/${encodeURIComponent(transaction.id)}`, 'DELETE');
                         await App.loadData();
@@ -1438,34 +1438,13 @@
                         return;
                     }
                 }
-
-                if (transaction && transaction.items && Array.isArray(transaction.items)) {
-                    const invMap = new Map((this.inventory || []).map(i => [String(i.id), i]));
-                    let inventoryChanged = false;
-                    transaction.items.forEach(item => {
-                        const invItem = invMap.get(String(item.productId));
-                        if (invItem) {
-                            invItem.stock = (Number(invItem.stock) || 0) + (Number(item.qty) || 0);
-                            inventoryChanged = true;
-                        }
-                    });
-                    if (inventoryChanged) {
-                        localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
-                    }
-                }
-
-                this.sales.splice(index, 1);
-                localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-                this.syncData();
-                this.generate();
-                alert('Record deleted and stock restored (local mode).');
             },
 
             syncData: function () {
-                this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
-                this.mechanics = JSON.parse(localStorage.getItem(App.KEYS.MECHANICS)) || [];
-                this.bikes = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                this.sales = App.getSales();
+                this.inventory = App.getInventory();
+                this.mechanics = App.getMechanics();
+                this.bikes = App.getBikes();
             },
 
             getUniqueSortedStrings: function (values) {
@@ -1722,7 +1701,6 @@
                 if (!mech) { alert('Please select a mechanic.'); return; }
                 if (this.builderSelectedParts.size === 0) { alert('Please add at least one part.'); return; }
 
-                const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
                 const itemsForTransaction = [];
                 const invById = new Map((this.inventory || []).map(i => [String(i.id), i]));
 
@@ -1747,104 +1725,43 @@
 
                 if (itemsForTransaction.length === 0) { alert('No valid parts selected.'); return; }
 
-                if (isMigrated) {
-                    try {
-                        const allBikes = this.bikes || [];
-                        const allMechs = this.mechanics || [];
-                        const mechRow = allMechs.find(m => m && m.name === mech);
-                        const referenceId = 'INV-' + Date.now().toString();
-                        const nowIso = new Date().toISOString();
-
-                        const payload = itemsForTransaction.map(it => {
-                            const bikePlate = (it.bikePlate || Array.from(this.builderSelectedBikes)[0] || '').toString();
-                            const bikeRow = allBikes.find(b => b && (b.plate === bikePlate || b.plate_number === bikePlate));
-                            return {
-                                productId: it.productId,
-                                transactionType: 'issue',
-                                quantity: -it.qty,
-                                mechanicId: mechRow ? mechRow.id : null,
-                                bikeId: bikeRow ? bikeRow.id : null,
-                                referenceId,
-                                date: nowIso,
-                                notes: 'Technician issue from reports builder'
-                            };
-                        });
-
-                        try {
-                            const res = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
-                            if (!res || !res.success) throw new Error('Batch issue creation failed');
-                        } catch (batchErr) {
-                            for (const tx of payload) { await App.apiCall('/transactions', 'POST', tx); }
-                        }
-
-                        await App.loadData();
-                        this.syncData();
-                        this.generate();
-                        this.printTechnicianIssue(mech, itemsForTransaction);
-                        this.closeBuilderModal();
-                        return;
-                    } catch (e) {
-                        console.error('Reports: generateInvoiceFromBuilder (API mode) failed', e);
-                        alert(e.message || 'Failed to create technician issue via server.');
-                        return;
-                    }
-                }
-
                 try {
-                    const inventoryUpdates = [];
-                    const invByIdLocal = new Map((this.inventory || []).map(i => [String(i.id), i]));
-                    itemsForTransaction.forEach(it => {
-                        const item = invByIdLocal.get(String(it.productId));
-                        if (!item) return;
-                        const newStock = (Number(item.stock) || 0) - it.qty;
-                        if (newStock < 0) throw new Error(`Insufficient stock for "${item.name}".`);
-                        inventoryUpdates.push({ id: item.id, newStock });
-                    });
-                    inventoryUpdates.forEach(u => {
-                        const invItem = this.inventory.find(i => String(i.id) === String(u.id));
-                        if (invItem) invItem.stock = u.newStock;
-                    });
-                    localStorage.setItem(App.KEYS.INVENTORY, JSON.stringify(this.inventory));
+                    const allBikes = this.bikes || [];
+                    const allMechs = this.mechanics || [];
+                    const mechRow = allMechs.find(m => m && m.name === mech);
+                    const referenceId = 'INV-' + Date.now().toString();
+                    const nowIso = new Date().toISOString();
 
-                    const currentUser = (() => { try { return App.getCurrentUser(); } catch { return null; } })();
-                    const transaction = {
-                        id: Date.now() + Math.floor(Math.random() * 1000),
-                        date: new Date().toISOString(),
-                        type: 'issue',
-                        items: itemsForTransaction,
-                        total: itemsForTransaction.reduce((sum, p) => sum + p.total, 0),
-                        mechanic: mech,
-                        bike: Array.from(this.builderSelectedBikes).join(', '),
-                        status: 'completed',
-                        user: currentUser?.name || 'Unknown'
-                    };
-
-                    this.sales = JSON.parse(localStorage.getItem(App.KEYS.SALES)) || [];
-                    this.sales.push(transaction);
-                    localStorage.setItem(App.KEYS.SALES, JSON.stringify(this.sales));
-
-                    const currentMappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                    itemsForTransaction.forEach(it => {
-                        currentMappings.push({
-                            id: transaction.id + '_' + it.productId,
-                            issueId: 'INV-' + transaction.id,
+                    const payload = itemsForTransaction.map(it => {
+                        const bikePlate = (it.bikePlate || Array.from(this.builderSelectedBikes)[0] || '').toString();
+                        const bikeRow = allBikes.find(b => b && (b.plate === bikePlate || b.plate_number === bikePlate));
+                        return {
                             productId: it.productId,
-                            productName: it.name,
-                            mechanicName: mech,
-                            bikePlate: it.bikePlate || transaction.bike,
-                            quantity: it.qty,
-                            pickedDate: new Date().toISOString().split('T')[0],
-                            date: new Date().toISOString()
-                        });
+                            transactionType: 'issue',
+                            quantity: -it.qty,
+                            mechanicId: mechRow ? mechRow.id : null,
+                            bikeId: bikeRow ? bikeRow.id : null,
+                            referenceId,
+                            date: nowIso,
+                            notes: 'Technician issue from reports builder'
+                        };
                     });
-                    localStorage.setItem(App.KEYS.MAPPINGS, JSON.stringify(currentMappings));
 
+                    try {
+                        const res = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
+                        if (!res || !res.success) throw new Error('Batch issue creation failed');
+                    } catch (batchErr) {
+                        for (const tx of payload) { await App.apiCall('/transactions', 'POST', tx); }
+                    }
+
+                    await App.loadData();
+                    this.syncData();
+                    this.generate();
                     this.printTechnicianIssue(mech, itemsForTransaction);
                     this.closeBuilderModal();
-                    this.generate();
                 } catch (e) {
-                    console.error('Reports: generateInvoiceFromBuilder failed (local mode)', e);
-                    alert(e.message || 'Failed to generate invoice.');
+                    console.error('Reports: generateInvoiceFromBuilder failed', e);
+                    alert(e.message || 'Failed to create technician issue via server.');
                 }
             },
 
@@ -2199,6 +2116,7 @@
                         <div style="font-weight: bold; color: #6366f1;">Invoice #${transaction.id.toString().slice(-8).toUpperCase()}</div>
                         <div><strong>Date:</strong> ${new Date(transaction.date).toLocaleString()}</div>
                         <div><strong>Technician:</strong> ${transaction.mechanic || 'Not Specified'}</div>
+                        <div><strong>Bike Plate:</strong> ${transaction.bike || 'Not Specified'}</div>
                     </div>
                 `;
                 this.openPrintWindow('Tasslim Spare part inventory invoice', metaHtml, transaction.items || []);

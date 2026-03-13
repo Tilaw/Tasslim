@@ -78,9 +78,11 @@
                 <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> Bike History</a></li>
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> Suppliers</a></li>
                 <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> Mechanics</a></li>
-                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> Users</a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> Mechanic History</a>
                 </li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> Overtime</a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> Return Items</a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> Users</a></li>
                 <li><a href="riders.html" class="nav-link active"><i class="fas fa-id-card"></i> Riders Info</a></li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> Bikes</a></li>
                 <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> Reports</a></li>
@@ -192,25 +194,50 @@
             mappings: [],
             oilChanges: [],
 
-            init: function () {
-                this.loadData();
+            init: async function () {
+                await this.loadData();
                 this.renderList();
 
-                // Show admin-only elements
                 const user = App.getCurrentUser();
                 if (user && user.role === 'admin') {
                     document.querySelectorAll('.id-admin-only').forEach(el => el.style.display = 'inline-flex');
                 }
             },
 
-            loadData: function () {
-                this.riders = JSON.parse(localStorage.getItem('riders_info')) || [];
-                this.mappings = JSON.parse(localStorage.getItem(App.KEYS.MAPPINGS)) || [];
-                this.oilChanges = JSON.parse(localStorage.getItem(App.KEYS.OIL_CHANGES)) || [];
+            loadData: async function () {
+                const sales = App.getSales();
+                const issueSales = sales.filter(s => s.type === 'issue');
+                const mapped = [];
+                issueSales.forEach(tx => {
+                    (tx.items || []).forEach((item, idx) => {
+                        mapped.push({
+                            id: `${tx.id}_${item.productId || item.sku || idx}`,
+                            bikePlate: tx.bike,
+                            pickedDate: tx.date,
+                            date: tx.date,
+                            mechanicName: tx.mechanic,
+                            mechanic: tx.mechanic,
+                            quantity: item.qty,
+                            productName: item.name,
+                            sku: item.sku || ''
+                        });
+                    });
+                });
+                this.mappings = mapped;
+                this.oilChanges = App.getOilChanges();
+
+                try {
+                    const res = await App.apiCall('/riders', 'GET');
+                    this.riders = (res && res.success && Array.isArray(res.data)) ? res.data : [];
+                    this.riders.forEach(r => { r.plates = r.plates || ''; });
+                } catch (err) {
+                    console.error('Riders load failed', err);
+                    this.riders = [];
+                }
             },
 
-            saveRider: function () {
-                const id = document.getElementById('riderId').value;
+            saveRider: async function () {
+                const id = document.getElementById('riderId').value.trim();
                 const name = document.getElementById('rName').value.trim();
                 const phone = document.getElementById('rPhone').value.trim();
                 const plates = document.getElementById('rPlates').value.trim();
@@ -220,22 +247,21 @@
                     return;
                 }
 
-                if (id) {
-                    const idx = this.riders.findIndex(r => r.id == id);
-                    this.riders[idx] = { ...this.riders[idx], name, phone, plates };
-                } else {
-                    this.riders.push({
-                        id: Date.now(),
-                        name,
-                        phone,
-                        plates
-                    });
+                try {
+                    if (id) {
+                        const res = await App.apiCall('/riders/' + id, 'PATCH', { name, phone, plates });
+                        if (!res || !res.success) throw new Error(res && res.error || 'Update failed');
+                    } else {
+                        const res = await App.apiCall('/riders', 'POST', { name, phone, plates });
+                        if (!res || !res.success) throw new Error(res && res.error || 'Create failed');
+                    }
+                    await this.loadData();
+                    this.closeModal();
+                    this.renderList();
+                    App.showToast('Rider saved successfully');
+                } catch (e) {
+                    App.showToast(e.message || 'Failed to save rider', 'error');
                 }
-
-                localStorage.setItem('riders_info', JSON.stringify(this.riders));
-                App.showToast('Rider information saved');
-                this.closeModal();
-                this.renderList();
             },
 
             renderList: function () {
@@ -244,35 +270,36 @@
                 container.innerHTML = '';
 
                 const filtered = this.riders.filter(r =>
-                    r.name.toLowerCase().includes(query) ||
-                    r.plates.toLowerCase().includes(query) ||
-                    r.phone.includes(query)
+                    (r.name || '').toLowerCase().includes(query) ||
+                    (r.plates || '').toLowerCase().includes(query) ||
+                    (r.phone || '').includes(query)
                 );
 
                 filtered.forEach(rider => {
                     const card = document.createElement('div');
                     card.className = 'col-md-4';
+                    const safeId = (rider.id || '').toString().replace(/'/g, "\\'");
+                    const platesStr = (rider.plates || '').trim();
+                    const platesHtml = platesStr ? platesStr.split(',').map(p => `<span class="plate-badge">${p.trim()}</span>`).join(' ') : '';
                     card.innerHTML = `
                         <div class="rider-card">
                             <div style="display: flex; justify-content: space-between; align-items: start;">
                                 <div>
-                                    <h3 style="margin: 0; color: #1e293b;">${rider.name}</h3>
+                                    <h3 style="margin: 0; color: #1e293b;">${(rider.name || '').replace(/</g, '&lt;')}</h3>
                                     <div style="color: #64748b; font-size: 0.9rem; margin-top: 5px;">
-                                        <i class="fas fa-phone"></i> ${rider.phone}
+                                        <i class="fas fa-phone"></i> ${(rider.phone || '').replace(/</g, '&lt;')}
                                     </div>
                                 </div>
                                 <div class="dropdown">
-                                    <button class="btn btn-sm btn-secondary" onclick="RiderManager.editRider(${rider.id})"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-secondary" onclick="RiderManager.editRider('${safeId}')"><i class="fas fa-edit"></i></button>
                                 </div>
                             </div>
-                            <div style="margin-top: 15px;">
-                                ${rider.plates.split(',').map(p => `<span class="plate-badge">${p.trim()}</span>`).join(' ')}
-                            </div>
+                            <div style="margin-top: 15px;">${platesHtml}</div>
                             <div style="margin-top: 20px; border-top: 1px solid #f1f5f9; pt: 15px; display: flex; gap: 10px;">
-                                <button class="btn btn-outline-primary btn-sm" style="flex: 1;" onclick="RiderManager.openReport(${rider.id})">
+                                <button class="btn btn-outline-primary btn-sm" style="flex: 1;" onclick="RiderManager.openReport('${safeId}')">
                                     <i class="fas fa-file-alt"></i> Report
                                 </button>
-                                <button class="btn btn-outline-danger btn-sm" onclick="RiderManager.deleteRider(${rider.id})">
+                                <button class="btn btn-outline-danger btn-sm" onclick="RiderManager.deleteRider('${safeId}')">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
@@ -304,22 +331,29 @@
             },
 
             editRider: function (id) {
-                const rider = this.riders.find(r => r.id == id);
+                const rider = this.riders.find(r => String(r.id) === String(id));
                 this.openModal(rider);
             },
 
-            deleteRider: function (id) {
+            deleteRider: async function (id) {
                 if (!confirm('Are you sure you want to delete this rider?')) return;
-                this.riders = this.riders.filter(r => r.id != id);
-                localStorage.setItem('riders_info', JSON.stringify(this.riders));
-                this.renderList();
+                try {
+                    const res = await App.apiCall('/riders/' + encodeURIComponent(id), 'DELETE');
+                    if (!res || !res.success) throw new Error(res && res.error || 'Delete failed');
+                    await this.loadData();
+                    this.renderList();
+                    App.showToast('Rider deleted');
+                } catch (e) {
+                    App.showToast(e.message || 'Failed to delete rider', 'error');
+                }
             },
 
             openReport: function (id) {
                 const user = App.getCurrentUser();
                 const isStaff = user && user.role === 'staff';
-                const rider = this.riders.find(r => r.id == id);
-                const plates = rider.plates.split(',').map(p => p.trim());
+                const rider = this.riders.find(r => String(r.id) === String(id));
+                if (!rider) return;
+                const plates = (rider.plates || '').split(',').map(p => p.trim()).filter(Boolean);
 
                 // Get maintenance history
                 const riderMappings = this.mappings.filter(m =>
@@ -344,7 +378,7 @@
                         </div>
                         <div style="text-align: right;">
                             <small style="text-transform: uppercase; color: #94a3b8; font-weight: 700;">Mapped Bikes</small>
-                            <div style="font-weight: 700;">${rider.plates}</div>
+                            <div style="font-weight: 700;">${rider.plates || '—'}</div>
                         </div>
                     </div>
 
@@ -406,12 +440,12 @@
                 document.getElementById('reportModal').classList.remove('open');
             },
 
-            handleExcel: function (e) {
+            handleExcel: async function (e) {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
-                reader.onload = (evt) => {
+                reader.onload = async (evt) => {
                     const data = new Uint8Array(evt.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
                     const sheetName = workbook.SheetNames[0];
@@ -420,52 +454,44 @@
 
                     if (json.length === 0) {
                         App.showToast('Excel file is empty', 'warning');
+                        document.getElementById('excelRiderFile').value = '';
                         return;
                     }
 
                     let addedCount = 0;
-                    json.forEach((row, index) => {
-                        // Skip header if it exists but usually it starts from data in this format
-                        if (!row || row.length < 2) return;
-
-                        // Columns from Screenshot:
-                        // A (0) -> Phone
-                        // B (1) -> Plate / Code
-                        // C (2) -> Rider name
+                    for (const row of json) {
+                        if (!row || row.length < 2) continue;
                         const phone = (row[0] || '').toString().trim();
                         const plates = (row[1] || '').toString().trim();
                         const name = (row[2] || 'Excel Rider').toString().trim();
-
-                        if (phone && plates) {
-                            this.riders.push({
-                                id: Date.now() + Math.random(),
-                                name: name,
-                                phone: phone,
-                                plates: plates,
-                                imported: true
-                            });
-                            addedCount++;
+                        if (!phone || !plates) continue;
+                        try {
+                            const res = await App.apiCall('/riders', 'POST', { name, phone, plates, imported: true });
+                            if (res && res.success) addedCount++;
+                        } catch (err) {
+                            console.error('Rider import row failed', err);
                         }
-                    });
+                    }
 
-                    localStorage.setItem('riders_info', JSON.stringify(this.riders));
-                    App.showToast(`Imported ${addedCount} riders from Excel`);
+                    await this.loadData();
                     this.renderList();
                     document.getElementById('excelRiderFile').value = '';
+                    App.showToast(`Imported ${addedCount} riders from Excel`);
                 };
                 reader.readAsArrayBuffer(file);
             },
 
-            deleteAllImported: function () {
-                if (!confirm('Are you sure you want to delete ALL recently added Excel riders?')) return;
-                
-                const initialCount = this.riders.length;
-                this.riders = this.riders.filter(r => !r.imported);
-                const deletedCount = initialCount - this.riders.length;
-
-                localStorage.setItem('riders_info', JSON.stringify(this.riders));
-                App.showToast(`Deleted ${deletedCount} imported riders.`);
-                this.renderList();
+            deleteAllImported: async function () {
+                if (!confirm('Are you sure you want to delete ALL imported riders?')) return;
+                try {
+                    const res = await App.apiCall('/riders/imported/all', 'DELETE');
+                    const count = (res && res.success && res.data && res.data.deletedCount) ? res.data.deletedCount : 0;
+                    await this.loadData();
+                    this.renderList();
+                    App.showToast(`Deleted ${count} imported riders.`);
+                } catch (e) {
+                    App.showToast(e.message || 'Failed to delete imported riders', 'error');
+                }
             }
         };
 

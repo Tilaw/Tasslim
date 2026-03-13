@@ -10,4 +10,15 @@ export class ReportsController {
             next(error);
         }
     }
+
+    static async getMechanicOvertime(req: Request, res: Response, next: NextFunction) {
+        try {
+            const mechanicId = (req.query.mechanicId || req.query.mechanic_id) as string;
+            const date = (req.query.date || '') as string;
+            const result = await ReportsService.getMechanicOvertime(mechanicId, date);
+            res.json({ success: true, data: result });
+        } catch (error) {
+            next(error);
+        }
+    }
 }

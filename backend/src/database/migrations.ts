@@ -153,6 +153,32 @@ export async function migrate() {
             FOREIGN KEY (bike_id) REFERENCES bikes(id) ON DELETE SET NULL
         );
 
+        -- Oil Change Records
+        CREATE TABLE IF NOT EXISTS oil_changes (
+            id VARCHAR(36) PRIMARY KEY,
+            bike_id VARCHAR(36) NOT NULL,
+            mechanic_id VARCHAR(36) NULL,
+            change_date DATETIME NOT NULL,
+            oil_type VARCHAR(100) NOT NULL,
+            mileage INT NOT NULL,
+            rider_name VARCHAR(100),
+            rider_phone VARCHAR(50),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (bike_id) REFERENCES bikes(id) ON DELETE CASCADE,
+            FOREIGN KEY (mechanic_id) REFERENCES mechanics(id) ON DELETE SET NULL
+        );
+
+        -- Riders (master data: name, phone, mapped bike plates)
+        CREATE TABLE IF NOT EXISTS riders (
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            phone VARCHAR(50) NOT NULL,
+            plates TEXT,
+            imported TINYINT(1) DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+
         -- Refresh Tokens
         CREATE TABLE IF NOT EXISTS refresh_tokens (
             id INT PRIMARY KEY AUTO_INCREMENT,

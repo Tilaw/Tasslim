@@ -14,6 +14,8 @@ import { transactionRoutes } from './modules/transactions/transactions.routes.js
 import { mechanicRoutes } from './modules/mechanics/mechanics.routes.js';
 import { bikeRoutes } from './modules/bikes/bikes.routes.js';
 import { reportRoutes } from './modules/reports/reports.routes.js';
+import { oilChangeRoutes } from './modules/oil-changes/oil-changes.routes.js';
+import { riderRoutes } from './modules/riders/riders.routes.js';
 import { migrationRoutes } from './modules/system/migration.routes.js';
 import { issueContextRoutes } from './modules/issue-context/issue-context.routes.js';
 
@@ -64,6 +66,8 @@ app.use('/api/v1/bikes', bikeRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/migration', migrationRoutes);
 app.use('/api/v1/issue-context', issueContextRoutes);
+app.use('/api/v1/oil-changes', oilChangeRoutes);
+app.use('/api/v1/riders', riderRoutes);
 
 // Catch-all for API 404s (matches any /api/v1 route not handled above)
 app.use('/api/v1', notFoundHandler);

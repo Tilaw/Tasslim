@@ -38,6 +38,8 @@
                             data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -272,7 +274,7 @@
             },
 
             loadData: function () {
-                this.data = JSON.parse(localStorage.getItem(App.KEYS.BIKES)) || [];
+                this.data = App.getBikes();
             },
 
             setLocationFilter: function (location) {
@@ -371,30 +373,14 @@
                 };
 
                 try {
-                    const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                    const endpoint = isEdit ? `/bikes/${id}` : '/bikes';
+                    const method = isEdit ? 'PATCH' : 'POST';
+                    const result = await App.apiCall(endpoint, method, bike);
 
-                    if (isMigrated) {
-                        const endpoint = isEdit ? `/bikes/${id}` : '/bikes';
-                        const method = isEdit ? 'PATCH' : 'POST';
-                        const result = await App.apiCall(endpoint, method, bike);
+                    if (!result.success) throw new Error(result.error || 'Failed to save to server');
 
-                        if (!result.success) throw new Error(result.error || 'Failed to save to server');
-
-                        // After successful API call, we need to refresh local data
-                        await App.loadData();
-                        this.loadData();
-                    } else {
-                        // Local-only mode
-                        const localBike = { ...bike, id: isEdit ? (isNaN(id) ? id : parseInt(id)) : Date.now() };
-                        if (isEdit) {
-                            const index = this.data.findIndex(b => b.id?.toString() === id.toString());
-                            if (index !== -1) this.data[index] = localBike;
-                        } else {
-                            this.data.push(localBike);
-                        }
-                        localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
-                    }
-
+                    await App.loadData();
+                    this.loadData();
                     this.renderTable();
                     this.closeModal();
                     App.showToast('Bike saved successfully');
@@ -426,19 +412,11 @@
             delete: async function (id) {
                 if (confirm('Are you sure?')) {
                     try {
-                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
+                        const result = await App.apiCall(`/bikes/${id}`, 'DELETE');
+                        if (!result.success) throw new Error(result.error || 'Failed to delete from server');
 
-                        if (isMigrated) {
-                            const result = await App.apiCall(`/bikes/${id}`, 'DELETE');
-                            if (!result.success) throw new Error(result.error || 'Failed to delete from server');
-
-                            await App.loadData();
-                            this.loadData();
-                        } else {
-                            this.data = this.data.filter(b => b.id?.toString() !== id.toString());
-                            localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
-                        }
-
+                        await App.loadData();
+                        this.loadData();
                         this.renderTable();
                         App.showToast('Bike deleted', 'error');
                     } catch (error) {
@@ -521,8 +499,6 @@
                         let addedCount = 0;
                         let duplicateCount = 0;
 
-                        const isMigrated = localStorage.getItem(App.KEYS.DB_MIGRATED) === 'true';
-
                         for (const row of jsonData) {
                             const plateVal = this.findKey(row, ['PlateNo', 'Plate NO', 'plate', 'Plate Number', 'Plate', 'Number', 'Reg No']);
                             const plate = (plateVal || '').toString().trim();
@@ -547,23 +523,16 @@
                                 accident: ''
                             };
 
-                            if (isMigrated) {
-                                try {
-                                    const res = await App.apiCall('/bikes', 'POST', bike);
-                                    if (res.success) addedCount++;
-                                } catch (err) {
-                                    console.error('Import row failed:', err);
-                                }
-                            } else {
-                                this.data.push({ ...bike, id: Date.now() + Math.floor(Math.random() * 1000) });
-                                addedCount++;
+                            try {
+                                const res = await App.apiCall('/bikes', 'POST', bike);
+                                if (res && res.success) addedCount++;
+                            } catch (err) {
+                                console.error('Import row failed', err);
                             }
                         }
 
                         if (addedCount > 0) {
-                            if (!isMigrated) localStorage.setItem(App.KEYS.BIKES, JSON.stringify(this.data));
-                            else await App.loadData(); // Sync from server
-
+                            await App.loadData();
                             this.loadData();
                             this.renderTable();
                             let msg = `Successfully imported ${addedCount} bikes.`;

@@ -214,6 +214,8 @@
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
                 </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span>Bikes</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span>Reports</span></a>
                 </li>
                 <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span>Settings</span></a></li>
@@ -458,7 +460,7 @@
             },
 
             loadInventory: function () {
-                this.inventory = JSON.parse(localStorage.getItem(App.KEYS.INVENTORY)) || [];
+                this.inventory = App.getInventory();
             },
 
             handleSearch: function (query) {

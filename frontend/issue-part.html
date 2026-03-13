@@ -434,6 +434,8 @@
                             data-i18n="mechanics">Mechanics</span></a></li>
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -1206,8 +1208,10 @@
                 if (!container) return;
                 container.innerHTML = '';
 
-                // Get issuance sales records
-                const history = [...this.sales].filter(s => s.type === 'issue').reverse().slice(0, 15);
+                // Get all issuance sales records, newest first so present issues are at the top
+                const history = [...this.sales]
+                    .filter(s => s.type === 'issue')
+                    .sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 if (history.length === 0) {
                     container.innerHTML = '<div style="text-align:center; color:#94a3b8; padding:40px; background:white; border-radius:16px;">No recent issuances found.</div>';
@@ -1313,8 +1317,11 @@
                 dateSpan.textContent = new Date().toLocaleString();
                 tbody.innerHTML = '';
 
-                // For report, we use server-backed sales to show each part itemized
-                [...this.sales].slice().reverse().forEach(tx => {
+                // For report, we use server-backed sales to show each part itemized (newest first)
+                [...this.sales]
+                    .slice()
+                    .sort((a, b) => new Date(b.date) - new Date(a.date))
+                    .forEach(tx => {
                     (tx.items || []).forEach(it => {
                         const row = document.createElement('tr');
                         row.innerHTML = `
