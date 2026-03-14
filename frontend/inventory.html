@@ -38,7 +38,8 @@
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
-                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return
+                            Items</span></a></li>
                 <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
                             data-i18n="users">Users</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
@@ -167,7 +168,9 @@
 
                 <style>
                     @media (max-width: 768px) {
-                        #inventoryMobileList { display: block !important; }
+                        #inventoryMobileList {
+                            display: block !important;
+                        }
                     }
                 </style>
 
@@ -280,7 +283,8 @@
 
     <!-- Duplicate Pick Modal removed in favor of issue-part.html -->
 
-    <script src="js/config.js"></script><script src="js/app.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js?v=1.1"></script>
     <!-- Excel import library for Inventory Import/Template buttons -->
     <!-- Use SheetJS official CDN (more reliable than some CDN mirrors that may return truncated responses). -->
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
@@ -348,16 +352,41 @@
             loadData: async function () {
                 // Always load from API (no local/demo inventory mode)
                 try {
-                    const [pData, sData] = await Promise.all([
+                    const [pData, sData, tData] = await Promise.all([
                         App.apiCall('/products', 'GET'),
-                        App.apiCall('/suppliers', 'GET')
+                        App.apiCall('/suppliers', 'GET'),
+                        App.apiCall('/transactions', 'GET')
                     ]);
 
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this.suppliers = (sData && sData.success && Array.isArray(sData.data)) ? sData.data : [];
 
-                    this.sales = App.getSales();
+                    if (tData && tData.success && Array.isArray(tData.data)) {
+                        const transactions = tData.data;
+                        const groups = {};
+                        transactions.forEach(t => {
+                            const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
+                            if (!groups[key]) {
+                                groups[key] = {
+                                    id: t.reference_id || t.id,
+                                    date: t.created_at,
+                                    type: t.transaction_type,
+                                    items: [],
+                                };
+                            }
+                            groups[key].items.push({
+                                productId: t.product_id,
+                                name: t.product_name,
+                                sku: t.product_sku,
+                                qty: Math.abs(t.quantity),
+                            });
+                        });
+                        this.sales = Object.values(groups);
+                    } else {
+                        this.sales = [];
+                    }
                 } catch (err) {
+                    console.error('[Inventory Data Load Error]:', err);
                     const status = err && err.status ? err.status : null;
                     const msg = err && err.message ? err.message : '';
                     if (status === 401) {
@@ -365,10 +394,10 @@
                         window.location.href = 'index.html';
                         return;
                     }
-                    App.showToast(msg || 'Failed to load inventory from server', 'error');
-                    this.data = [];
-                    this.suppliers = [];
-                    this.sales = App.getSales();
+                    App.showToast('Some inventory data (like transactions) failed to load. ' + (msg || ''), 'warning');
+                    this.data = this.data || [];
+                    this.suppliers = this.suppliers || [];
+                    this.sales = this.sales || [];
                 }
             },
 

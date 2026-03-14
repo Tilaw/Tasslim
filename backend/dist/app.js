@@ -18,6 +18,7 @@ const mechanics_routes_js_1 = require("./modules/mechanics/mechanics.routes.js")
 const bikes_routes_js_1 = require("./modules/bikes/bikes.routes.js");
 const reports_routes_js_1 = require("./modules/reports/reports.routes.js");
 const oil_changes_routes_js_1 = require("./modules/oil-changes/oil-changes.routes.js");
+const riders_routes_js_1 = require("./modules/riders/riders.routes.js");
 const migration_routes_js_1 = require("./modules/system/migration.routes.js");
 const issue_context_routes_js_1 = require("./modules/issue-context/issue-context.routes.js");
 const logger_js_1 = require("./utils/logger.js");
@@ -60,6 +61,7 @@ app.use('/api/v1/reports', reports_routes_js_1.reportRoutes);
 app.use('/api/v1/migration', migration_routes_js_1.migrationRoutes);
 app.use('/api/v1/issue-context', issue_context_routes_js_1.issueContextRoutes);
 app.use('/api/v1/oil-changes', oil_changes_routes_js_1.oilChangeRoutes);
+app.use('/api/v1/riders', riders_routes_js_1.riderRoutes);
 // Catch-all for API 404s (matches any /api/v1 route not handled above)
 app.use('/api/v1', error_middleware_js_1.notFoundHandler);
 // Serve Static Frontend Files

@@ -182,6 +182,17 @@ function migrate() {
             FOREIGN KEY (mechanic_id) REFERENCES mechanics(id) ON DELETE SET NULL
         );
 
+        -- Riders (master data: name, phone, mapped bike plates)
+        CREATE TABLE IF NOT EXISTS riders (
+            id VARCHAR(36) PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            phone VARCHAR(50) NOT NULL,
+            plates TEXT,
+            imported TINYINT(1) DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+
         -- Refresh Tokens
         CREATE TABLE IF NOT EXISTS refresh_tokens (
             id INT PRIMARY KEY AUTO_INCREMENT,
