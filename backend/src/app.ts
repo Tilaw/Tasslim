@@ -18,6 +18,7 @@ import { oilChangeRoutes } from './modules/oil-changes/oil-changes.routes.js';
 import { riderRoutes } from './modules/riders/riders.routes.js';
 import { migrationRoutes } from './modules/system/migration.routes.js';
 import { issueContextRoutes } from './modules/issue-context/issue-context.routes.js';
+import { passingLogsRoutes } from './modules/passing-logs/passing-logs.routes.js';
 
 import { logger } from './utils/logger.js';
 import { errorMiddleware, notFoundHandler } from './middleware/error.middleware.js';
@@ -68,6 +69,7 @@ app.use('/api/v1/migration', migrationRoutes);
 app.use('/api/v1/issue-context', issueContextRoutes);
 app.use('/api/v1/oil-changes', oilChangeRoutes);
 app.use('/api/v1/riders', riderRoutes);
+app.use('/api/v1/passing-logs', passingLogsRoutes);
 
 // Catch-all for API 404s (matches any /api/v1 route not handled above)
 app.use('/api/v1', notFoundHandler);

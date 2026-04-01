@@ -84,6 +84,9 @@
                             Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing Bike</span></a></li>
+                <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i> <span>Passing IN/Out Bike</span></a></li>
                 <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
                             data-i18n="oilChange">Oil Change</span></a></li>
                 <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
@@ -157,6 +160,13 @@
                         </div>
 
                         <div class="form-group">
+                            <label class="form-label">Search part by name</label>
+                            <input type="search" id="returnPartSearch" class="form-control"
+                                placeholder="Type to find a part…" autocomplete="off"
+                                oninput="ReturnPage.filterProductSelect()">
+                        </div>
+
+                        <div class="form-group">
                             <label class="form-label">Item</label>
                             <select id="productSelect" class="form-control">
                                 <option value="">Select item...</option>
@@ -200,8 +210,9 @@
                             <h3 style="margin:0;">Recent Returns</h3>
                             <span class="recent-tag">Last 30 records</span>
                         </div>
-                        <div class="form-group" style="margin:0;max-width:220px;">
-                            <input type="text" id="searchReturns" class="form-control" placeholder="Search item/source..."
+                        <div class="form-group" style="margin:0;max-width:280px;">
+                            <input type="search" id="searchReturns" class="form-control"
+                                placeholder="Search returns by part name or source…"
                                 oninput="ReturnPage.filterTable()">
                         </div>
                     </div>
@@ -257,6 +268,8 @@
 
                     this.renderSources();
                     this.renderProducts();
+                    const ps = document.getElementById('returnPartSearch');
+                    if (ps) ps.value = '';
                     this.renderTable();
                 } catch (err) {
                     console.error('Return page init failed', err);
@@ -285,10 +298,19 @@
                 });
             },
 
-            renderProducts() {
+            renderProducts(filterText) {
                 const select = document.getElementById('productSelect');
+                const prev = select.value;
+                const q = (filterText !== undefined && filterText !== null)
+                    ? String(filterText).toLowerCase().trim()
+                    : '';
                 select.innerHTML = '<option value=\"\">Select item...</option>';
-                this.products.forEach(p => {
+                const list = !q
+                    ? this.products
+                    : this.products.filter(p =>
+                        (p.name || '').toLowerCase().includes(q) ||
+                        (p.sku || '').toLowerCase().includes(q));
+                list.forEach(p => {
                     const stock = (typeof p.stock === 'number') ? p.stock : (p.quantity || 0);
                     const label = `${p.name} (${p.sku || 'N/A'}) - Stock: ${stock}`;
                     const opt = document.createElement('option');
@@ -296,6 +318,14 @@
                     opt.textContent = label;
                     select.appendChild(opt);
                 });
+                if (prev && list.some(p => String(p.id) === String(prev))) {
+                    select.value = prev;
+                }
+            },
+
+            filterProductSelect() {
+                const el = document.getElementById('returnPartSearch');
+                this.renderProducts(el ? el.value : '');
             },
 
             async submitReturn() {
