@@ -193,6 +193,30 @@ function migrate() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         );
 
+        -- Dubai manual bike part lines (bikes not in system — log only, no inventory link)
+        CREATE TABLE IF NOT EXISTS dubai_manual_part_entries (
+            id VARCHAR(36) PRIMARY KEY,
+            bike_number VARCHAR(100) NOT NULL,
+            part_name VARCHAR(255) NOT NULL,
+            quantity INT NOT NULL DEFAULT 1,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Rider check-in / check-out log at gate
+        CREATE TABLE IF NOT EXISTS rider_bike_movements (
+            id VARCHAR(36) PRIMARY KEY,
+            bike_number VARCHAR(100) NOT NULL,
+            phone VARCHAR(50),
+            rider_name VARCHAR(150),
+            rider_id VARCHAR(100),
+            city VARCHAR(100),
+            company VARCHAR(150),
+            movement_date DATE NOT NULL,
+            movement_time VARCHAR(32),
+            direction VARCHAR(10) NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+
         -- Refresh Tokens
         CREATE TABLE IF NOT EXISTS refresh_tokens (
             id INT PRIMARY KEY AUTO_INCREMENT,

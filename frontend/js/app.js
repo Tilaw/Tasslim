@@ -109,6 +109,7 @@ const App = {
                 if (response.status === 401) {
                     this._setSession(null);
                     if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
+                        alert('401 Error on endpoint: ' + endpoint + '\\nResponse text: ' + await response.text().catch(e => 'No text'));
                         this.showToast('Session expired. Please sign in again.', 'error');
                         window.location.href = 'index.html';
                         return;

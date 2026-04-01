@@ -533,6 +533,9 @@
                 <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span data-i18n="inventory">Inventory</span></a></li>
                 <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing Bike</span></a></li>
+                <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i> <span>Passing IN/Out Bike</span></a></li>
                 <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span data-i18n="oilChange">Oil Change</span></a></li>
                 <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span data-i18n="bikeHistory">Bike History</span></a></li>
                 <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span data-i18n="suppliers">Suppliers</span></a></li>
@@ -755,6 +758,23 @@
                             </div>
                         </div>
 
+                        <!-- Out of Stock (printable) -->
+                        <div class="dash-card">
+                            <div class="dash-card-header">
+                                <div class="dash-card-title">
+                                    <span class="title-dot" style="background:#991b1b;"></span>
+                                    Out of Stock
+                                </div>
+                                <button type="button" class="btn" onclick="Dashboard.printOutOfStock()"
+                                    style="padding:8px 14px; font-size:0.8rem; border-radius:10px; background:#111827; color:#fff; border:none; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                                    <i class="fas fa-print"></i> Print list
+                                </button>
+                            </div>
+                            <div class="dash-card-body" style="padding-top: 8px; padding-bottom: 8px;">
+                                <ul id="outOfStockList"></ul>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -792,6 +812,7 @@
             inventory: [],
             sales: [],
             issuedTotals: {},
+            outOfStockItems: [],
 
             init: async function () {
                 await App.init();
@@ -824,6 +845,9 @@
 
                 this.renderRecentSales(normalSales);
                 this.renderLowStock(lowStockItems);
+                const outOfStockItems = this.inventory.filter(item => (Number(item.stock) || 0) <= 0);
+                this.outOfStockItems = outOfStockItems;
+                this.renderOutOfStock(outOfStockItems);
                 const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
                 this.renderRecentAdditions(additions);
 
@@ -903,6 +927,63 @@
                         </li>
                     `;
                 }).join('');
+            },
+
+            renderOutOfStock: function (items) {
+                const list = document.getElementById('outOfStockList');
+                if (!list) return;
+                if (!items || items.length === 0) {
+                    list.innerHTML = `<li style="padding:14px 0; display:flex; align-items:center; gap:8px; color:#10b981; font-size:0.875rem; font-weight:600;"><i class="fas fa-check-circle"></i> No parts are completely out of stock.</li>`;
+                    return;
+                }
+                list.innerHTML = items.map(item => `
+                    <li class="low-stock-item">
+                        <div>
+                            <div class="low-stock-name">${item.name}</div>
+                            <div class="low-stock-sku">${item.sku || ''}</div>
+                        </div>
+                        <span class="stock-pill out">✕ No Stock</span>
+                    </li>
+                `).join('');
+            },
+
+            printOutOfStock: function () {
+                const items = this.outOfStockItems || [];
+                const title = 'Out of Stock — Tasslim Parts Manager';
+                const dateStr = new Date().toLocaleString();
+                let rows = '';
+                if (items.length === 0) {
+                    rows = '<tr><td colspan="3">No parts are out of stock.</td></tr>';
+                } else {
+                    rows = items.map((item, i) => `
+                        <tr>
+                            <td>${i + 1}</td>
+                            <td>${String(item.name || '').replace(/</g, '&lt;')}</td>
+                            <td>${String(item.sku || '').replace(/</g, '&lt;')}</td>
+                        </tr>
+                    `).join('');
+                }
+                const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+                    <style>
+                        body { font-family: system-ui, sans-serif; padding: 24px; color: #111; }
+                        h1 { font-size: 1.25rem; margin: 0 0 8px; }
+                        .meta { color: #666; font-size: 0.9rem; margin-bottom: 20px; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th, td { border: 1px solid #ccc; padding: 8px 10px; text-align: left; }
+                        th { background: #f4f4f5; }
+                    </style></head><body>
+                    <h1>${title}</h1>
+                    <div class="meta">Printed: ${dateStr} · ${items.length} part(s)</div>
+                    <table><thead><tr><th>#</th><th>Part name</th><th>SKU</th></tr></thead><tbody>${rows}</tbody></table>
+                    <script>window.onload=function(){window.print();}<\/script>
+                    </body></html>`;
+                const w = window.open('', '_blank');
+                if (w) {
+                    w.document.write(html);
+                    w.document.close();
+                } else {
+                    alert('Allow pop-ups to print, or use your browser print dialog on this page.');
+                }
             },
 
             renderRecentAdditions: function (additions) {
