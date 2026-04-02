@@ -139,7 +139,15 @@ export class AuthService {
 
     static async updateUser(
         id: string,
-        updates: { email?: string; password?: string; currentPassword?: string },
+        updates: {
+            email?: string;
+            password?: string;
+            currentPassword?: string;
+            name?: string;
+            firstName?: string;
+            lastName?: string;
+            role?: string;
+        },
         actor: { userId: string; role: string }
     ) {
         const isSelf = actor.userId === id;
@@ -171,6 +179,38 @@ export class AuthService {
         const nextEmail = (updates.email ?? user.email)?.toString().trim();
         const nextPassword = updates.password?.toString();
         const currentPassword = updates.currentPassword?.toString();
+
+        let nextFirstName: string | undefined;
+        let nextLastName: string | undefined;
+        if (updates.name !== undefined && updates.name.trim()) {
+            const parts = updates.name.trim().split(/\s+/);
+            nextFirstName = parts[0] || 'User';
+            nextLastName = parts.slice(1).join(' ') || '';
+        } else if (updates.firstName !== undefined || updates.lastName !== undefined) {
+            nextFirstName = updates.firstName ?? user.first_name;
+            nextLastName = updates.lastName ?? user.last_name ?? '';
+        }
+
+        let nextRoleId: string | null | undefined;
+        if (updates.role !== undefined) {
+            if (!isElevated) {
+                const err: any = new Error('Only administrators can change roles');
+                err.status = 403;
+                err.code = 'FORBIDDEN';
+                throw err;
+            }
+            const [roleRows]: any = await pool.execute(
+                'SELECT id FROM roles WHERE name = ? OR name = ?',
+                [updates.role, updates.role === 'admin' ? 'super_admin' : updates.role]
+            );
+            if (!roleRows[0]) {
+                const err: any = new Error('Invalid role');
+                err.status = 400;
+                err.code = 'VALIDATION_ERROR';
+                throw err;
+            }
+            nextRoleId = roleRows[0].id;
+        }
 
         if (updates.email !== undefined) {
             if (!nextEmail) {
@@ -224,11 +264,17 @@ export class AuthService {
             `UPDATE users
              SET email = COALESCE(?, email),
                  password_hash = COALESCE(?, password_hash),
+                 first_name = COALESCE(?, first_name),
+                 last_name = COALESCE(?, last_name),
+                 role_id = COALESCE(?, role_id),
                  updated_at = NOW()
              WHERE id = ?`,
             [
                 updates.email !== undefined ? nextEmail : null,
                 passwordHash !== undefined ? passwordHash : null,
+                nextFirstName !== undefined ? nextFirstName : null,
+                nextLastName !== undefined ? nextLastName : null,
+                nextRoleId !== undefined ? nextRoleId : null,
                 id,
             ]
         );

@@ -120,7 +120,7 @@ class AuthService {
     }
     static updateUser(id, updates, actor) {
         return __awaiter(this, void 0, void 0, function* () {
-            var _a, _b, _c, _d;
+            var _a, _b, _c, _d, _e, _f, _g;
             const isSelf = actor.userId === id;
             const elevated = new Set(['admin', 'super_admin']);
             const isElevated = elevated.has(actor.role);
@@ -144,6 +144,34 @@ class AuthService {
             const nextEmail = (_b = ((_a = updates.email) !== null && _a !== void 0 ? _a : user.email)) === null || _b === void 0 ? void 0 : _b.toString().trim();
             const nextPassword = (_c = updates.password) === null || _c === void 0 ? void 0 : _c.toString();
             const currentPassword = (_d = updates.currentPassword) === null || _d === void 0 ? void 0 : _d.toString();
+            let nextFirstName;
+            let nextLastName;
+            if (updates.name !== undefined && updates.name.trim()) {
+                const parts = updates.name.trim().split(/\s+/);
+                nextFirstName = parts[0] || 'User';
+                nextLastName = parts.slice(1).join(' ') || '';
+            }
+            else if (updates.firstName !== undefined || updates.lastName !== undefined) {
+                nextFirstName = (_e = updates.firstName) !== null && _e !== void 0 ? _e : user.first_name;
+                nextLastName = (_g = (_f = updates.lastName) !== null && _f !== void 0 ? _f : user.last_name) !== null && _g !== void 0 ? _g : '';
+            }
+            let nextRoleId;
+            if (updates.role !== undefined) {
+                if (!isElevated) {
+                    const err = new Error('Only administrators can change roles');
+                    err.status = 403;
+                    err.code = 'FORBIDDEN';
+                    throw err;
+                }
+                const [roleRows] = yield db_js_1.pool.execute('SELECT id FROM roles WHERE name = ? OR name = ?', [updates.role, updates.role === 'admin' ? 'super_admin' : updates.role]);
+                if (!roleRows[0]) {
+                    const err = new Error('Invalid role');
+                    err.status = 400;
+                    err.code = 'VALIDATION_ERROR';
+                    throw err;
+                }
+                nextRoleId = roleRows[0].id;
+            }
             if (updates.email !== undefined) {
                 if (!nextEmail) {
                     const err = new Error('Email or username is required');
@@ -189,10 +217,16 @@ class AuthService {
             yield db_js_1.pool.execute(`UPDATE users
              SET email = COALESCE(?, email),
                  password_hash = COALESCE(?, password_hash),
+                 first_name = COALESCE(?, first_name),
+                 last_name = COALESCE(?, last_name),
+                 role_id = COALESCE(?, role_id),
                  updated_at = NOW()
              WHERE id = ?`, [
                 updates.email !== undefined ? nextEmail : null,
                 passwordHash !== undefined ? passwordHash : null,
+                nextFirstName !== undefined ? nextFirstName : null,
+                nextLastName !== undefined ? nextLastName : null,
+                nextRoleId !== undefined ? nextRoleId : null,
                 id,
             ]);
             const [updatedRows] = yield db_js_1.pool.execute(`SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, r.name as role

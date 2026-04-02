@@ -13,9 +13,8 @@ const API_BASE_URL = (window.CONFIG && window.CONFIG.API)
 
 
 const App = {
-    // Data Keys (no longer tied to localStorage; kept for consistency)
+    // Storage keys (session + UX only). User accounts are not cached in the browser — always use GET /auth.
     KEYS: {
-        USERS: 'spi_users',
         INVENTORY: 'spi_inventory',
         SALES: 'spi_sales',
         SUPPLIERS: 'spi_suppliers',
@@ -76,7 +75,14 @@ const App = {
             const result = await response.json();
 
             if (!response.ok) {
-                const err = new Error(result.error?.message || result.error || 'API Request failed');
+                let msg = result.error?.message || result.error || 'API Request failed';
+                const details = result.error?.details;
+                if (Array.isArray(details) && details.length > 0) {
+                    const d0 = details[0];
+                    const bit = [d0.field, d0.message].filter(Boolean).join(': ');
+                    if (bit) msg = `${msg} (${bit})`;
+                }
+                const err = new Error(typeof msg === 'string' ? msg : 'API Request failed');
                 err.status = response.status;
 
                 // 401 and token expired: try refresh once, then retry this request

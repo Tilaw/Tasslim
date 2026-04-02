@@ -50,8 +50,14 @@ export class AuthController {
     static async delete(req: Request, res: Response, next: NextFunction) {
         try {
             const id = req.params.id as string;
-            const success = await AuthService.delete(id);
-            res.json({ success });
+            const deleted = await AuthService.delete(id);
+            if (!deleted) {
+                return res.status(404).json({
+                    success: false,
+                    error: { code: 'NOT_FOUND', message: 'User not found or already removed' },
+                });
+            }
+            res.json({ success: true });
         } catch (error: any) {
             next(error);
         }

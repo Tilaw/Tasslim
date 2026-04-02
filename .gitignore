@@ -8,6 +8,6 @@ backend/.env
 npm-debug.log
 yarn-error.log
 frontend/js/env.js
-backend/dist
+backend/dist/
 
 PULL_REQUEST.md

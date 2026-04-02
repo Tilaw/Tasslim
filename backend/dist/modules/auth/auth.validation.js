@@ -15,10 +15,10 @@ exports.refreshSchema = zod_1.z.object({
 });
 exports.registerSchema = zod_1.z.object({
     body: zod_1.z.object({
-        email: zod_1.z.string().min(1, 'Email or username is required'),
-        password: zod_1.z.string().min(6, 'Password must be at least 6 characters'),
-        firstName: zod_1.z.string().min(1, 'First name is required'),
-        lastName: zod_1.z.string().optional(),
+        email: zod_1.z.string().trim().min(1, 'Email or username is required'),
+        password: zod_1.z.string().trim().min(6, 'Password must be at least 6 characters'),
+        firstName: zod_1.z.string().trim().min(1, 'First name is required'),
+        lastName: zod_1.z.string().trim().optional(),
         roleId: zod_1.z.string().uuid('Invalid role ID').optional(),
         role: zod_1.z.string().optional(),
     }),
@@ -34,5 +34,11 @@ exports.updateUserSchema = zod_1.z.object({
             .string()
             .min(6, 'Password must be at least 6 characters')
             .optional(),
+        /** Full display name (split into first/last like register) */
+        name: zod_1.z.string().min(1).optional(),
+        firstName: zod_1.z.string().min(1).optional(),
+        lastName: zod_1.z.string().optional(),
+        /** Role key as used by the frontend: `staff` | `admin` */
+        role: zod_1.z.enum(['staff', 'admin']).optional(),
     }),
 });
