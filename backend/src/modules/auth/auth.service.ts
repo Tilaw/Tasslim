@@ -136,4 +136,119 @@ export class AuthService {
         const [result]: any = await pool.execute('DELETE FROM users WHERE id = ?', [id]);
         return result.affectedRows > 0;
     }
+
+    static async updateUser(
+        id: string,
+        updates: { email?: string; password?: string; currentPassword?: string },
+        actor: { userId: string; role: string }
+    ) {
+        const isSelf = actor.userId === id;
+        const elevated = new Set(['admin', 'super_admin']);
+        const isElevated = elevated.has(actor.role);
+
+        if (!isSelf && !isElevated) {
+            const err: any = new Error('Insufficient permissions');
+            err.status = 403;
+            err.code = 'FORBIDDEN';
+            throw err;
+        }
+
+        const [rows]: any = await pool.execute(
+            `SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, r.name as role
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE u.id = ?`,
+            [id]
+        );
+        const user = rows[0];
+        if (!user) {
+            const err: any = new Error('User not found');
+            err.status = 404;
+            err.code = 'NOT_FOUND';
+            throw err;
+        }
+
+        const nextEmail = (updates.email ?? user.email)?.toString().trim();
+        const nextPassword = updates.password?.toString();
+        const currentPassword = updates.currentPassword?.toString();
+
+        if (updates.email !== undefined) {
+            if (!nextEmail) {
+                const err: any = new Error('Email or username is required');
+                err.status = 400;
+                err.code = 'VALIDATION_ERROR';
+                throw err;
+            }
+            const [dupes]: any = await pool.execute(
+                'SELECT id FROM users WHERE email = ? AND id <> ? LIMIT 1',
+                [nextEmail, id]
+            );
+            if (dupes[0]) {
+                const err: any = new Error('Email is already in use');
+                err.status = 409;
+                err.code = 'CONFLICT';
+                throw err;
+            }
+        }
+
+        let passwordHash: string | undefined;
+        if (nextPassword !== undefined) {
+            if (!nextPassword || nextPassword.length < 6) {
+                const err: any = new Error('Password must be at least 6 characters');
+                err.status = 400;
+                err.code = 'VALIDATION_ERROR';
+                throw err;
+            }
+
+            // For self-service password updates, require current password verification.
+            // Admin updates are allowed without current password.
+            if (isSelf && !isElevated) {
+                if (!currentPassword) {
+                    const err: any = new Error('Current password is required');
+                    err.status = 400;
+                    err.code = 'VALIDATION_ERROR';
+                    throw err;
+                }
+                const ok = await bcrypt.compare(currentPassword, user.password_hash);
+                if (!ok) {
+                    const err: any = new Error('Current password is incorrect');
+                    err.status = 401;
+                    err.code = 'UNAUTHORIZED';
+                    throw err;
+                }
+            }
+            passwordHash = await bcrypt.hash(nextPassword, 10);
+        }
+
+        await pool.execute(
+            `UPDATE users
+             SET email = COALESCE(?, email),
+                 password_hash = COALESCE(?, password_hash),
+                 updated_at = NOW()
+             WHERE id = ?`,
+            [
+                updates.email !== undefined ? nextEmail : null,
+                passwordHash !== undefined ? passwordHash : null,
+                id,
+            ]
+        );
+
+        const [updatedRows]: any = await pool.execute(
+            `SELECT u.id, u.email, u.first_name, u.last_name, u.is_active, r.name as role
+             FROM users u
+             LEFT JOIN roles r ON u.role_id = r.id
+             WHERE u.id = ?`,
+            [id]
+        );
+        const updated = updatedRows[0];
+
+        return {
+            id: updated.id,
+            email: updated.email,
+            firstName: updated.first_name,
+            lastName: updated.last_name,
+            role: updated.role === 'super_admin' ? 'admin' : updated.role || 'staff',
+            isActive: !!updated.is_active,
+        };
+    }
 }

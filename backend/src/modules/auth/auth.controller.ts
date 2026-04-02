@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service.js';
+import type { AuthRequest } from '../../middleware/auth.middleware.js';
 
 export class AuthController {
     static async login(req: Request, res: Response, next: NextFunction) {
@@ -51,6 +52,17 @@ export class AuthController {
             const id = req.params.id as string;
             const success = await AuthService.delete(id);
             res.json({ success });
+        } catch (error: any) {
+            next(error);
+        }
+    }
+
+    static async update(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const id = req.params.id as string;
+            const actor = req.user!;
+            const result = await AuthService.updateUser(id, req.body, actor);
+            res.json({ success: true, data: result });
         } catch (error: any) {
             next(error);
         }
