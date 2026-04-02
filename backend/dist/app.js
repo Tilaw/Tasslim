@@ -8,6 +8,8 @@ const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const compression_1 = __importDefault(require("compression"));
 const path_1 = __importDefault(require("path"));
+const fs_1 = __importDefault(require("fs"));
+const swagger_ui_express_1 = __importDefault(require("swagger-ui-express"));
 // ESM module path replaced by global __dirname in CommonJS.
 const auth_routes_js_1 = require("./modules/auth/auth.routes.js");
 const products_routes_js_1 = require("./modules/products/products.routes.js");
@@ -46,6 +48,32 @@ app.use(express_1.default.json({ limit: '10mb' }));
 app.use(express_1.default.urlencoded({ extended: true, limit: '10mb' }));
 // Compression
 app.use((0, compression_1.default)());
+// OpenAPI + Swagger UI (spec lives next to compiled app: backend/openapi.json)
+try {
+    const openApiPath = path_1.default.join(__dirname, '..', 'openapi.json');
+    const openApiDocument = JSON.parse(fs_1.default.readFileSync(openApiPath, 'utf8'));
+    app.use('/api/docs', swagger_ui_express_1.default.serve, swagger_ui_express_1.default.setup(openApiDocument, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'Tasslim API',
+        swaggerOptions: {
+            persistAuthorization: true,
+            displayRequestDuration: true,
+            docExpansion: 'list',
+            filter: true
+        }
+    }));
+}
+catch (e) {
+    console.warn('[app]: Swagger UI not mounted (openapi.json missing or invalid):', e);
+}
+app.get('/api/openapi.json', (req, res) => {
+    const openApiPath = path_1.default.join(__dirname, '..', 'openapi.json');
+    res.type('application/json');
+    res.sendFile(openApiPath, (err) => {
+        if (err)
+            res.status(404).json({ success: false, error: { message: 'OpenAPI spec not found' } });
+    });
+});
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

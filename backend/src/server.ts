@@ -32,6 +32,7 @@ async function startServer() {
             console.log(`[server]: Server is running and accessible on the network at port ${PORT}`);
             console.log(`[server]: Local access: http://localhost:${PORT}`);
             console.log(`[server]: Health check: http://localhost:${PORT}/health`);
+            console.log(`[server]: API docs (Swagger UI): http://localhost:${PORT}/api/docs`);
         });
 
         server.on('error', (err) => {

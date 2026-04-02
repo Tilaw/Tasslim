@@ -51,6 +51,22 @@ class TransactionService {
         const iso = d.toISOString();
         return iso.replace('T', ' ').slice(0, 19);
     }
+    static normalizeUnitPrice(value) {
+        if (value === null || value === undefined || value === '')
+            return null;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 0)
+            return null;
+        return n;
+    }
+    /** On purchase, persist line unit price and refresh product unit_cost when provided */
+    static applyPurchasePricing(connection, productId, transactionType, unitPrice) {
+        return __awaiter(this, void 0, void 0, function* () {
+            if (transactionType !== 'purchase' || unitPrice === null)
+                return;
+            yield connection.execute('UPDATE products SET unit_cost = ? WHERE id = ?', [unitPrice, productId]);
+        });
+    }
     static create(data, userId) {
         return __awaiter(this, void 0, void 0, function* () {
             const connection = yield db_js_1.pool.getConnection();
@@ -69,8 +85,9 @@ class TransactionService {
                 }
                 const id = crypto_1.default.randomUUID();
                 const createdAt = this.toMySQLDateTime(data.date);
+                const lineUnitPrice = this.normalizeUnitPrice(data.unitPrice);
                 // 1. Create transaction record
-                yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                     id,
                     data.productId,
                     data.transactionType,
@@ -84,11 +101,13 @@ class TransactionService {
                     data.riderName || null,
                     data.riderNumber || data.riderPhone || null,
                     data.riderId || null,
-                    data.receiverName || null
+                    data.receiverName || null,
+                    lineUnitPrice
                 ]);
                 // 2. Ensure inventory row exists, then apply quantity delta (issue = negative)
                 yield connection.execute(`INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0)
                  ON DUPLICATE KEY UPDATE quantity = quantity + ?`, [crypto_1.default.randomUUID(), data.productId, data.quantity]);
+                yield this.applyPurchasePricing(connection, data.productId, data.transactionType, lineUnitPrice);
                 yield connection.commit();
                 return Object.assign({ id }, data);
             }
@@ -118,13 +137,16 @@ class TransactionService {
                     }
                     const id = crypto_1.default.randomUUID();
                     const createdAt = this.toMySQLDateTime(data.date);
-                    yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+                    const lineUnitPrice = this.normalizeUnitPrice(data.unitPrice);
+                    yield connection.execute('INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                         id, data.productId, data.transactionType, data.quantity,
                         data.mechanicId || null, data.bikeId || null, data.referenceId || null, data.notes || null,
                         userId, createdAt,
-                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null
+                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null,
+                        lineUnitPrice
                     ]);
                     yield connection.execute(`INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity = quantity + ?`, [crypto_1.default.randomUUID(), data.productId, data.quantity]);
+                    yield this.applyPurchasePricing(connection, data.productId, data.transactionType, lineUnitPrice);
                     created.push(Object.assign({ id }, data));
                 }
                 yield connection.commit();

@@ -41,6 +41,19 @@ export class TransactionService {
         return iso.replace('T', ' ').slice(0, 19);
     }
 
+    private static normalizeUnitPrice(value: unknown): number | null {
+        if (value === null || value === undefined || value === '') return null;
+        const n = Number(value);
+        if (!Number.isFinite(n) || n < 0) return null;
+        return n;
+    }
+
+    /** On purchase, persist line unit price and refresh product unit_cost when provided */
+    private static async applyPurchasePricing(connection: any, productId: string, transactionType: string, unitPrice: number | null) {
+        if (transactionType !== 'purchase' || unitPrice === null) return;
+        await connection.execute('UPDATE products SET unit_cost = ? WHERE id = ?', [unitPrice, productId]);
+    }
+
     static async create(data: any, userId: string) {
         const connection = await pool.getConnection();
         await connection.beginTransaction();
@@ -64,10 +77,11 @@ export class TransactionService {
 
             const id = crypto.randomUUID();
             const createdAt = this.toMySQLDateTime(data.date);
+            const lineUnitPrice = this.normalizeUnitPrice(data.unitPrice);
 
             // 1. Create transaction record
             await connection.execute(
-                'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [
                     id,
                     data.productId,
@@ -82,7 +96,8 @@ export class TransactionService {
                     data.riderName || null,
                     data.riderNumber || data.riderPhone || null,
                     data.riderId || null,
-                    data.receiverName || null
+                    data.receiverName || null,
+                    lineUnitPrice
                 ]
             );
 
@@ -92,6 +107,8 @@ export class TransactionService {
                  ON DUPLICATE KEY UPDATE quantity = quantity + ?`,
                 [crypto.randomUUID(), data.productId, data.quantity]
             );
+
+            await this.applyPurchasePricing(connection, data.productId, data.transactionType, lineUnitPrice);
 
             await connection.commit();
             return { id, ...data };
@@ -124,19 +141,22 @@ export class TransactionService {
 
                 const id = crypto.randomUUID();
                 const createdAt = this.toMySQLDateTime(data.date);
+                const lineUnitPrice = this.normalizeUnitPrice(data.unitPrice);
                 await connection.execute(
-                    'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    'INSERT INTO inventory_transactions (id, product_id, transaction_type, quantity, mechanic_id, bike_id, reference_id, notes, created_by, created_at, rider_name, rider_phone, rider_id, receiver_name, unit_price) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
                     [
                         id, data.productId, data.transactionType, data.quantity,
                         data.mechanicId || null, data.bikeId || null, data.referenceId || null, data.notes || null,
                         userId, createdAt,
-                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null
+                        data.riderName || null, data.riderNumber || data.riderPhone || null, data.riderId || null, data.receiverName || null,
+                        lineUnitPrice
                     ]
                 );
                 await connection.execute(
                     `INSERT INTO inventory (id, product_id, quantity) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE quantity = quantity + ?`,
                     [crypto.randomUUID(), data.productId, data.quantity]
                 );
+                await this.applyPurchasePricing(connection, data.productId, data.transactionType, lineUnitPrice);
                 created.push({ id, ...data });
             }
             await connection.commit();
