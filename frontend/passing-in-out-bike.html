@@ -7,6 +7,7 @@
     <title>Passing IN/Out Bike - Tasslim Parts Manager</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         .log-card {
             border-radius: 20px;
@@ -172,9 +173,24 @@
             </div>
 
             <div class="card log-card">
-                <div class="card-header">
+                <div class="card-header"
+                    style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
                     <h3 style="margin:0;">Recent movements</h3>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                        <button type="button" class="btn" style="background:#f1f5f9;color:#334155;"
+                            onclick="RiderIoPage.exportExcel()" title="Download up to 500 records">
+                            <i class="fas fa-file-export"></i> Export Excel
+                        </button>
+                        
+                        <button type="button" class="btn" style="background:#e0f2fe;color:#0369a1;border-color:#bae6fd;"
+                            onclick="document.getElementById('riderIoImportFile').click()">
+                            <i class="fas fa-file-import"></i> Import Excel
+                        </button>
+                    </div>
                 </div>
+                <input type="file" id="riderIoImportFile"
+                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    style="display:none;" aria-hidden="true">
                 <div class="card-body table-container" style="overflow-x:auto;">
                     <table class="activity-table">
                         <thead>
@@ -205,6 +221,57 @@
     <script src="js/config.js"></script>
     <script src="js/app.js"></script>
     <script>
+        function riderIoNormKey(k) {
+            return String(k || '').trim().toLowerCase().replace(/\s+/g, '');
+        }
+
+        function riderIoPick(row, aliases) {
+            const map = {};
+            Object.keys(row).forEach((k) => { map[riderIoNormKey(k)] = row[k]; });
+            for (const a of aliases) {
+                const v = map[riderIoNormKey(a)];
+                if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+            }
+            return '';
+        }
+
+        function riderIoDateStr(v) {
+            if (v == null || v === '') return '';
+            if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+            if (typeof v === 'number' && v > 1000) {
+                const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+                if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+            }
+            const s = String(v).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+            const d2 = new Date(s);
+            if (!isNaN(d2.getTime())) return d2.toISOString().slice(0, 10);
+            return s;
+        }
+
+        function riderIoTimeStr(v) {
+            if (v == null || v === '') return null;
+            if (typeof v === 'number' && v >= 0 && v < 1) {
+                const total = Math.round(v * 86400);
+                const h = Math.floor(total / 3600);
+                const m = Math.floor((total % 3600) / 60);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+            if (v instanceof Date && !isNaN(v.getTime())) {
+                return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+            }
+            const s = String(v).trim();
+            if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+            return s || null;
+        }
+
+        function riderIoDir(v) {
+            const s = String(v || '').trim().toUpperCase();
+            if (s === 'OUT' || s === 'O' || s === '1' || s === 'YES' || s === 'TRUE' || s === 'LEAVING') return 'OUT';
+            if (s === 'IN' || s === 'I' || s === '0' || s === 'NO' || s === 'FALSE' || s === 'ENTERING') return 'IN';
+            return '';
+        }
+
         const RiderIoPage = {
             _submitting: false,
 
@@ -255,6 +322,121 @@
                 }
             },
 
+            async exportExcel() {
+                if (typeof XLSX === 'undefined') {
+                    App.showToast('Excel library not loaded.', 'error');
+                    return;
+                }
+                try {
+                    const res = await App.apiCall('/passing-logs/rider-movements?limit=500', 'GET');
+                    const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
+                    const data = rows.map((r) => ({
+                        CreatedAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+                        Direction: r.direction || '',
+                        BikeNumber: r.bikeNumber || '',
+                        Phone: r.phone || '',
+                        RiderName: r.riderName || '',
+                        RiderId: r.riderId || '',
+                        City: r.city || '',
+                        Company: r.company || '',
+                        Date: r.movementDate || '',
+                        Time: r.movementTime || ''
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(data.length ? data : [{
+                        BikeNumber: '', Direction: 'IN', Date: ''
+                    }]);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Rider movements');
+                    const name = `Passing_IN_Out_Movements_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    XLSX.writeFile(wb, name);
+                    App.showToast(rows.length ? `Exported ${rows.length} row(s).` : 'No rows to export (empty file).',
+                        rows.length ? 'success' : 'warning');
+                } catch (e) {
+                    console.error(e);
+                    App.showToast('Export failed.', 'error');
+                }
+            },
+
+            downloadTemplate() {
+                if (typeof XLSX === 'undefined') {
+                    App.showToast('Excel library not loaded.', 'error');
+                    return;
+                }
+                const sample = [{
+                    BikeNumber: 'ABC-123',
+                    Direction: 'IN',
+                    Phone: '',
+                    RiderName: '',
+                    RiderId: '',
+                    City: '',
+                    Company: '',
+                    Date: new Date().toISOString().slice(0, 10),
+                    Time: '09:00'
+                }];
+                const ws = XLSX.utils.json_to_sheet(sample);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Import');
+                XLSX.writeFile(wb, 'Passing_IN_Out_Import_Template.xlsx');
+                App.showToast('Template downloaded.', 'success');
+            },
+
+            importExcelFile(file) {
+                if (!file || typeof XLSX === 'undefined') {
+                    App.showToast('Excel library not loaded.', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    try {
+                        const buf = new Uint8Array(ev.target.result);
+                        const workbook = XLSX.read(buf, { type: 'array', cellDates: true });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        if (!sheet) {
+                            App.showToast('No sheet found in file.', 'error');
+                            return;
+                        }
+                        const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+                        let ok = 0;
+                        let fail = 0;
+                        for (let i = 0; i < json.length; i++) {
+                            const row = json[i];
+                            const bikeNumber = String(riderIoPick(row, ['BikeNumber', 'Bike', 'Plate', 'Bike number'])).trim();
+                            const date = riderIoDateStr(riderIoPick(row, ['Date', 'MovementDate', 'movement_date']));
+                            let direction = riderIoDir(riderIoPick(row, ['Direction', 'Dir', 'IN/OUT']));
+                            if (!direction) direction = 'IN';
+                            if (!bikeNumber || !date) {
+                                fail++;
+                                continue;
+                            }
+                            const body = {
+                                bikeNumber,
+                                phone: String(riderIoPick(row, ['Phone', 'Rider phone'])).trim() || null,
+                                riderName: String(riderIoPick(row, ['RiderName', 'Rider name', 'Rider'])).trim() || null,
+                                riderId: String(riderIoPick(row, ['RiderId', 'Rider ID', 'Rider id'])).trim() || null,
+                                city: String(riderIoPick(row, ['City'])).trim() || null,
+                                company: String(riderIoPick(row, ['Company'])).trim() || null,
+                                date,
+                                time: riderIoTimeStr(riderIoPick(row, ['Time', 'MovementTime', 'movement_time'])) || null,
+                                direction
+                            };
+                            try {
+                                const res = await App.apiCall('/passing-logs/rider-movements', 'POST', body);
+                                if (res && res.success) ok++;
+                                else fail++;
+                            } catch (err) {
+                                fail++;
+                            }
+                        }
+                        App.showToast(`Import finished: ${ok} saved, ${fail} skipped or failed.`, ok ? 'success' : 'warning');
+                        await RiderIoPage.loadRecent();
+                    } catch (err) {
+                        console.error(err);
+                        App.showToast('Could not read Excel file.', 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            },
+
             async submit() {
                 const bikeNumber = document.getElementById('mBike').value.trim();
                 const date = document.getElementById('mDate').value;
@@ -303,6 +485,14 @@
                     document.getElementById('userInitials').textContent = (user.name || 'U').charAt(0).toUpperCase();
                 }
                 RiderIoPage.init();
+                const imp = document.getElementById('riderIoImportFile');
+                if (imp) {
+                    imp.addEventListener('change', (e) => {
+                        const f = e.target.files && e.target.files[0];
+                        e.target.value = '';
+                        if (f) RiderIoPage.importExcelFile(f);
+                    });
+                }
             });
         });
     </script>
