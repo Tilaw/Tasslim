@@ -68,8 +68,14 @@ class AuthController {
         return __awaiter(this, void 0, void 0, function* () {
             try {
                 const id = req.params.id;
-                const success = yield auth_service_js_1.AuthService.delete(id);
-                res.json({ success });
+                const deleted = yield auth_service_js_1.AuthService.delete(id);
+                if (!deleted) {
+                    return res.status(404).json({
+                        success: false,
+                        error: { code: 'NOT_FOUND', message: 'User not found or already removed' },
+                    });
+                }
+                res.json({ success: true });
             }
             catch (error) {
                 next(error);

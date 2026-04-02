@@ -13,9 +13,8 @@ const API_BASE_URL = (window.CONFIG && window.CONFIG.API)
 
 
 const App = {
-    // Data Keys (no longer tied to localStorage; kept for consistency)
+    // Storage keys (session + UX only). User accounts are not cached in the browser — always use GET /auth.
     KEYS: {
-        USERS: 'spi_users',
         INVENTORY: 'spi_inventory',
         SALES: 'spi_sales',
         SUPPLIERS: 'spi_suppliers',

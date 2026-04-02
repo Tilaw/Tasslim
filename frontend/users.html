@@ -144,6 +144,7 @@
     <script src="js/config.js"></script><script src="js/app.js"></script>
     <script>
         const UserMgr = {
+            /** In-memory list from GET /auth only — never localStorage/sessionStorage */
             data: [],
 
             init: async function () {
@@ -269,16 +270,20 @@
             },
 
             delete: async function (id) {
-                if (confirm('Are you sure?')) {
-                    try {
-                        const result = await App.apiCall('/auth/' + id, 'DELETE');
-                        if (!result.success) throw new Error(result.error || 'Failed to delete user');
-                        App.showToast('User deleted from database', 'success');
-                        await this.loadData();
-                        this.renderTable();
-                    } catch (error) {
-                        App.showToast('Backend delete failed: ' + (error.message || 'Unknown error'), 'error');
+                if (!confirm('Are you sure?')) return;
+                const idStr = id != null ? String(id) : '';
+                try {
+                    await App.apiCall('/auth/' + encodeURIComponent(idStr), 'DELETE');
+                    App.showToast('User removed from the database', 'success');
+                    const session = App.getCurrentUser();
+                    if (session && String(session.id) === idStr) {
+                        App.logout();
+                        return;
                     }
+                    await this.loadData();
+                    this.renderTable();
+                } catch (error) {
+                    App.showToast('Delete failed: ' + (error.message || 'Unknown error'), 'error');
                 }
             }
         };
