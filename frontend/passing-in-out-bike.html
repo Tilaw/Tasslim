@@ -357,29 +357,7 @@
                 }
             },
 
-            downloadTemplate() {
-                if (typeof XLSX === 'undefined') {
-                    App.showToast('Excel library not loaded.', 'error');
-                    return;
-                }
-                const sample = [{
-                    BikeNumber: 'ABC-123',
-                    Direction: 'IN',
-                    Phone: '',
-                    RiderName: '',
-                    RiderId: '',
-                    City: '',
-                    Company: '',
-                    Date: new Date().toISOString().slice(0, 10),
-                    Time: '09:00'
-                }];
-                const ws = XLSX.utils.json_to_sheet(sample);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, 'Import');
-                XLSX.writeFile(wb, 'Passing_IN_Out_Import_Template.xlsx');
-                App.showToast('Template downloaded.', 'success');
-            },
-
+            
             importExcelFile(file) {
                 if (!file || typeof XLSX === 'undefined') {
                     App.showToast('Excel library not loaded.', 'error');
