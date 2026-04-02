@@ -1,0 +1,608 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tasslim Parts Manager API",
+    "description": "REST API for inventory, purchases, issues, bikes, mechanics, reports, and operational logs. Most routes require a JWT from `POST /api/v1/auth/login`.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local development"
+    },
+    {
+      "url": "/",
+      "description": "Same host as this UI (relative)"
+    }
+  ],
+  "tags": [
+    { "name": "Health", "description": "Liveness" },
+    { "name": "Auth", "description": "Login, tokens, user admin" },
+    { "name": "Products", "description": "Catalog and stock-backed products" },
+    { "name": "Categories", "description": "Product categories" },
+    { "name": "Suppliers", "description": "Suppliers" },
+    { "name": "Transactions", "description": "Inventory movements (purchase, sale, issue, return, adjustment)" },
+    { "name": "Mechanics", "description": "Mechanics master data" },
+    { "name": "Bikes", "description": "Bikes master data" },
+    { "name": "Reports", "description": "Aggregated reports" },
+    { "name": "Oil changes", "description": "Oil change records" },
+    { "name": "Riders", "description": "Riders master data" },
+    { "name": "Migration", "description": "Data import utilities" },
+    { "name": "Issue context", "description": "Issue / pick workflow context" },
+    { "name": "Passing logs", "description": "Dubai manual entries and rider IN/OUT movements" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Paste the `token` value from the login response."
+      }
+    },
+    "schemas": {
+      "ApiSuccess": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": {}
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" }
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email": { "type": "string", "description": "Email or username" },
+          "password": { "type": "string", "format": "password" }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "TransactionLine": {
+        "type": "object",
+        "required": ["productId", "transactionType", "quantity"],
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "transactionType": {
+            "type": "string",
+            "enum": ["purchase", "sale", "return", "adjustment", "issue"]
+          },
+          "quantity": { "type": "integer", "description": "Positive for purchase/return into stock; negative for sale/issue" },
+          "mechanicId": { "type": "string", "nullable": true },
+          "bikeId": { "type": "string", "nullable": true },
+          "referenceId": { "type": "string", "nullable": true },
+          "notes": { "type": "string" },
+          "date": { "type": "string", "format": "date-time" },
+          "unitPrice": { "type": "number", "minimum": 0, "description": "Optional; for purchases updates product unit cost" },
+          "riderName": { "type": "string" },
+          "riderPhone": { "type": "string" },
+          "riderNumber": { "type": "string" },
+          "riderId": { "type": "string" },
+          "receiverName": { "type": "string" }
+        }
+      },
+      "TransactionBatchBody": {
+        "type": "object",
+        "required": ["transactions"],
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "maxItems": 50,
+            "items": { "$ref": "#/components/schemas/TransactionLine" }
+          }
+        }
+      },
+      "DubaiEntriesBody": {
+        "type": "object",
+        "required": ["entries"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": ["bikeNumber", "partName"],
+              "properties": {
+                "bikeNumber": { "type": "string" },
+                "partName": { "type": "string" },
+                "quantity": { "type": "integer", "minimum": 1, "default": 1 }
+              }
+            }
+          }
+        }
+      },
+      "RiderMovementBody": {
+        "type": "object",
+        "required": ["bikeNumber", "date", "direction"],
+        "properties": {
+          "bikeNumber": { "type": "string" },
+          "phone": { "type": "string", "nullable": true },
+          "riderName": { "type": "string", "nullable": true },
+          "riderId": { "type": "string", "nullable": true },
+          "city": { "type": "string", "nullable": true },
+          "company": { "type": "string", "nullable": true },
+          "date": { "type": "string", "description": "ISO date or YYYY-MM-DD" },
+          "time": { "type": "string", "nullable": true },
+          "direction": { "type": "string", "enum": ["IN", "OUT"] }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "timestamp": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tokens and user profile" },
+          "401": { "description": "Invalid credentials" }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RefreshRequest" } }
+          }
+        },
+        "responses": { "200": { "description": "New tokens" } }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register user (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "firstName"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" },
+                  "firstName": { "type": "string" },
+                  "lastName": { "type": "string" },
+                  "roleId": { "type": "string", "format": "uuid" },
+                  "role": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "User created" } }
+      }
+    },
+    "/api/v1/auth": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "List users (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "User list" } }
+      }
+    },
+    "/api/v1/auth/{id}": {
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Delete user (admin)",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "List products",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "search", "in": "query", "schema": { "type": "string" } },
+          { "name": "categoryId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Product list with stock" } }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Create product",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/products/{id}": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get product by ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Product" } }
+      },
+      "patch": {
+        "tags": ["Products"],
+        "summary": "Update product",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Updated" } }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Delete product",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "List categories",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Create category",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "patch": {
+        "tags": ["Categories"],
+        "summary": "Update category",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Categories"],
+        "summary": "Delete category",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/suppliers": {
+      "get": {
+        "tags": ["Suppliers"],
+        "summary": "List suppliers",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Suppliers"],
+        "summary": "Create supplier",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/suppliers/{id}": {
+      "patch": {
+        "tags": ["Suppliers"],
+        "summary": "Update supplier",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Suppliers"],
+        "summary": "Delete supplier",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/transactions": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "List transactions",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "type", "in": "query", "schema": { "type": "string" } },
+          { "name": "productId", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Create single transaction",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TransactionLine" } }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/transactions/batch": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Create batch transactions",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TransactionBatchBody" } }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/transactions/group/{referenceId}": {
+      "delete": {
+        "tags": ["Transactions"],
+        "summary": "Revert issuance group by reference ID",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "referenceId", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Reverted" } }
+      }
+    },
+    "/api/v1/mechanics": {
+      "get": {
+        "tags": ["Mechanics"],
+        "summary": "List mechanics",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Mechanics"],
+        "summary": "Create mechanic",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/mechanics/{id}": {
+      "get": {
+        "tags": ["Mechanics"],
+        "summary": "Get mechanic",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "patch": {
+        "tags": ["Mechanics"],
+        "summary": "Update mechanic",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Mechanics"],
+        "summary": "Delete mechanic",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/bikes": {
+      "get": {
+        "tags": ["Bikes"],
+        "summary": "List bikes",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Bikes"],
+        "summary": "Create bike",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/bikes/{id}": {
+      "get": {
+        "tags": ["Bikes"],
+        "summary": "Get bike",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "patch": {
+        "tags": ["Bikes"],
+        "summary": "Update bike",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Bikes"],
+        "summary": "Delete bike",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/reports/dashboard-stats": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Dashboard statistics",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/reports/mechanic-overtime": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Mechanic overtime",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "date", "in": "query", "schema": { "type": "string" } },
+          { "name": "mechanicId", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/migration/import": {
+      "post": {
+        "tags": ["Migration"],
+        "summary": "Import legacy data",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/issue-context": {
+      "get": {
+        "tags": ["Issue context"],
+        "summary": "Issue / mapping context bundle",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/oil-changes": {
+      "get": {
+        "tags": ["Oil changes"],
+        "summary": "List oil changes",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "name": "bikeId", "in": "query", "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Oil changes"],
+        "summary": "Record oil change",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/riders": {
+      "get": {
+        "tags": ["Riders"],
+        "summary": "List riders",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Riders"],
+        "summary": "Create rider",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/riders/{id}": {
+      "get": {
+        "tags": ["Riders"],
+        "summary": "Get rider",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "patch": {
+        "tags": ["Riders"],
+        "summary": "Update rider",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "delete": {
+        "tags": ["Riders"],
+        "summary": "Delete rider",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/riders/imported/all": {
+      "delete": {
+        "tags": ["Riders"],
+        "summary": "Delete all imported riders",
+        "security": [{ "bearerAuth": [] }],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/api/v1/passing-logs/dubai-entries": {
+      "get": {
+        "tags": ["Passing logs"],
+        "summary": "List Dubai manual part entries",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Passing logs"],
+        "summary": "Create Dubai manual entries (batch lines)",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/DubaiEntriesBody" } }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    },
+    "/api/v1/passing-logs/rider-movements": {
+      "get": {
+        "tags": ["Passing logs"],
+        "summary": "List rider bike IN/OUT movements",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "name": "limit", "in": "query", "schema": { "type": "integer" } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": {
+        "tags": ["Passing logs"],
+        "summary": "Record rider bike movement",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RiderMovementBody" } }
+          }
+        },
+        "responses": { "201": { "description": "Created" } }
+      }
+    }
+  }
+}

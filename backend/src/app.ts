@@ -4,6 +4,8 @@ import helmet from 'helmet';
 import compression from 'compression';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
+import swaggerUi from 'swagger-ui-express';
 // ESM module path replaced by global __dirname in CommonJS.
 
 import { authRoutes } from './modules/auth/auth.routes.js';
@@ -50,6 +52,36 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Compression
 app.use(compression());
+
+// OpenAPI + Swagger UI (spec lives next to compiled app: backend/openapi.json)
+try {
+    const openApiPath = path.join(__dirname, '..', 'openapi.json');
+    const openApiDocument = JSON.parse(fs.readFileSync(openApiPath, 'utf8')) as object;
+    app.use(
+        '/api/docs',
+        swaggerUi.serve,
+        swaggerUi.setup(openApiDocument, {
+            customCss: '.swagger-ui .topbar { display: none }',
+            customSiteTitle: 'Tasslim API',
+            swaggerOptions: {
+                persistAuthorization: true,
+                displayRequestDuration: true,
+                docExpansion: 'list',
+                filter: true
+            }
+        })
+    );
+} catch (e) {
+    console.warn('[app]: Swagger UI not mounted (openapi.json missing or invalid):', e);
+}
+
+app.get('/api/openapi.json', (req, res) => {
+    const openApiPath = path.join(__dirname, '..', 'openapi.json');
+    res.type('application/json');
+    res.sendFile(openApiPath, (err) => {
+        if (err) res.status(404).json({ success: false, error: { message: 'OpenAPI spec not found' } });
+    });
+});
 
 // Health check
 app.get('/health', (req, res) => {
