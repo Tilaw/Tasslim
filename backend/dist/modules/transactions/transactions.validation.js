@@ -16,6 +16,8 @@ const transactionItemSchema = zod_1.z.object({
     riderPhone: zod_1.z.string().optional(),
     riderId: zod_1.z.string().optional(),
     receiverName: zod_1.z.string().optional(),
+    /** Per-unit price for this line (e.g. purchase cost); optional for non-purchase types */
+    unitPrice: zod_1.z.preprocess((v) => (v === null || v === undefined || v === '' ? undefined : v), zod_1.z.coerce.number().nonnegative().optional()),
 });
 exports.createTransactionSchema = zod_1.z.object({
     body: transactionItemSchema,

@@ -160,6 +160,7 @@ function migrate() {
             bike_id VARCHAR(36) NULL,
             reference_id VARCHAR(100),
             notes TEXT,
+            unit_price DECIMAL(15,2) NULL,
             created_by VARCHAR(36),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
@@ -269,7 +270,8 @@ function migrate() {
                 { name: 'rider_phone', type: 'VARCHAR(50)' },
                 { name: 'rider_id', type: 'VARCHAR(100)' },
                 { name: 'receiver_name', type: 'VARCHAR(100)' },
-                { name: 'is_reverted', type: 'TINYINT(1) DEFAULT 0' }
+                { name: 'is_reverted', type: 'TINYINT(1) DEFAULT 0' },
+                { name: 'unit_price', type: 'DECIMAL(15,2) NULL' }
             ];
             for (const col of txExtraCols) {
                 if (!(yield columnExists('inventory_transactions', col.name))) {
