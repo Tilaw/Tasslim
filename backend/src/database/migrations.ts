@@ -322,7 +322,7 @@ export async function migrate() {
 
         // Ensure Production Admin User exists (and is set to 'admin' role, not 'super_admin')
         const adminEmail = 'admin@taslimalwataniah.ae';
-        const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
+        const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.';
 
         const [existingAdmins]: any = await pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
 

@@ -6,11 +6,26 @@ import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
+function getAdminConfig() {
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    const firstName = process.env.ADMIN_FIRST_NAME ?? 'System';
+    const lastName = process.env.ADMIN_LAST_NAME ?? 'Admin';
+
+    if (!email || !password) {
+        throw new Error('Missing required env vars: ADMIN_EMAIL and ADMIN_PASSWORD must be set.');
+    }
+
+    return { email, password, firstName, lastName };
+}
+
 async function createAdmin() {
     try {
         logger.info('Creating production admin user...');
 
-        // 1. Get admin role
+        const { email, password, firstName, lastName } = getAdminConfig();
+
+        // 1. Get or create admin role
         const [roles]: any = await pool.execute("SELECT id FROM roles WHERE name = 'admin'");
         let roleId: string;
 
@@ -25,20 +40,18 @@ async function createAdmin() {
             roleId = roles[0].id;
         }
 
-        // 2. Define user details
-        const email = 'admin@taslimalwataniah.ae';
-        const password = 'taslima!@#$%';
-        const firstName = 'System';
-        const lastName = 'Admin';
-
+        // 2. Hash password
         logger.info(`Hashing password for ${email}...`);
-        const passwordHash = await bcrypt.hash(password, 10);
+        const passwordHash = await bcrypt.hash(password, 12); // bumped from 10 → 12
 
-        // 3. Check if user already exists
-        const [existing]: any = await pool.execute("SELECT id FROM users WHERE email = ?", [email]);
+        // 3. Upsert user
+        const [existing]: any = await pool.execute(
+            "SELECT id FROM users WHERE email = ?",
+            [email]
+        );
 
         if (existing.length > 0) {
-            logger.info('User already exists, updating password and ensuring active status...');
+            logger.info('User already exists — updating password and ensuring active status...');
             await pool.execute(
                 "UPDATE users SET password_hash = ?, first_name = ?, last_name = ?, role_id = ?, is_active = 1 WHERE email = ?",
                 [passwordHash, firstName, lastName, roleId, email]
@@ -53,10 +66,8 @@ async function createAdmin() {
             logger.success('Admin user created successfully.');
         }
 
-        console.log('\n--- Production Admin Credentials ---');
-        console.log(`Email:    ${email}`);
-        console.log(`Password: ${password}`);
-        console.log('------------------------------------\n');
+        // 4. Confirm without echoing the password
+        logger.info(`Admin ready → ${email}`);
 
         process.exit(0);
     } catch (error) {

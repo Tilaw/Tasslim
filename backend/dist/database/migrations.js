@@ -315,7 +315,7 @@ function migrate() {
             const staffRoleId = roleMap.get('staff');
             // Ensure Production Admin User exists (and is set to 'admin' role, not 'super_admin')
             const adminEmail = 'admin@taslimalwataniah.ae';
-            const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.'; // Password: taslima!@#$%
+            const adminHash = '$2b$10$nVteAPrhZ/OsH3xsrloc.uy6RXD1agZE/WIUuP3U/MVBcd0lNuAd.';
             const [existingAdmins] = yield db_js_1.pool.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
             if (existingAdmins.length === 0) {
                 console.log(`[database]: Creating production admin user: ${adminEmail}`);
