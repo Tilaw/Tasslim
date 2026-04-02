@@ -76,5 +76,18 @@ class AuthController {
             }
         });
     }
+    static update(req, res, next) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const id = req.params.id;
+                const actor = req.user;
+                const result = yield auth_service_js_1.AuthService.updateUser(id, req.body, actor);
+                res.json({ success: true, data: result });
+            }
+            catch (error) {
+                next(error);
+            }
+        });
+    }
 }
 exports.AuthController = AuthController;

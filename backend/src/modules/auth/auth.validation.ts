@@ -23,3 +23,17 @@ export const registerSchema = z.object({
         role: z.string().optional(),
     }),
 });
+
+export const updateUserSchema = z.object({
+    params: z.object({
+        id: z.string().min(1, 'User ID is required'),
+    }),
+    body: z.object({
+        email: z.string().min(1, 'Email or username is required').optional(),
+        currentPassword: z.string().min(1, 'Current password is required').optional(),
+        password: z
+            .string()
+            .min(6, 'Password must be at least 6 characters')
+            .optional(),
+    }),
+});
