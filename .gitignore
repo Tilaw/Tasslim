@@ -1,13 +1,15 @@
-js/env.js
+apps/client/js/env.js
 node_modules/
-backend/node_modules/
-backend/inventory.db
-backend/.env
+apps/client/node_modules/
+apps/client/inventory.db
+apps/client/.env
 .env
 .DS_Store
 npm-debug.log
 yarn-error.log
-frontend/js/env.js
-backend/dist/
+apps/client/js/env.js
+apps/server/dist/
 
-PULL_REQUEST.md
+
+.vscode/
+apps/server/logs/
