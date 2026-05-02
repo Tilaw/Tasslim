@@ -1,0 +1,6 @@
+dist/
+.env
+
+error.log
+db_out.txt
+logs/
