@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mechanic Overtime - Tasslim Parts Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .overtime-summary-card {
+            background: linear-gradient(135deg, #6366f1, #22c55e);
+            color: white;
+            border-radius: 20px;
+            padding: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 25px -5px rgba(22, 163, 74, 0.4);
+        }
+
+        .overtime-metric {
+            font-size: 2.2rem;
+            font-weight: 800;
+        }
+
+        .overtime-sub {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .overtime-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.2);
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .dot-online {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #22c55e;
+        }
+
+        .dot-offline {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #ef4444;
+        }
+
+        .filters-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .filters-row .form-group {
+            min-width: 200px;
+        }
+
+        .activity-table td,
+        .activity-table th {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing Bike</span></a></li>
+                <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i> <span>Passing IN/Out Bike</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link active"><i class="fas fa-clock"></i> <span>Overtime</span></a>
+                </li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return
+                            Items</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-bar">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title">Mechanic Overtime</div>
+                </div>
+                <div class="user-profile">
+                    <div class="user-avatar" id="userInitials">U</div>
+                    <span id="userName">User</span>
+                </div>
+            </header>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 style="margin:0;"><i class="fas fa-clock"></i> Daily Overtime Check</h3>
+                </div>
+                <div class="card-body">
+                    <div class="filters-row">
+                        <div class="form-group">
+                            <label class="form-label">Mechanic</label>
+                            <select id="mechanicSelect" class="form-control">
+                                <option value="">Select mechanic...</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" id="overtimeDate" class="form-control">
+                        </div>
+                        <div class="form-group" style="align-self:flex-end;">
+                            <button class="btn btn-primary" onclick="OvertimePage.loadOvertime()">
+                                <i class="fas fa-search"></i> Check
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="summaryContainer" style="display:none;">
+                        <div class="overtime-summary-card">
+                            <div>
+                                <div class="overtime-sub" id="summaryMechanicName">Mechanic</div>
+                                <div class="overtime-metric" id="summaryDuration">0h 00m</div>
+                                <div class="overtime-sub" id="summaryDateLabel"></div>
+                            </div>
+                            <div style="text-align:right;">
+                                <div class="overtime-status-badge" id="summaryStatusBadge">
+                                    <span class="dot-offline" id="summaryStatusDot"></span>
+                                    <span id="summaryStatusText">No Activity</span>
+                                </div>
+                                <div class="overtime-sub" style="margin-top:8px;">
+                                    Logout Time: <span id="summaryLastTx">-</span><br>
+                                    Shift Start: <span id="summaryFirstTx">-</span><br>
+                                    Issues Logged: <span id="summaryTxCount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="emptyState" style="text-align:center; color:#94a3b8; padding:40px;">
+                        <i class="fas fa-info-circle" style="font-size:2.5rem; margin-bottom:10px;"></i>
+                        <p style="margin:0;">Select a mechanic and date to see their active span.</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        const OvertimePage = {
+            mechanics: [],
+
+            async init() {
+                try {
+                    const [mechRes] = await Promise.all([
+                        App.apiCall('/mechanics', 'GET')
+                    ]);
+
+                    this.mechanics = (mechRes && mechRes.success && Array.isArray(mechRes.data)) ? mechRes.data : [];
+                    this.renderMechanics();
+
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('overtimeDate').value = today;
+                } catch (err) {
+                    console.error('Failed to init overtime page', err);
+                    App.showToast('Failed to load mechanics list', 'error');
+                }
+            },
+
+            renderMechanics() {
+                const select = document.getElementById('mechanicSelect');
+                select.innerHTML = '<option value=\"\">Select mechanic...</option>';
+                this.mechanics.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m.id;
+                    opt.textContent = m.name;
+                    select.appendChild(opt);
+                });
+            },
+
+            async loadOvertime() {
+                const mechanicId = document.getElementById('mechanicSelect').value;
+                const date = document.getElementById('overtimeDate').value;
+
+                if (!mechanicId || !date) {
+                    App.showToast('Please select mechanic and date', 'warning');
+                    return;
+                }
+
+                try {
+                    const res = await App.apiCall(`/reports/mechanic-overtime?mechanicId=${encodeURIComponent(mechanicId)}&date=${encodeURIComponent(date)}`, 'GET');
+                    if (!res || !res.success) {
+                        throw new Error('Failed to fetch overtime');
+                    }
+                    this.renderSummary(res.data);
+                } catch (err) {
+                    console.error('Overtime fetch failed', err);
+                    App.showToast(err.message || 'Failed to fetch overtime data', 'error');
+                }
+            },
+
+            renderSummary(data) {
+                const empty = document.getElementById('emptyState');
+                const summary = document.getElementById('summaryContainer');
+                if (!data) {
+                    empty.style.display = 'block';
+                    summary.style.display = 'none';
+                    return;
+                }
+
+                const mech = this.mechanics.find(m => m.id === data.mechanicId);
+
+                document.getElementById('summaryMechanicName').textContent = mech ? mech.name : 'Unknown Mechanic';
+                document.getElementById('summaryDateLabel').textContent = new Date(data.date).toLocaleDateString();
+                document.getElementById('summaryTxCount').textContent = data.txCount || 0;
+
+                if (!data.hasActivity) {
+                    document.getElementById('summaryDuration').textContent = '0h 00m';
+                    document.getElementById('summaryFirstTx').textContent = '-';
+                    document.getElementById('summaryLastTx').textContent = '-';
+                    document.getElementById('summaryStatusText').textContent = 'No Activity';
+                    document.getElementById('summaryStatusDot').className = 'dot-offline';
+                } else {
+                    const totalMin = data.durationMinutes || 0;
+                    const first = data.firstTransactionAt ? new Date(data.firstTransactionAt) : null;
+                    const last = data.lastTransactionAt ? new Date(data.lastTransactionAt) : null;
+
+                    // Show the mechanic's recorded logout time prominently
+                    document.getElementById('summaryDuration').textContent =
+                        last ? last.toLocaleTimeString() : '—';
+
+                    document.getElementById('summaryFirstTx').textContent = first ? first.toLocaleTimeString() : '-';
+                    document.getElementById('summaryLastTx').textContent = last ? last.toLocaleTimeString() : '-';
+
+                    document.getElementById('summaryStatusText').textContent =
+                        totalMin >= 8 * 60 ? 'Overtime / Long Shift' : 'Normal Shift';
+                    document.getElementById('summaryStatusDot').className =
+                        totalMin >= 8 * 60 ? 'dot-online' : 'dot-online';
+                }
+
+                empty.style.display = 'none';
+                summary.style.display = 'block';
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init().then(() => {
+                const user = App.getCurrentUser();
+                if (user) {
+                    document.getElementById('userName').textContent = user.name || 'User';
+                    document.getElementById('userInitials').textContent = (user.name || 'U').charAt(0).toUpperCase();
+                }
+                OvertimePage.init();
+            });
+        });
+    </script>
+</body>
+
+</html>
+

@@ -1,6 +1,5 @@
 dist/
 .env
-
+logs/
 error.log
 db_out.txt
-logs/
