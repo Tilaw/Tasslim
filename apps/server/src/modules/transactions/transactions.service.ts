@@ -4,10 +4,10 @@ import crypto from 'crypto';
 export class TransactionService {
     static async getAll(params: any) {
         let query = `
-      SELECT t.*, p.name as product_name, p.sku as product_sku, u.first_name, u.last_name, 
+      SELECT t.*, COALESCE(p.name, '(unknown product)') as product_name, COALESCE(p.sku, '') as product_sku, u.first_name, u.last_name, 
       m.name as mechanic_name, b.plate_number as bike_plate_number
       FROM inventory_transactions t 
-      JOIN products p ON t.product_id = p.id 
+      LEFT JOIN products p ON t.product_id = p.id 
       LEFT JOIN users u ON t.created_by = u.id 
       LEFT JOIN mechanics m ON t.mechanic_id = m.id
       LEFT JOIN bikes b ON t.bike_id = b.id

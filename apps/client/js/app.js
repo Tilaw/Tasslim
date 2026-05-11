@@ -74,6 +74,14 @@ const App = {
 
             const result = await response.json();
 
+            // Some proxies mis-handle errors; never treat a failed envelope as success.
+            if (response.ok && result && result.success === false) {
+                const msg = result.error?.message || result.error || 'API returned success: false';
+                const err = new Error(typeof msg === 'string' ? msg : 'API Request failed');
+                err.status = response.status;
+                throw err;
+            }
+
             if (!response.ok) {
                 let msg = result.error?.message || result.error || 'API Request failed';
                 const details = result.error?.details;
@@ -507,10 +515,11 @@ const App = {
                 transactions.forEach(t => {
                     const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
                     if (!groups[key]) {
+                        const rawType = t.transaction_type != null ? t.transaction_type : t.transactionType;
                         groups[key] = {
                             id: t.reference_id || t.id,
                             date: t.created_at,
-                            type: t.transaction_type,
+                            type: String(rawType || '').toLowerCase(),
                             items: [],
                             mechanic: t.mechanic_name || '',
                             bike: t.bike_plate_number || '',

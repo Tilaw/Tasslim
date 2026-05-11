@@ -12,8 +12,8 @@ export async function getIssueContext() {
         ProductService.getAll({}),
         MechanicService.getAll(),
         BikeService.getAll(),
-        // Fetch all issue transactions so the issue-part page can display the full history.
-        TransactionService.getAll({ type: 'issue' }),
+        // Recent issue transactions (newest first, capped) so the page stays fast on large DBs.
+        TransactionService.getAll({ type: 'issue', limit: 500 }),
     ]);
     return { products, mechanics, bikes, transactions };
 }

@@ -702,10 +702,22 @@
 
             init: async function () {
                 console.log('PickItem Initializing (DB-backed only), Version:', this.version);
-                await this.loadData();
+                var loaded = await this.loadData();
                 this.renderHistory();
                 this.populateMechanics();
                 this._startPolling();
+                // If first load failed, retry once after a short delay (mobile / flaky networks).
+                if (!loaded) {
+                    var self = this;
+                    setTimeout(function () {
+                        self.loadData().then(function (ok) {
+                            if (ok) {
+                                self.renderHistory();
+                                self.populateMechanics();
+                            }
+                        });
+                    }, 2500);
+                }
             },
 
             _startPolling: function () {
@@ -739,8 +751,16 @@
                 schedule();
             },
 
-            // Load data: prefer single GET /issue-context (1 round-trip); fallback to 4 parallel calls
+            // Load data: prefer single GET /issue-context (1 round-trip); fallback to 4 parallel calls.
+            // Returns true when server state was applied; false keeps prior in-memory lists (no silent wipe).
             loadData: async function () {
+                var snapshot = {
+                    data: this.data,
+                    sales: this.sales,
+                    mechanics: this._mechanics,
+                    bikes: this._bikes
+                };
+
                 try {
                     var ctx = await App.apiCall('/issue-context', 'GET');
                     if (ctx && ctx.success && ctx.data) {
@@ -749,7 +769,8 @@
                         this._mechanics = Array.isArray(d.mechanics) ? d.mechanics : [];
                         this._bikes = Array.isArray(d.bikes) ? d.bikes : [];
                         this._applyTransactions(Array.isArray(d.transactions) ? d.transactions : []);
-                        return;
+                        this._loadDataOk = true;
+                        return true;
                     }
                 } catch (e) {
                     if (e && (e.status === 404 || e.message && e.message.indexOf('404') !== -1)) { /* old backend */ }
@@ -761,19 +782,23 @@
                         App.apiCall('/products', 'GET'),
                         App.apiCall('/mechanics', 'GET'),
                         App.apiCall('/bikes', 'GET'),
-                        App.apiCall('/transactions?type=issue&limit=250', 'GET')
+                        App.apiCall('/transactions?type=issue&limit=500', 'GET')
                     ]);
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this._mechanics = (mData && mData.success && Array.isArray(mData.data)) ? mData.data : [];
                     this._bikes = (bData && bData.success && Array.isArray(bData.data)) ? bData.data : [];
                     this._applyTransactions((tData && tData.success && Array.isArray(tData.data)) ? tData.data : []);
+                    this._loadDataOk = true;
+                    return true;
                 } catch (err) {
                     console.error('Failed to load issue-part data from server:', err);
                     App.showToast((err && err.message) || 'Failed to load issue history from server', 'error');
-                    this.data = [];
-                    this.sales = [];
-                    this._mechanics = [];
-                    this._bikes = [];
+                    this.data = snapshot.data;
+                    this.sales = snapshot.sales;
+                    this._mechanics = snapshot.mechanics;
+                    this._bikes = snapshot.bikes;
+                    this._loadDataOk = false;
+                    return false;
                 }
             },
 
@@ -781,11 +806,12 @@
                 var groups = {};
                 transactions.forEach(function (t) {
                     var key = t.reference_id || ('tx_' + t.created_at + '_' + t.mechanic_id);
+                    var rawType = t.transaction_type != null ? t.transaction_type : t.transactionType;
                     if (!groups[key]) {
                         groups[key] = {
                             id: t.reference_id || t.id,
                             date: t.created_at,
-                            type: t.transaction_type,
+                            type: String(rawType || '').toLowerCase(),
                             items: [],
                             mechanic: t.mechanic_name || '',
                             bike: t.bike_plate_number || '',
@@ -1175,19 +1201,29 @@
                         };
                     });
 
-                    // Prefer single batch request (faster on mobile); fallback to one-by-one
+                    // Prefer single batch request (faster on mobile); fallback to one-by-one only when batch is unavailable.
+                    var batchRes = null;
                     try {
-                        var batchRes = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
-                        if (!batchRes || !batchRes.success) throw new Error('Batch failed');
+                        batchRes = await App.apiCall('/transactions/batch', 'POST', { transactions: payload });
+                        if (!batchRes || !batchRes.success || !Array.isArray(batchRes.data) || batchRes.data.length !== payload.length) {
+                            throw new Error(batchRes && batchRes.error && batchRes.error.message ? batchRes.error.message : 'Batch save incomplete');
+                        }
                     } catch (batchErr) {
-                        for (var i = 0; i < payload.length; i++) {
-                            await App.apiCall('/transactions', 'POST', payload[i]);
+                        console.warn('Batch issuance failed, falling back to per-line save:', batchErr);
+                        for (var j = 0; j < payload.length; j++) {
+                            var lineRes = await App.apiCall('/transactions', 'POST', payload[j]);
+                            if (!lineRes || !lineRes.success) {
+                                throw new Error((lineRes && lineRes.error && lineRes.error.message) || 'Failed to save one or more lines');
+                            }
                         }
                     }
 
-                    await this.loadData();
-
-                    App.showToast('Issuance recorded successfully!');
+                    var refreshed = await this.loadData();
+                    if (!refreshed) {
+                        App.showToast('Issuance was saved on the server, but this device could not reload history. Check your connection or refresh the page.', 'warning');
+                    } else {
+                        App.showToast('Issuance recorded successfully!');
+                    }
                     this.closeModal();
                     this.renderHistory();
 
@@ -1213,7 +1249,7 @@
 
                 // Get all issuance sales records, newest first so present issues are at the top
                 const history = [...this.sales]
-                    .filter(s => s.type === 'issue')
+                    .filter(s => String(s.type || '').toLowerCase() === 'issue')
                     .sort((a, b) => new Date(b.date) - new Date(a.date));
 
                 if (history.length === 0) {
