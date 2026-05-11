@@ -1,0 +1,1148 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tasslim Parts Manager API",
+    "description": "REST API for inventory management, purchase tracking, part issuance, bikes, mechanics, reports, and operational logs.\n\n## Authentication\nAll protected routes require a `Bearer` JWT obtained from `POST /api/v1/auth/login`. Include it in the `Authorization` header:\n```\nAuthorization: Bearer <token>\n```\nAccess tokens are short-lived. Use `POST /api/v1/auth/refresh` with a valid `refreshToken` to obtain new credentials without re-login.\n\n## Response Envelope\nAll responses follow a consistent envelope:\n```json\n{ \"success\": true,  \"data\": { ... } }   // 2xx\n{ \"success\": false, \"error\": { \"message\": \"...\" } }  // 4xx / 5xx\n```\n\n## Versioning\nThe current stable version is `v1`. The base path for all API routes is `/api/v1`.\n\n## Rate Limiting\nRequests are rate-limited per authenticated user. Exceeding the limit returns `429 Too Many Requests`.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Tasslim Engineering",
+      "email": "eng@taslimalwataniah.ae"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://api.taslimalwataniah.ae",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "Health",         "description": "Liveness and readiness probes." },
+    { "name": "Auth",           "description": "Login, token refresh, and user administration." },
+    { "name": "Products",       "description": "Parts catalog with real-time stock quantities." },
+    { "name": "Categories",     "description": "Hierarchical product categories." },
+    { "name": "Suppliers",      "description": "Supplier master data." },
+    { "name": "Transactions",   "description": "Inventory movements: purchase, sale, issue, return, and adjustment." },
+    { "name": "Mechanics",      "description": "Mechanic profiles linked to issued parts." },
+    { "name": "Bikes",          "description": "Bike master data linked to transactions and oil changes." },
+    { "name": "Riders",         "description": "Rider profiles and movement tracking." },
+    { "name": "Oil changes",    "description": "Oil change records per bike." },
+    { "name": "Reports",        "description": "Aggregated statistics and operational reports." },
+    { "name": "Issue context",  "description": "Bundled context payload for the part-issue / pick workflow." },
+    { "name": "Passing logs",   "description": "Dubai manual part entries and rider IN/OUT gate movements." },
+    { "name": "Migration",      "description": "One-shot legacy data import utilities (admin only)." }
+  ],
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT obtained from `POST /api/v1/auth/login`. Pass the `token` field value."
+      }
+    },
+    "schemas": {
+      "ApiSuccess": {
+        "type": "object",
+        "description": "Standard success envelope.",
+        "required": ["success", "data"],
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "description": "Payload; shape varies by endpoint." }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "description": "Standard error envelope.",
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": {
+            "type": "object",
+            "required": ["message"],
+            "properties": {
+              "message": { "type": "string", "example": "Resource not found." }
+            }
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": ["email", "password"],
+        "properties": {
+          "email":    { "type": "string", "format": "email", "example": "admin@taslimalwataniah.ae" },
+          "password": { "type": "string", "format": "password", "example": "••••••••" }
+        }
+      },
+      "LoginResponse": {
+        "type": "object",
+        "properties": {
+          "token":        { "type": "string", "description": "Short-lived access token (JWT)." },
+          "refreshToken": { "type": "string", "description": "Long-lived refresh token." },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id":        { "type": "string", "format": "uuid" },
+              "email":     { "type": "string", "format": "email" },
+              "firstName": { "type": "string" },
+              "lastName":  { "type": "string" },
+              "role":      { "type": "string", "example": "admin" }
+            }
+          }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "required": ["refreshToken"],
+        "properties": {
+          "refreshToken": { "type": "string" }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": ["email", "password", "firstName"],
+        "properties": {
+          "email":     { "type": "string", "format": "email" },
+          "password":  { "type": "string", "format": "password", "minLength": 8 },
+          "firstName": { "type": "string" },
+          "lastName":  { "type": "string" },
+          "roleId":    { "type": "string", "format": "uuid", "description": "Assign a specific role by ID (optional)." },
+          "role":      { "type": "string", "enum": ["admin", "manager", "technician"], "description": "Role name shorthand (used if roleId is absent)." }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "description": "Update a user's login email/username and/or password. Self-service password changes require `currentPassword`.",
+        "properties": {
+          "email": { "type": "string", "example": "admin" },
+          "currentPassword": { "type": "string", "format": "password", "description": "Required when changing your own password." },
+          "password": { "type": "string", "format": "password", "minLength": 6, "description": "New password (min 6 chars)." }
+        }
+      },
+      "UserProfile": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string" },
+          "firstName": { "type": "string" },
+          "lastName": { "type": "string" },
+          "role": { "type": "string", "example": "admin" },
+          "isActive": { "type": "boolean", "example": true }
+        }
+      },
+      "ProductRequest": {
+        "type": "object",
+        "required": ["name", "sku"],
+        "properties": {
+          "name":        { "type": "string", "example": "Air Filter – Honda PCX 150" },
+          "sku":         { "type": "string", "example": "AF-PCX150-001" },
+          "description": { "type": "string" },
+          "categoryId":  { "type": "string", "format": "uuid" },
+          "supplierId":  { "type": "string", "format": "uuid" },
+          "unitPrice":   { "type": "number", "format": "float", "minimum": 0, "example": 12.50 },
+          "reorderLevel":{ "type": "integer", "minimum": 0, "example": 5, "description": "Alert threshold for low-stock warnings." }
+        }
+      },
+      "CategoryRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":        { "type": "string", "example": "Filters" },
+          "description": { "type": "string" }
+        }
+      },
+      "SupplierRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":    { "type": "string", "example": "Gulf Parts Trading LLC" },
+          "phone":   { "type": "string", "example": "+971501234567" },
+          "email":   { "type": "string", "format": "email" },
+          "address": { "type": "string" },
+          "notes":   { "type": "string" }
+        }
+      },
+      "MechanicRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":  { "type": "string", "example": "Khalid Al Mansouri" },
+          "phone": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      },
+      "BikeRequest": {
+        "type": "object",
+        "required": ["bikeNumber"],
+        "properties": {
+          "bikeNumber": { "type": "string", "example": "DXB-4421" },
+          "model":      { "type": "string", "example": "Honda PCX 150" },
+          "year":       { "type": "integer", "example": 2022 },
+          "riderId":    { "type": "string", "format": "uuid", "nullable": true },
+          "notes":      { "type": "string" }
+        }
+      },
+      "RiderRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name":    { "type": "string", "example": "Mohammed Al Rashid" },
+          "phone":   { "type": "string", "example": "+971551234567" },
+          "riderId": { "type": "string", "description": "External rider ID / badge number.", "example": "RDR-00123" },
+          "city":    { "type": "string" },
+          "company": { "type": "string" },
+          "notes":   { "type": "string" }
+        }
+      },
+      "OilChangeRequest": {
+        "type": "object",
+        "required": ["bikeId", "date"],
+        "properties": {
+          "bikeId":     { "type": "string", "format": "uuid" },
+          "date":       { "type": "string", "format": "date", "example": "2025-03-15" },
+          "mileage":    { "type": "integer", "example": 12500, "description": "Odometer reading at time of change (km)." },
+          "mechanicId": { "type": "string", "format": "uuid", "nullable": true },
+          "notes":      { "type": "string" }
+        }
+      },
+      "TransactionLine": {
+        "type": "object",
+        "required": ["productId", "transactionType", "quantity"],
+        "properties": {
+          "productId":       { "type": "string", "format": "uuid" },
+          "transactionType": {
+            "type": "string",
+            "enum": ["purchase", "sale", "return", "adjustment", "issue"],
+            "description": "`purchase` / `return` add stock; `sale` / `issue` / negative `adjustment` deduct stock."
+          },
+          "quantity": {
+            "type": "integer",
+            "description": "Positive for inbound movements (purchase, return); negative for outbound (sale, issue). Adjustments can be either sign.",
+            "example": -2
+          },
+          "mechanicId":   { "type": "string", "format": "uuid", "nullable": true },
+          "bikeId":       { "type": "string", "format": "uuid", "nullable": true },
+          "referenceId":  { "type": "string", "description": "Client-supplied group reference (e.g. job order number). Used for batch reverts.", "example": "JO-2025-0042" },
+          "notes":        { "type": "string" },
+          "date":         { "type": "string", "format": "date-time", "description": "Defaults to server time if omitted." },
+          "unitPrice":    { "type": "number", "format": "float", "minimum": 0, "description": "For `purchase` transactions: updates the product's unit cost." },
+          "riderName":    { "type": "string" },
+          "riderPhone":   { "type": "string" },
+          "riderNumber":  { "type": "string" },
+          "riderId":      { "type": "string", "format": "uuid", "nullable": true },
+          "receiverName": { "type": "string" }
+        }
+      },
+      "TransactionBatchBody": {
+        "type": "object",
+        "required": ["transactions"],
+        "properties": {
+          "transactions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "description": "Up to 50 transaction lines processed atomically.",
+            "items": { "$ref": "#/components/schemas/TransactionLine" }
+          }
+        }
+      },
+      "DubaiEntriesBody": {
+        "type": "object",
+        "required": ["entries"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": ["bikeNumber", "partName"],
+              "properties": {
+                "bikeNumber": { "type": "string", "example": "DXB-4421" },
+                "partName":   { "type": "string", "example": "Chain Sprocket" },
+                "quantity":   { "type": "integer", "minimum": 1, "default": 1 }
+              }
+            }
+          }
+        }
+      },
+      "RiderMovementBody": {
+        "type": "object",
+        "required": ["bikeNumber", "date", "direction"],
+        "properties": {
+          "bikeNumber": { "type": "string", "example": "DXB-4421" },
+          "riderName":  { "type": "string", "nullable": true },
+          "riderId":    { "type": "string", "nullable": true },
+          "phone":      { "type": "string", "nullable": true },
+          "city":       { "type": "string", "nullable": true },
+          "company":    { "type": "string", "nullable": true },
+          "date":       { "type": "string", "format": "date", "description": "ISO 8601 date: `YYYY-MM-DD`.", "example": "2025-04-01" },
+          "time":       { "type": "string", "description": "24-hour local time: `HH:MM`.", "nullable": true, "example": "09:30" },
+          "direction":  { "type": "string", "enum": ["IN", "OUT"], "description": "`IN` = bike enters facility; `OUT` = bike leaves." }
+        }
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "description": "Missing or invalid JWT.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "Validation error.",
+        "content": {
+          "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "Health check",
+        "description": "Returns server liveness status and current UTC timestamp. No authentication required. Suitable for load-balancer health probes.",
+        "security": [],
+        "operationId": "getHealth",
+        "responses": {
+          "200": {
+            "description": "Service is up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status":    { "type": "string", "example": "ok" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login",
+        "description": "Authenticate with email and password. Returns a short-lived access token and a long-lived refresh token.",
+        "operationId": "login",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Authentication successful.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/LoginResponse" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Refresh access token",
+        "description": "Exchange a valid `refreshToken` for a new access token / refresh token pair. The old refresh token is invalidated on success.",
+        "operationId": "refreshToken",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RefreshRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "New token pair issued.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Register user",
+        "description": "Create a new application user. Requires admin privileges.",
+        "operationId": "registerUser",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "User created successfully.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/auth": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "List users",
+        "description": "Retrieve all registered users. Requires admin privileges.",
+        "operationId": "listUsers",
+        "responses": {
+          "200": {
+            "description": "Array of user profiles.",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/auth/{id}": {
+      "delete": {
+        "tags": ["Auth"],
+        "summary": "Delete user",
+        "description": "Permanently remove a user account. Requires admin privileges.",
+        "operationId": "deleteUser",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "UUID of the user to delete.", "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "User deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Auth"],
+        "summary": "Update user credentials",
+        "description": "Update a user's email/username and/or password. Users may update themselves; admin roles may update any user. Self-service password changes require `currentPassword`.",
+        "operationId": "updateUserCredentials",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "UUID of the user to update.", "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/UpdateUserRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/UserProfile" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "description": "Validation error.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "description": "Insufficient permissions.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "description": "Email already in use.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+        }
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "List products",
+        "description": "Returns all products with current stock quantities. Supports full-text search and category filtering.",
+        "operationId": "listProducts",
+        "parameters": [
+          { "name": "search",     "in": "query", "description": "Full-text search across name and SKU.", "schema": { "type": "string" } },
+          { "name": "categoryId", "in": "query", "description": "Filter by category UUID.",              "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Product list with stock.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Create product",
+        "description": "Add a new part to the catalog. Initial stock is zero; use a `purchase` transaction to add stock.",
+        "operationId": "createProduct",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProductRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Product created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/products/{id}": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get product",
+        "description": "Fetch a single product by UUID, including current stock and transaction history summary.",
+        "operationId": "getProduct",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Product detail.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Products"],
+        "summary": "Update product",
+        "description": "Partially update product metadata. All fields are optional; only supplied fields are changed.",
+        "operationId": "updateProduct",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/ProductRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Product updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Delete product",
+        "description": "Remove a product from the catalog. Will fail if the product has linked transactions.",
+        "operationId": "deleteProduct",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Product deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "tags": ["Categories"],
+        "summary": "List categories",
+        "operationId": "listCategories",
+        "responses": {
+          "200": { "description": "Array of categories.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Categories"],
+        "summary": "Create category",
+        "operationId": "createCategory",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CategoryRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Category created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "patch": {
+        "tags": ["Categories"],
+        "summary": "Update category",
+        "operationId": "updateCategory",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/CategoryRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Categories"],
+        "summary": "Delete category",
+        "operationId": "deleteCategory",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/suppliers": {
+      "get": {
+        "tags": ["Suppliers"],
+        "summary": "List suppliers",
+        "operationId": "listSuppliers",
+        "responses": {
+          "200": { "description": "Supplier list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Suppliers"],
+        "summary": "Create supplier",
+        "operationId": "createSupplier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/SupplierRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Supplier created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/suppliers/{id}": {
+      "patch": {
+        "tags": ["Suppliers"],
+        "summary": "Update supplier",
+        "operationId": "updateSupplier",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/SupplierRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Suppliers"],
+        "summary": "Delete supplier",
+        "operationId": "deleteSupplier",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/transactions": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "List transactions",
+        "description": "Returns inventory movements with optional filtering. Results are ordered by date descending.",
+        "operationId": "listTransactions",
+        "parameters": [
+          { "name": "type",      "in": "query", "description": "Filter by transaction type.", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] } },
+          { "name": "productId", "in": "query", "description": "Filter by product UUID.",     "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit",     "in": "query", "description": "Maximum records to return (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": { "description": "Transaction list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Create transaction",
+        "description": "Record a single inventory movement. For multi-line job orders, prefer the batch endpoint.",
+        "operationId": "createTransaction",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TransactionLine" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Transaction recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/transactions/batch": {
+      "post": {
+        "tags": ["Transactions"],
+        "summary": "Batch create transactions",
+        "description": "Atomically record up to 50 inventory movements in a single request. All lines share the same audit timestamp. If any line fails validation, the entire batch is rejected. Use a shared `referenceId` across all lines to enable group revert via `DELETE /transactions/group/{referenceId}`.",
+        "operationId": "batchCreateTransactions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/TransactionBatchBody" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "All transactions recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/transactions/group/{referenceId}": {
+      "delete": {
+        "tags": ["Transactions"],
+        "summary": "Revert transaction group",
+        "description": "Reverses all transactions sharing the given `referenceId` by posting compensating entries (opposite quantity, same product). Useful for rolling back a complete job-order issuance.",
+        "operationId": "revertTransactionGroup",
+        "parameters": [
+          { "name": "referenceId", "in": "path", "required": true, "description": "The group reference ID used during batch creation.", "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Group reverted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/mechanics": {
+      "get": {
+        "tags": ["Mechanics"],
+        "summary": "List mechanics",
+        "operationId": "listMechanics",
+        "responses": {
+          "200": { "description": "Mechanic list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Mechanics"],
+        "summary": "Create mechanic",
+        "operationId": "createMechanic",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/MechanicRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Mechanic created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/mechanics/{id}": {
+      "get": {
+        "tags": ["Mechanics"],
+        "summary": "Get mechanic",
+        "operationId": "getMechanic",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Mechanic detail.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Mechanics"],
+        "summary": "Update mechanic",
+        "operationId": "updateMechanic",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/MechanicRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Mechanics"],
+        "summary": "Delete mechanic",
+        "operationId": "deleteMechanic",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/bikes": {
+      "get": {
+        "tags": ["Bikes"],
+        "summary": "List bikes",
+        "operationId": "listBikes",
+        "responses": {
+          "200": { "description": "Bike list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Bikes"],
+        "summary": "Create bike",
+        "operationId": "createBike",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/BikeRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Bike created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/bikes/{id}": {
+      "get": {
+        "tags": ["Bikes"],
+        "summary": "Get bike",
+        "operationId": "getBike",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Bike detail.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Bikes"],
+        "summary": "Update bike",
+        "operationId": "updateBike",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/BikeRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Bikes"],
+        "summary": "Delete bike",
+        "operationId": "deleteBike",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/riders": {
+      "get": {
+        "tags": ["Riders"],
+        "summary": "List riders",
+        "operationId": "listRiders",
+        "responses": {
+          "200": { "description": "Rider list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Riders"],
+        "summary": "Create rider",
+        "operationId": "createRider",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RiderRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Rider created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/riders/{id}": {
+      "get": {
+        "tags": ["Riders"],
+        "summary": "Get rider",
+        "operationId": "getRider",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Rider detail.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "patch": {
+        "tags": ["Riders"],
+        "summary": "Update rider",
+        "operationId": "updateRider",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RiderRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "Updated.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      },
+      "delete": {
+        "tags": ["Riders"],
+        "summary": "Delete rider",
+        "operationId": "deleteRider",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/api/v1/riders/imported/all": {
+      "delete": {
+        "tags": ["Riders"],
+        "summary": "Delete all imported riders",
+        "description": "Removes every rider record that was created via the migration import utility. Does not affect manually created riders. Irreversible — use with caution.",
+        "operationId": "deleteImportedRiders",
+        "responses": {
+          "200": { "description": "All imported riders deleted.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/oil-changes": {
+      "get": {
+        "tags": ["Oil changes"],
+        "summary": "List oil changes",
+        "description": "Returns oil change records, optionally scoped to a single bike.",
+        "operationId": "listOilChanges",
+        "parameters": [
+          { "name": "bikeId", "in": "query", "description": "Filter by bike UUID.", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "limit",  "in": "query", "description": "Maximum records (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": { "description": "Oil change list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Oil changes"],
+        "summary": "Record oil change",
+        "operationId": "createOilChange",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/OilChangeRequest" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Oil change recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/reports/dashboard-stats": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Dashboard statistics",
+        "description": "Returns aggregated KPIs: total products, low-stock items, transaction counts by type (today / this month), and top-issued parts.",
+        "operationId": "getDashboardStats",
+        "responses": {
+          "200": { "description": "Dashboard statistics payload.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/reports/mechanic-overtime": {
+      "get": {
+        "tags": ["Reports"],
+        "summary": "Mechanic overtime report",
+        "description": "Returns part-issue activity aggregated per mechanic, useful for overtime and productivity analysis.",
+        "operationId": "getMechanicOvertimeReport",
+        "parameters": [
+          { "name": "date",       "in": "query", "description": "ISO 8601 date (`YYYY-MM-DD`) to scope the report.", "schema": { "type": "string", "format": "date" } },
+          { "name": "mechanicId", "in": "query", "description": "Narrow to a single mechanic by UUID.",              "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Overtime report data.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/issue-context": {
+      "get": {
+        "tags": ["Issue context"],
+        "summary": "Issue workflow context bundle",
+        "description": "Returns a pre-assembled payload containing products (with stock), mechanics, bikes, and riders in a single request. Designed to minimize round-trips when loading the part-issue / pick screen.",
+        "operationId": "getIssueContext",
+        "responses": {
+          "200": { "description": "Context bundle.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/passing-logs/dubai-entries": {
+      "get": {
+        "tags": ["Passing logs"],
+        "summary": "List Dubai part entries",
+        "description": "Lists manually entered part consumption records for the Dubai gate (not tied to stock transactions).",
+        "operationId": "listDubaiEntries",
+        "parameters": [
+          { "name": "limit", "in": "query", "description": "Maximum records (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": { "description": "Dubai entry list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Passing logs"],
+        "summary": "Create Dubai part entries",
+        "description": "Batch-record manual part entries for the Dubai gate. Up to 50 lines per request.",
+        "operationId": "createDubaiEntries",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/DubaiEntriesBody" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Entries recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/passing-logs/rider-movements": {
+      "get": {
+        "tags": ["Passing logs"],
+        "summary": "List rider movements",
+        "description": "Returns gate IN/OUT movement log for rider bikes.",
+        "operationId": "listRiderMovements",
+        "parameters": [
+          { "name": "limit", "in": "query", "description": "Maximum records (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+        ],
+        "responses": {
+          "200": { "description": "Movement list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      },
+      "post": {
+        "tags": ["Passing logs"],
+        "summary": "Record rider movement",
+        "description": "Log a single bike gate movement (IN or OUT) with optional rider metadata.",
+        "operationId": "createRiderMovement",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/RiderMovementBody" } }
+          }
+        },
+        "responses": {
+          "201": { "description": "Movement recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/migration/import": {
+      "post": {
+        "tags": ["Migration"],
+        "summary": "Import legacy data",
+        "description": "One-shot utility for importing historical data from legacy systems. Requires admin privileges. Idempotent on duplicate SKUs/bike numbers — existing records are skipped, not overwritten.",
+        "operationId": "importLegacyData",
+        "responses": {
+          "200": { "description": "Import completed. Returns counts of created vs skipped records.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    }
+  }
+}

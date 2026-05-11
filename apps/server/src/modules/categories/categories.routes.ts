@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import { CategoryController } from './categories.controller.js';
+import { authMiddleware, requireRole } from '../../middleware/auth.middleware.js';
+import { validate } from '../../middleware/validation.middleware.js';
+import { createCategorySchema, updateCategorySchema } from './categories.validation.js';
+
+const router = Router();
+
+router.get('/', authMiddleware, CategoryController.getAll);
+router.post('/', authMiddleware, requireRole('super_admin', 'store_manager'), validate(createCategorySchema), CategoryController.create);
+router.patch('/:id', authMiddleware, requireRole('super_admin', 'store_manager'), validate(updateCategorySchema), CategoryController.update);
+router.delete('/:id', authMiddleware, requireRole('super_admin', 'store_manager'), CategoryController.delete);
+
+export const categoryRoutes = router;

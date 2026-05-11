@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Passing IN/Out Bike - Tasslim Parts Manager</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        .log-card {
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+            border: 1px solid #e2e8f0;
+            max-width: 920px;
+            margin: 0 auto 24px;
+        }
+
+        .dir-toggle {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .dir-toggle label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        .form-grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        @media (max-width: 640px) {
+            .form-grid-2 {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <nav class="sidebar">
+            <div class="sidebar-header">
+                <i class="fas fa-cogs" style="margin-right: 10px;"></i>
+                Tasslim Parts Manager
+            </div>
+            <ul class="sidebar-nav">
+                <li><a href="dashboard.html" class="nav-link"><i class="fas fa-tachometer-alt"></i> <span
+                            data-i18n="dashboard">Dashboard</span></a></li>
+                <li><a href="inventory.html" class="nav-link"><i class="fas fa-boxes"></i> <span
+                            data-i18n="inventory">Inventory</span></a></li>
+                <li><a href="purchase-order.html" class="nav-link"><i class="fas fa-shopping-cart"></i> <span>Purchase
+                            Order</span></a></li>
+                <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
+                            data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i>
+                        <span>Passing Bike</span></a></li>
+                <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link active"><i class="fas fa-exchange-alt"></i>
+                        <span>Passing IN/Out Bike</span></a></li>
+                <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
+                            data-i18n="oilChange">Oil Change</span></a></li>
+                <li><a href="bike-history.html" class="nav-link"><i class="fas fa-book"></i> <span
+                            data-i18n="bikeHistory">Bike History</span></a></li>
+                <li><a href="suppliers.html" class="nav-link"><i class="fas fa-truck"></i> <span
+                            data-i18n="suppliers">Suppliers</span></a></li>
+                <li><a href="mechanics.html" class="nav-link"><i class="fas fa-wrench"></i> <span
+                            data-i18n="mechanics">Mechanics</span></a></li>
+                <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
+                            data-i18n="mechanicHistory">Mechanic History</span></a></li>
+                <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return
+                            Items</span></a></li>
+                <li><a href="users.html" class="nav-link"><i class="fas fa-users-cog"></i> <span
+                            data-i18n="users">Users</span></a></li>
+                <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
+                </li>
+                <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
+                            data-i18n="bikes">Bikes</span></a></li>
+                <li><a href="reports.html" class="nav-link"><i class="fas fa-chart-line"></i> <span
+                            data-i18n="reports">Reports</span></a></li>
+                <li><a href="settings.html" class="nav-link"><i class="fas fa-cog"></i> <span
+                            data-i18n="settings">Settings</span></a></li>
+            </ul>
+            <div class="sidebar-footer">
+                <button class="nav-link" style="background:none;border:none;width:100%;text-align:left;cursor:pointer;"
+                    onclick="App.toggleLanguage()"><i class="fas fa-language"></i> <span
+                        data-i18n="translate">Translate</span></button>
+                <a href="#" onclick="App.logout()" class="nav-link"><i class="fas fa-sign-out-alt"></i> <span
+                        data-i18n="logout">Logout</span></a>
+            </div>
+        </nav>
+
+        <main class="main-content">
+            <header class="top-bar">
+                <div style="display: flex; align-items: center;">
+                    <button class="menu-toggle" onclick="App.toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="page-title">Passing IN/Out Bike — Rider log</div>
+                </div>
+                <div class="user-profile">
+                    <div class="user-avatar" id="userInitials">U</div>
+                    <span id="userName">User</span>
+                </div>
+            </header>
+
+            <div class="card log-card">
+                <div class="card-header">
+                    <h3 style="margin:0;"><i class="fas fa-exchange-alt"></i> Record bike coming in or going out</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-grid-2">
+                        <div class="form-group">
+                            <label class="form-label">Bike number</label>
+                            <input type="text" id="mBike" class="form-control" placeholder="Plate / bike number">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Phone number</label>
+                            <input type="text" id="mPhone" class="form-control" placeholder="Rider phone">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rider name</label>
+                            <input type="text" id="mRiderName" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Rider ID</label>
+                            <input type="text" id="mRiderId" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">City</label>
+                            <input type="text" id="mCity" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Company</label>
+                            <input type="text" id="mCompany" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input type="date" id="mDate" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Time</label>
+                            <input type="time" id="mTime" class="form-control">
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top:18px;">
+                        <label class="form-label">Direction</label>
+                        <div class="dir-toggle">
+                            <label>
+                                <input type="checkbox" id="mDirOut">
+                                OUT — bike is leaving (leave unchecked for IN / entering)
+                            </label>
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-primary" style="width:100%; margin-top:16px;"
+                        onclick="RiderIoPage.submit()">
+                        <i class="fas fa-save"></i> Save record
+                    </button>
+                </div>
+            </div>
+
+            <div class="card log-card">
+                <div class="card-header"
+                    style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;">
+                    <h3 style="margin:0;">Recent movements</h3>
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                        <button type="button" class="btn" style="background:#f1f5f9;color:#334155;"
+                            onclick="RiderIoPage.exportExcel()" title="Download up to 500 records">
+                            <i class="fas fa-file-export"></i> Export Excel
+                        </button>
+                        
+                        <button type="button" class="btn" style="background:#e0f2fe;color:#0369a1;border-color:#bae6fd;"
+                            onclick="document.getElementById('riderIoImportFile').click()">
+                            <i class="fas fa-file-import"></i> Import Excel
+                        </button>
+                    </div>
+                </div>
+                <input type="file" id="riderIoImportFile"
+                    accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    style="display:none;" aria-hidden="true">
+                <div class="card-body table-container" style="overflow-x:auto;">
+                    <table class="activity-table">
+                        <thead>
+                            <tr>
+                                <th>When</th>
+                                <th>Dir</th>
+                                <th>Bike</th>
+                                <th>Phone</th>
+                                <th>Rider</th>
+                                <th>ID</th>
+                                <th>City</th>
+                                <th>Company</th>
+                                <th>Date</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentMove">
+                            <tr>
+                                <td colspan="10" style="text-align:center;color:#9ca3af;padding:16px;">Loading…</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
+    <script>
+        function riderIoNormKey(k) {
+            return String(k || '').trim().toLowerCase().replace(/\s+/g, '');
+        }
+
+        function riderIoPick(row, aliases) {
+            const map = {};
+            Object.keys(row).forEach((k) => { map[riderIoNormKey(k)] = row[k]; });
+            for (const a of aliases) {
+                const v = map[riderIoNormKey(a)];
+                if (v !== undefined && v !== null && String(v).trim() !== '') return v;
+            }
+            return '';
+        }
+
+        function riderIoDateStr(v) {
+            if (v == null || v === '') return '';
+            if (v instanceof Date && !isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+            if (typeof v === 'number' && v > 1000) {
+                const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+                if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+            }
+            const s = String(v).trim();
+            if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+            const d2 = new Date(s);
+            if (!isNaN(d2.getTime())) return d2.toISOString().slice(0, 10);
+            return s;
+        }
+
+        function riderIoTimeStr(v) {
+            if (v == null || v === '') return null;
+            if (typeof v === 'number' && v >= 0 && v < 1) {
+                const total = Math.round(v * 86400);
+                const h = Math.floor(total / 3600);
+                const m = Math.floor((total % 3600) / 60);
+                return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            }
+            if (v instanceof Date && !isNaN(v.getTime())) {
+                return `${String(v.getHours()).padStart(2, '0')}:${String(v.getMinutes()).padStart(2, '0')}`;
+            }
+            const s = String(v).trim();
+            if (/^\d{1,2}:\d{2}/.test(s)) return s.slice(0, 5);
+            return s || null;
+        }
+
+        function riderIoDir(v) {
+            const s = String(v || '').trim().toUpperCase();
+            if (s === 'OUT' || s === 'O' || s === '1' || s === 'YES' || s === 'TRUE' || s === 'LEAVING') return 'OUT';
+            if (s === 'IN' || s === 'I' || s === '0' || s === 'NO' || s === 'FALSE' || s === 'ENTERING') return 'IN';
+            return '';
+        }
+
+        const RiderIoPage = {
+            _submitting: false,
+
+            init() {
+                const d = new Date();
+                document.getElementById('mDate').value = d.toISOString().slice(0, 10);
+                document.getElementById('mTime').value = d.toTimeString().slice(0, 5);
+                this.loadRecent();
+            },
+
+            _esc(s) {
+                const el = document.createElement('div');
+                el.textContent = s == null ? '' : String(s);
+                return el.innerHTML;
+            },
+
+            async loadRecent() {
+                const tbody = document.getElementById('recentMove');
+                try {
+                    const res = await App.apiCall('/passing-logs/rider-movements?limit=50', 'GET');
+                    const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
+                    tbody.innerHTML = '';
+                    if (rows.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;color:#9ca3af;padding:16px;\">No records yet.</td></tr>';
+                        return;
+                    }
+                    rows.forEach(r => {
+                        const tr = document.createElement('tr');
+                        const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
+                        const md = r.movementDate || '-';
+                        const mt = r.movementTime || '-';
+                        tr.innerHTML = `
+                            <td>${when}</td>
+                            <td><strong>${RiderIoPage._esc(r.direction)}</strong></td>
+                            <td>${RiderIoPage._esc(r.bikeNumber)}</td>
+                            <td>${RiderIoPage._esc(r.phone)}</td>
+                            <td>${RiderIoPage._esc(r.riderName)}</td>
+                            <td>${RiderIoPage._esc(r.riderId)}</td>
+                            <td>${RiderIoPage._esc(r.city)}</td>
+                            <td>${RiderIoPage._esc(r.company)}</td>
+                            <td>${RiderIoPage._esc(md)}</td>
+                            <td>${RiderIoPage._esc(mt)}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                } catch (e) {
+                    tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;color:#e11d48;\">Could not load list.</td></tr>';
+                }
+            },
+
+            async exportExcel() {
+                if (typeof XLSX === 'undefined') {
+                    App.showToast('Excel library not loaded.', 'error');
+                    return;
+                }
+                try {
+                    const res = await App.apiCall('/passing-logs/rider-movements?limit=500', 'GET');
+                    const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
+                    const data = rows.map((r) => ({
+                        CreatedAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
+                        Direction: r.direction || '',
+                        BikeNumber: r.bikeNumber || '',
+                        Phone: r.phone || '',
+                        RiderName: r.riderName || '',
+                        RiderId: r.riderId || '',
+                        City: r.city || '',
+                        Company: r.company || '',
+                        Date: r.movementDate || '',
+                        Time: r.movementTime || ''
+                    }));
+                    const ws = XLSX.utils.json_to_sheet(data.length ? data : [{
+                        BikeNumber: '', Direction: 'IN', Date: ''
+                    }]);
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, 'Rider movements');
+                    const name = `Passing_IN_Out_Movements_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    XLSX.writeFile(wb, name);
+                    App.showToast(rows.length ? `Exported ${rows.length} row(s).` : 'No rows to export (empty file).',
+                        rows.length ? 'success' : 'warning');
+                } catch (e) {
+                    console.error(e);
+                    App.showToast('Export failed.', 'error');
+                }
+            },
+
+            
+            importExcelFile(file) {
+                if (!file || typeof XLSX === 'undefined') {
+                    App.showToast('Excel library not loaded.', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    try {
+                        const buf = new Uint8Array(ev.target.result);
+                        const workbook = XLSX.read(buf, { type: 'array', cellDates: true });
+                        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                        if (!sheet) {
+                            App.showToast('No sheet found in file.', 'error');
+                            return;
+                        }
+                        const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+                        let ok = 0;
+                        let fail = 0;
+                        for (let i = 0; i < json.length; i++) {
+                            const row = json[i];
+                            const bikeNumber = String(riderIoPick(row, ['BikeNumber', 'Bike', 'Plate', 'Bike number'])).trim();
+                            const date = riderIoDateStr(riderIoPick(row, ['Date', 'MovementDate', 'movement_date']));
+                            let direction = riderIoDir(riderIoPick(row, ['Direction', 'Dir', 'IN/OUT']));
+                            if (!direction) direction = 'IN';
+                            if (!bikeNumber || !date) {
+                                fail++;
+                                continue;
+                            }
+                            const body = {
+                                bikeNumber,
+                                phone: String(riderIoPick(row, ['Phone', 'Rider phone'])).trim() || null,
+                                riderName: String(riderIoPick(row, ['RiderName', 'Rider name', 'Rider'])).trim() || null,
+                                riderId: String(riderIoPick(row, ['RiderId', 'Rider ID', 'Rider id'])).trim() || null,
+                                city: String(riderIoPick(row, ['City'])).trim() || null,
+                                company: String(riderIoPick(row, ['Company'])).trim() || null,
+                                date,
+                                time: riderIoTimeStr(riderIoPick(row, ['Time', 'MovementTime', 'movement_time'])) || null,
+                                direction
+                            };
+                            try {
+                                const res = await App.apiCall('/passing-logs/rider-movements', 'POST', body);
+                                if (res && res.success) ok++;
+                                else fail++;
+                            } catch (err) {
+                                fail++;
+                            }
+                        }
+                        App.showToast(`Import finished: ${ok} saved, ${fail} skipped or failed.`, ok ? 'success' : 'warning');
+                        await RiderIoPage.loadRecent();
+                    } catch (err) {
+                        console.error(err);
+                        App.showToast('Could not read Excel file.', 'error');
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            },
+
+            async submit() {
+                const bikeNumber = document.getElementById('mBike').value.trim();
+                const date = document.getElementById('mDate').value;
+                const direction = document.getElementById('mDirOut').checked ? 'OUT' : 'IN';
+                if (!bikeNumber || !date) {
+                    App.showToast('Bike number and date are required.', 'warning');
+                    return;
+                }
+                const body = {
+                    bikeNumber,
+                    phone: document.getElementById('mPhone').value.trim() || null,
+                    riderName: document.getElementById('mRiderName').value.trim() || null,
+                    riderId: document.getElementById('mRiderId').value.trim() || null,
+                    city: document.getElementById('mCity').value.trim() || null,
+                    company: document.getElementById('mCompany').value.trim() || null,
+                    date,
+                    time: document.getElementById('mTime').value || null,
+                    direction
+                };
+                if (this._submitting) return;
+                this._submitting = true;
+                try {
+                    const res = await App.apiCall('/passing-logs/rider-movements', 'POST', body);
+                    if (!res || !res.success) throw new Error('Save failed');
+                    App.showToast('Movement saved.', 'success');
+                    document.getElementById('mBike').value = '';
+                    document.getElementById('mPhone').value = '';
+                    document.getElementById('mRiderName').value = '';
+                    document.getElementById('mRiderId').value = '';
+                    document.getElementById('mCity').value = '';
+                    document.getElementById('mCompany').value = '';
+                    await this.loadRecent();
+                } catch (e) {
+                    App.showToast(e.message || 'Failed to save', 'error');
+                } finally {
+                    this._submitting = false;
+                }
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            App.init().then(() => {
+                const user = App.getCurrentUser();
+                if (user) {
+                    document.getElementById('userName').textContent = user.name || 'User';
+                    document.getElementById('userInitials').textContent = (user.name || 'U').charAt(0).toUpperCase();
+                }
+                RiderIoPage.init();
+                const imp = document.getElementById('riderIoImportFile');
+                if (imp) {
+                    imp.addEventListener('change', (e) => {
+                        const f = e.target.files && e.target.files[0];
+                        e.target.value = '';
+                        if (f) RiderIoPage.importExcelFile(f);
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

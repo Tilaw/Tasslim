@@ -1,9 +1,9 @@
 # Tasslim (Parts Manager)
 
-Monorepo workshop management system:
+Single-repo workshop management system:
 
-- **Frontend**: static HTML/CSS/JS under `apps/client/`
-- **Backend**: Node.js + Express + TypeScript API under `apps/server/`
+- **Frontend**: static HTML/CSS/JS under `frontend/`
+- **Backend**: Node.js + Express + TypeScript API under `backend/`
 - **Database**: **MySQL** (via `mysql2`), migrated automatically on server startup
 
 The frontend talks to the backend over REST (`/api/v1/*`) using JWT auth, and the backend also serves the frontend as static files.
@@ -26,10 +26,10 @@ This system supports workshop operations for fleet maintenance:
 
 ## How it runs
 
-When you start the backend (`apps/server/src/server.ts`):
+When you start the backend (`backend/src/server.ts`):
 
-- It runs DB migrations (`apps/server/src/database/migrations.ts`)
-- It verifies the MySQL connection (`apps/server/src/database/db.ts`)
+- It runs DB migrations (`backend/src/database/migrations.ts`)
+- It verifies the MySQL connection (`backend/src/database/db.ts`)
 - It starts the HTTP server (default port **4000**)
 
 The backend serves:
@@ -38,7 +38,7 @@ The backend serves:
 - **Swagger UI**: `GET /api/docs`
 - **OpenAPI JSON**: `GET /api/openapi.json`
 - **API**: `/api/v1/*`
-- **Frontend**: static files from the repo root (so `apps/client/*.html` loads when hosted by the backend)
+- **Frontend**: static files from the repo root (so `frontend/*.html` loads when hosted by the backend)
 
 ---
 
@@ -63,7 +63,7 @@ The backend serves:
 
 ### Backend setup
 
-1) Configure env in `apps/server/.env`:
+1) Configure env in `backend/.env`:
 
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`
 - `PORT` (default **4000**)
@@ -72,7 +72,7 @@ The backend serves:
 2) Install + run:
 
 ```powershell
-cd apps/server
+cd backend
 npm install
 npm run dev
 ```
@@ -84,7 +84,7 @@ Verify:
 
 ### Frontend usage
 
-The frontend’s API base URL is computed in `apps/client/js/config.js`:
+The frontend’s API base URL is computed in `frontend/js/config.js`:
 
 - When opened via `file://` or `localhost`: defaults to `http://localhost:4000/api/v1`
 - Production fallback: `https://api.taslimalwataniah.ae/api/v1`
@@ -92,7 +92,7 @@ The frontend’s API base URL is computed in `apps/client/js/config.js`:
 
 Recommended during development: run the backend and open:
 
-- `http://localhost:4000/apps/client/index.html`
+- `http://localhost:4000/frontend/index.html`
 
 ---
 
@@ -106,7 +106,7 @@ Recommended during development: run the backend and open:
 
 ## Settings page endpoints
 
-`apps/client/settings.html` uses:
+`frontend/settings.html` uses:
 
 - **Health check**: `GET /health` (public)
 - **Update account credentials**: `PATCH /api/v1/auth/:id` (JWT required)
@@ -131,7 +131,7 @@ Rules:
 
 ## Backend API modules
 
-Mounted in `apps/server/src/app.ts`:
+Mounted in `backend/src/app.ts`:
 
 - `/api/v1/auth`
 - `/api/v1/products`
@@ -153,39 +153,37 @@ Mounted in `apps/server/src/app.ts`:
 
 ```
 Tasslim/
-├── apps/
-│   ├── client/          (Frontend)
-│   │   ├── *.html
-│   │   ├── css/
-│   │   └── js/
-│   │       ├── config.js
-│   │       └── app.js
-│   └── server/          (Backend)
-│       ├── package.json
-│       ├── .env
-│       ├── src/
-│       │   ├── app.ts
-│       │   ├── server.ts
-│       │   ├── database/
-│       │   │   ├── db.ts
-│       │   │   └── migrations.ts
-│       │   ├── middleware/
-│       │   └── modules/
-│       │       ├── auth/
-│       │       ├── products/
-│       │       ├── categories/
-│       │       ├── suppliers/
-│       │       ├── transactions/
-│       │       ├── mechanics/
-│       │       ├── bikes/
-│       │       ├── riders/
-│       │       ├── oil-changes/
-│       │       ├── reports/
-│       │       ├── issue-context/
-│       │       ├── passing-logs/
-│       │       └── system/   (migration)
-│       └── dist/            (compiled output)
-├── docs/
+├── frontend/
+│   ├── *.html
+│   ├── css/
+│   └── js/
+│       ├── config.js
+│       └── app.js
+├── backend/
+│   ├── package.json
+│   ├── .env
+│   ├── src/
+│   │   ├── app.ts
+│   │   ├── server.ts
+│   │   ├── database/
+│   │   │   ├── db.ts
+│   │   │   └── migrations.ts
+│   │   ├── middleware/
+│   │   └── modules/
+│   │       ├── auth/
+│   │       ├── products/
+│   │       ├── categories/
+│   │       ├── suppliers/
+│   │       ├── transactions/
+│   │       ├── mechanics/
+│   │       ├── bikes/
+│   │       ├── riders/
+│   │       ├── oil-changes/
+│   │       ├── reports/
+│   │       ├── issue-context/
+│   │       ├── passing-logs/
+│   │       └── system/   (migration)
+│   └── dist/            (compiled output)
 └── README.md
 ```
 
@@ -193,10 +191,10 @@ Tasslim/
 
 ## Backend scripts
 
-From `apps/server/`:
+From `backend/`:
 
 - `npm run dev`: run TS in watch mode
-- `npm run build`: compile to `apps/server/dist/`
+- `npm run build`: compile to `backend/dist/`
 - `npm start`: run compiled server
 
 ---
