@@ -1,12 +1,17 @@
 
+require('dotenv').config();
+
 async function testSave() {
-    const API_URL = 'http://localhost:4000/api/v1';
+    const API_URL = process.env.TEST_API_URL;
 
     // First, login to get a token
     const loginRes = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'admin', password: 'admin' })
+        body: JSON.stringify({ 
+            email: process.env.TEST_ADMIN_EMAIL, 
+            password: process.env.TEST_ADMIN_PASSWORD 
+        })
     });
 
     const loginData = await loginRes.json();
