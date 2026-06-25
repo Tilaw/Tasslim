@@ -6,7 +6,49 @@ export class TransactionController {
     static async getAll(req: AuthRequest, res: Response, next: NextFunction) {
         try {
             const result = await TransactionService.getAll(req.query);
-            res.json({ success: true, data: result });
+            res.json({
+                success: true,
+                data: result.rows,
+                meta: {
+                    nextCursor: result.nextCursor,
+                    hasMore: result.hasMore,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getGroups(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const result = await TransactionService.getGroups(req.query);
+            res.json({
+                success: true,
+                data: result.rows,
+                meta: {
+                    nextCursor: result.nextCursor,
+                    hasMore: result.hasMore,
+                    total: result.total,
+                },
+            });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getGroupsSummary(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const summary = await TransactionService.getGroupsSummary(req.query);
+            res.json({ success: true, data: summary });
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async getProductSummary(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const rows = await TransactionService.getProductSummary(req.query);
+            res.json({ success: true, data: rows });
         } catch (error) {
             next(error);
         }

@@ -208,16 +208,14 @@
         const MechHistory = {
             sales: [],
             mechanics: [],
+            _loading: false,
 
             init: function () {
-                this.sales = App.getSales();
-                // Legacy mappings removed; derive from sales only
+                this.sales = [];
                 this.mappings = [];
                 this.mechanics = App.getMechanics();
-
                 this.populateMechanics();
 
-                // Check if name is in URL
                 const urlParams = new URLSearchParams(window.location.search);
                 const mechName = urlParams.get('mechanic');
                 if (mechName) {
@@ -226,13 +224,36 @@
                 }
             },
 
+            getDateRangeFromPeriod: function () {
+                const period = document.getElementById('periodFilter').value;
+                const start = document.getElementById('startDate').value;
+                const end = document.getElementById('endDate').value;
+                const params = {};
+
+                if (period === 'week') {
+                    const d = new Date();
+                    d.setDate(d.getDate() - 7);
+                    params.startDate = d.toISOString().split('T')[0];
+                } else if (period === 'month') {
+                    const d = new Date();
+                    d.setMonth(d.getMonth() - 1);
+                    params.startDate = d.toISOString().split('T')[0];
+                } else if (period === 'year') {
+                    const d = new Date();
+                    d.setFullYear(d.getFullYear() - 1);
+                    params.startDate = d.toISOString().split('T')[0];
+                } else if (period === 'custom') {
+                    if (start) params.startDate = start;
+                    if (end) params.endDate = end;
+                }
+
+                return params;
+            },
+
             populateMechanics: function () {
                 const select = document.getElementById('mechanicSearch');
-                // Unique names from sales + from mechanics list + mapping list
-                const saleMechs = [...new Set(this.sales.map(s => s.mechanic).filter(Boolean))];
-                const mappingMechs = [...new Set(this.mappings.map(m => m.mechanicName).filter(Boolean))];
                 const dbMechs = this.mechanics.map(m => m.name);
-                const allMechs = [...new Set([...dbMechs, ...saleMechs, ...mappingMechs])].sort();
+                const allMechs = [...new Set(dbMechs.filter(Boolean))].sort();
 
                 allMechs.forEach(name => {
                     const opt = document.createElement('option');
@@ -251,15 +272,17 @@
                 this.loadHistory();
             },
 
-            loadHistory: function () {
+            loadHistory: async function () {
                 const name = document.getElementById('mechanicSearch').value;
                 if (!name) return;
+                if (this._loading) return;
+                this._loading = true;
 
-                const period = document.getElementById('periodFilter').value;
-                const start = document.getElementById('startDate').value;
-                const end = document.getElementById('endDate').value;
+                const tbody = document.getElementById('historyTable');
+                if (tbody) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading history...</td></tr>';
+                }
 
-                // Show mechanic details
                 const mech = this.mechanics.find(m => m.name === name);
                 const detBox = document.getElementById('mechanicDetails');
                 detBox.style.display = 'block';
@@ -268,39 +291,25 @@
                 document.getElementById('detPhone').textContent = mech ? `Phone: ${mech.phone || 'N/A'}` : '';
                 document.getElementById('detSpec').textContent = mech ? `Specialty: ${mech.specialization || 'N/A'}` : '';
 
-                let combinedHistory = [];
-                const txKeySet = new Set();
-
-                // 1. Process Sales (Primary)
-                const relevantSales = this.sales.filter(s => s.type === 'issue' && s.mechanic === name);
-                relevantSales.forEach(s => {
-                    const dateObj = new Date(s.date);
-                    const dateStr = isNaN(dateObj.getTime()) ? 'Invalid' : dateObj.toDateString();
-                    combinedHistory.push(s);
-
-                    // Mark fingerprint (mechanic + bike + date + items)
-                    const txFingerprint = `${s.mechanic}_${s.bike}_${dateStr}`;
-                    const itemsFingerprint = (s.items || []).map(it => `${it.productId}_${it.qty}`).sort().join('|');
-                    txKeySet.add(`${txFingerprint}_${itemsFingerprint}`);
-                });
-
-                let filtered = combinedHistory;
-                const now = new Date();
-                if (period === 'week') {
-                    const weekAgo = new Date(now.setDate(now.getDate() - 7));
-                    filtered = filtered.filter(s => new Date(s.date) >= weekAgo);
-                } else if (period === 'month') {
-                    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
-                    filtered = filtered.filter(s => new Date(s.date) >= monthAgo);
-                } else if (period === 'year') {
-                    const yearAgo = new Date(now.setFullYear(now.getFullYear() - 1));
-                    filtered = filtered.filter(s => new Date(s.date) >= yearAgo);
-                } else if (period === 'custom') {
-                    if (start) filtered = filtered.filter(s => new Date(s.date).toISOString().split('T')[0] >= start);
-                    if (end) filtered = filtered.filter(s => new Date(s.date).toISOString().split('T')[0] <= end);
+                try {
+                    const dateRange = this.getDateRangeFromPeriod();
+                    const groups = await App.fetchAllTransactionGroups({
+                        type: 'issue',
+                        mechanicName: name,
+                        limit: 200,
+                        ...dateRange
+                    });
+                    this.sales = groups;
+                    this.renderTable(groups);
+                } catch (err) {
+                    console.error('Failed to load mechanic history:', err);
+                    App.showToast((err && err.message) || 'Failed to load mechanic history', 'error');
+                    if (tbody) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center">Failed to load history</td></tr>';
+                    }
+                } finally {
+                    this._loading = false;
                 }
-
-                this.renderTable(filtered);
             },
 
             renderTable: function (items) {

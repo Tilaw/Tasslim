@@ -208,25 +208,7 @@
             },
 
             loadData: async function () {
-                const sales = App.getSales();
-                const issueSales = sales.filter(s => s.type === 'issue');
-                const mapped = [];
-                issueSales.forEach(tx => {
-                    (tx.items || []).forEach((item, idx) => {
-                        mapped.push({
-                            id: `${tx.id}_${item.productId || item.sku || idx}`,
-                            bikePlate: tx.bike,
-                            pickedDate: tx.date,
-                            date: tx.date,
-                            mechanicName: tx.mechanic,
-                            mechanic: tx.mechanic,
-                            quantity: item.qty,
-                            productName: item.name,
-                            sku: item.sku || ''
-                        });
-                    });
-                });
-                this.mappings = mapped;
+                this.mappings = [];
                 this.oilChanges = App.getOilChanges();
 
                 try {
@@ -237,6 +219,24 @@
                     console.error('Riders load failed', err);
                     this.riders = [];
                 }
+            },
+
+            fetchRiderMappings: async function (rider) {
+                const plates = (rider.plates || '').split(',').map(p => p.trim()).filter(Boolean);
+                const groupsByPlate = await Promise.all(plates.map((plate) =>
+                    App.fetchAllTransactionGroups({ type: 'issue', bikePlate: plate, limit: 200 })
+                ));
+                const merged = [];
+                const seen = new Set();
+                groupsByPlate.flat().forEach((group) => {
+                    const key = String(group.id);
+                    if (seen.has(key)) return;
+                    seen.add(key);
+                    merged.push(group);
+                });
+                return App.groupsToLineMappings(merged).filter((m) =>
+                    plates.includes(m.bikePlate) || (m.riderName && m.riderName === rider.name)
+                );
             },
 
             saveRider: async function () {
@@ -351,22 +351,28 @@
                 }
             },
 
-            openReport: function (id) {
+            openReport: async function (id) {
                 const user = App.getCurrentUser();
                 const isStaff = user && user.role === 'staff';
                 const rider = this.riders.find(r => String(r.id) === String(id));
                 if (!rider) return;
-                const plates = (rider.plates || '').split(',').map(p => p.trim()).filter(Boolean);
 
-                // Get maintenance history
-                const riderMappings = this.mappings.filter(m =>
-                    plates.includes(m.bikePlate) || (m.riderName && m.riderName === rider.name)
-                );
+                const content = document.getElementById('reportContent');
+                content.innerHTML = '<div style="text-align:center; padding: 40px; color:#64748b;"><i class="fas fa-spinner fa-spin"></i> Loading rider history...</div>';
+                document.getElementById('reportModal').classList.add('open');
+
+                let riderMappings = [];
+                try {
+                    riderMappings = await this.fetchRiderMappings(rider);
+                } catch (err) {
+                    console.error('Failed to load rider report data:', err);
+                    App.showToast((err && err.message) || 'Failed to load rider history', 'error');
+                }
+
+                const plates = (rider.plates || '').split(',').map(p => p.trim()).filter(Boolean);
                 const riderOil = this.oilChanges.filter(c =>
                     plates.includes(c.bikePlate) || c.riderName === rider.name
                 );
-
-                const content = document.getElementById('reportContent');
                 content.innerHTML = `
                     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #1e293b; pb: 20px;">
                         <h1 style="margin: 0;">RIDER MAINTENANCE REPORT</h1>
