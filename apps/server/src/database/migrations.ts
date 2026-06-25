@@ -293,6 +293,24 @@ export async function migrate() {
             // Index might not exist or have different name; ignore
         }
 
+        const indexExists = async (tableName: string, indexName: string) => {
+            const [rows] = await pool.query(
+                'SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ? LIMIT 1',
+                [process.env.DB_NAME, tableName, indexName]
+            );
+            return (rows as any[]).length > 0;
+        };
+
+        if (!(await indexExists('inventory_transactions', 'idx_tx_type_reverted_created'))) {
+            console.log('[database]: Adding index idx_tx_type_reverted_created on inventory_transactions...');
+            await pool.query('CREATE INDEX idx_tx_type_reverted_created ON inventory_transactions (transaction_type, is_reverted, created_at)');
+        }
+
+        if (!(await indexExists('inventory_transactions', 'idx_tx_reference_id'))) {
+            console.log('[database]: Adding index idx_tx_reference_id on inventory_transactions...');
+            await pool.query('CREATE INDEX idx_tx_reference_id ON inventory_transactions (reference_id)');
+        }
+
         // Ensure Default Roles exist
         const [existingRoles]: any = await pool.query("SELECT name, id FROM roles");
         const roleMap = new Map(existingRoles.map((r: any) => [r.name, r.id]));

@@ -432,12 +432,11 @@ const App = {
         }
 
         try {
-            const [pData, mData, bData, sData, tData, oData] = await Promise.all([
+            const [pData, mData, bData, sData, oData] = await Promise.all([
                 this.apiCall('/products'),
                 this.apiCall('/mechanics'),
                 this.apiCall('/bikes'),
                 this.apiCall('/suppliers'),
-                this.apiCall('/transactions'),
                 this.apiCall('/oil-changes?limit=500')
             ]);
 
@@ -508,44 +507,8 @@ const App = {
                 }));
             }
 
-            if (tData && tData.success) {
-                const transactions = tData.data;
-                const groups = {};
-
-                transactions.forEach(t => {
-                    const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
-                    if (!groups[key]) {
-                        const rawType = t.transaction_type != null ? t.transaction_type : t.transactionType;
-                        groups[key] = {
-                            id: t.reference_id || t.id,
-                            date: t.created_at,
-                            type: String(rawType || '').toLowerCase(),
-                            items: [],
-                            mechanic: t.mechanic_name || '',
-                            bike: t.bike_plate_number || '',
-                            status: 'completed',
-                            user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                            total: 0,
-                            riderName: t.rider_name || '',
-                            riderNumber: t.rider_phone || '',
-                            riderId: t.rider_id || '',
-                            receiverName: t.receiver_name || ''
-                        };
-                    }
-
-                    const qty = Math.abs(t.quantity);
-                    groups[key].items.push({
-                        productId: t.product_id,
-                        name: t.product_name,
-                        sku: t.product_sku,
-                        qty: qty,
-                        price: 0,
-                        total: 0
-                    });
-                });
-
-                this.state.sales = Object.values(groups);
-            }
+            // Transaction history is loaded per-page via fetchTransactionGroups (paginated).
+            this.state.sales = [];
         } catch (error) {
             console.warn('[app]: Data sync failed', error);
             if (error.message && (error.message.includes('Invalid') || error.message.includes('expired'))) {
@@ -775,6 +738,53 @@ const App = {
     getBikes: function () { return this.state.bikes || []; },
     getSales: function () { return this.state.sales || []; },
     getOilChanges: function () { return this.state.oilChanges || []; },
+
+    buildTransactionGroupsQuery: function (params = {}) {
+        const qs = new URLSearchParams();
+        const fields = [
+            'type', 'productId', 'productName', 'mechanicId', 'mechanicName',
+            'bikeId', 'bikePlate', 'startDate', 'endDate', 'limit', 'cursor', 'includeTotal'
+        ];
+        fields.forEach((key) => {
+            const value = params[key];
+            if (value != null && value !== '') qs.set(key, String(value));
+        });
+        const query = qs.toString();
+        return query ? `?${query}` : '';
+    },
+
+    fetchTransactionGroups: async function (params = {}) {
+        const res = await this.apiCall(`/transactions/groups${this.buildTransactionGroupsQuery(params)}`, 'GET');
+        return {
+            groups: Array.isArray(res.data) ? res.data : [],
+            meta: res.meta || {},
+        };
+    },
+
+    fetchTransactionGroupsSummary: async function (params = {}) {
+        const res = await this.apiCall(`/transactions/groups/summary${this.buildTransactionGroupsQuery(params)}`, 'GET');
+        return res.data || { totalGroups: 0, totalLines: 0, totalParts: 0 };
+    },
+
+    fetchAllTransactionGroups: async function (params = {}) {
+        const all = [];
+        let cursor = null;
+        let hasMore = true;
+        const pageSize = Number(params.limit) || 200;
+
+        while (hasMore) {
+            const pageParams = { ...params, limit: pageSize, includeTotal: false };
+            if (cursor) pageParams.cursor = cursor;
+
+            const page = await this.fetchTransactionGroups(pageParams);
+            all.push(...page.groups);
+            hasMore = !!page.meta.hasMore;
+            cursor = page.meta.nextCursor || null;
+            if (!hasMore || !cursor) break;
+        }
+
+        return all;
+    },
 
     /**
      * Format currency

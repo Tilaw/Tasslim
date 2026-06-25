@@ -1037,6 +1037,13 @@
                             <tbody id="mechTable"></tbody>
                         </table>
                     </div>
+                    <div id="reportsLoadMoreWrap" style="text-align: center; padding: 16px 0 4px; display: none;">
+                        <button id="reportsLoadMoreBtn" class="btn btn-secondary" style="padding: 8px 18px; border-radius: 10px; font-size: 12px;"
+                            onclick="Reports.loadMore()">
+                            <i class="fas fa-chevron-down"></i> Load more records
+                        </button>
+                        <div id="reportsCountInfo" style="margin-top: 8px; color: #94a3b8; font-size: 11px;"></div>
+                    </div>
                 </div>
 
                 <!-- Right Side Column -->
@@ -1247,16 +1254,21 @@
             builderSelectedParts: new Map(),
             invoiceModalListenersAttached: false,
             invoiceModalCurrentParts: [],
+            _queryParams: {},
+            _nextCursor: null,
+            _hasMore: false,
+            _summary: { totalGroups: 0, totalLines: 0, totalParts: 0 },
+            _totalGroups: 0,
+            _loading: false,
 
-            init: function () {
+            init: async function () {
                 try {
-                    this.sales = App.getSales();
                     this.inventory = App.getInventory();
                     this.mechanics = App.getMechanics();
                     this.bikes = App.getBikes();
-                    this.filteredSales = this.sales;
+                    this.filteredSales = [];
                     this.populateFilters();
-                    this.generate();
+                    await this.generate();
                 } catch (e) {
                     console.error('Reports: Initialization failed:', e);
                 }
@@ -1333,32 +1345,98 @@
                 this.generate();
             },
 
-            generate: function () {
+            buildQueryParams: function () {
                 const start = document.getElementById('startDate')?.value || '';
                 const end = document.getElementById('endDate')?.value || '';
                 const mech = document.getElementById('mechFilter')?.value || '';
                 const bike = document.getElementById('bikeFilter')?.value || '';
                 const itm = document.getElementById('itemFilter')?.value || '';
+                const params = { type: 'issue', limit: 50, includeTotal: true };
+                if (start) params.startDate = start;
+                if (end) params.endDate = end;
+                if (mech) params.mechanicName = mech;
+                if (bike) params.bikePlate = bike;
+                if (itm) params.productName = itm;
+                return params;
+            },
 
-                let filteredSales = this.sales;
-
-                if (start || end || mech || bike || itm) {
-                    filteredSales = this.sales.filter(s => {
-                        const sDate = (s.date && typeof s.date === 'string') ? s.date.split('T')[0] : '';
-                        const matchDate = (!start || sDate >= start) && (!end || sDate <= end);
-                        const matchMech = (!mech || s.mechanic === mech);
-                        const sBike = (s.bike || '').toString();
-                        const matchBike = (!bike || sBike === bike || sBike.split(', ').includes(bike));
-                        const matchItem = (!itm || (s.items && s.items.some(i => i.name === itm)));
-                        return matchDate && matchMech && matchBike && matchItem;
-                    });
+            generate: async function () {
+                if (this._loading) return;
+                this._loading = true;
+                try {
+                    this._queryParams = this.buildQueryParams();
+                    const [page, summary] = await Promise.all([
+                        App.fetchTransactionGroups(this._queryParams),
+                        App.fetchTransactionGroupsSummary(this._queryParams)
+                    ]);
+                    this.sales = page.groups;
+                    this.filteredSales = page.groups;
+                    this._nextCursor = page.meta.nextCursor || null;
+                    this._hasMore = !!page.meta.hasMore;
+                    this._summary = summary;
+                    this._totalGroups = page.meta.total != null ? page.meta.total : summary.totalGroups;
+                    this.renderSalesStats();
+                    this.renderSalesTable(this.filteredSales);
+                    this.renderInventoryStats(this.inventory);
+                    this.updateMechanicReport(this.filteredSales);
+                    this.updateLoadMoreUi();
+                } catch (e) {
+                    console.error('Reports: generate failed:', e);
+                    App.showToast((e && e.message) || 'Failed to load report data', 'error');
+                } finally {
+                    this._loading = false;
                 }
+            },
 
-                this.renderSalesStats(filteredSales);
-                this.renderSalesTable(filteredSales);
-                this.renderInventoryStats(this.inventory);
-                this.updateMechanicReport(filteredSales);
-                this.filteredSales = filteredSales;
+            loadMore: async function () {
+                if (!this._hasMore || !this._nextCursor || this._loading) return;
+                this._loading = true;
+                const btn = document.getElementById('reportsLoadMoreBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                }
+                try {
+                    const page = await App.fetchTransactionGroups({
+                        ...this._queryParams,
+                        cursor: this._nextCursor,
+                        includeTotal: false
+                    });
+                    const existingIds = new Set(this.sales.map(s => String(s.id)));
+                    const newGroups = page.groups.filter(g => !existingIds.has(String(g.id)));
+                    this.sales = [...this.sales, ...newGroups];
+                    this.filteredSales = this.sales;
+                    this._nextCursor = page.meta.nextCursor || null;
+                    this._hasMore = !!page.meta.hasMore;
+                    this.renderSalesTable(this.filteredSales);
+                    this.updateMechanicReport(this.filteredSales);
+                    this.updateLoadMoreUi();
+                } catch (e) {
+                    console.error('Reports: loadMore failed:', e);
+                    App.showToast((e && e.message) || 'Failed to load more records', 'error');
+                } finally {
+                    this._loading = false;
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-chevron-down"></i> Load more records';
+                    }
+                }
+            },
+
+            updateLoadMoreUi: function () {
+                const wrap = document.getElementById('reportsLoadMoreWrap');
+                const info = document.getElementById('reportsCountInfo');
+                if (wrap) wrap.style.display = this._hasMore ? 'block' : 'none';
+                if (info) {
+                    const total = this._totalGroups || this._summary.totalGroups || this.sales.length;
+                    info.textContent = `Showing ${this.sales.length} of ${total} issuance groups`;
+                }
+            },
+
+            ensureReportDataLoaded: async function () {
+                if (!this._hasMore) return this.sales;
+                App.showToast('Loading full report for selected filters...', 'success');
+                return App.fetchAllTransactionGroups({ ...this._queryParams, limit: 200 });
             },
 
             updateMechanicReport: function (providedSales = null) {
@@ -1414,37 +1492,28 @@
             deleteTransaction: async function (id) {
                 if (!confirm('Are you sure you want to delete this record? The items will be returned to stock.')) return;
 
-                const index = this.sales.findIndex(s => String(s.id) === String(id));
-                if (index === -1) return;
+                const transaction = this.sales.find(s => String(s.id) === String(id)) ||
+                    this.filteredSales.find(s => String(s.id) === String(id));
+                if (!transaction) return;
 
-                const transaction = this.sales[index];
-                if (transaction) {
-                    try {
-                        await App.apiCall(`/transactions/group/${encodeURIComponent(transaction.id)}`, 'DELETE');
-                        await App.loadData();
-                        this.syncData();
-                        this.generate();
-                        App.showToast('Record deleted and stock restored from server.');
-                        return;
-                    } catch (err) {
-                        console.error('Reports: deleteTransaction API revert failed', err);
-                        const status = err && err.status ? err.status : null;
-                        const msg = err && err.message ? err.message : '';
-                        if (status === 404) {
-                            App.showToast('Issuance not found on server (may be legacy or already reverted).', 'info');
-                            await App.loadData();
-                            this.syncData();
-                            this.generate();
-                            return;
-                        }
-                        App.showToast(msg || 'Failed to delete record from server.', 'error');
+                try {
+                    await App.apiCall(`/transactions/group/${encodeURIComponent(transaction.id)}`, 'DELETE');
+                    await this.generate();
+                    App.showToast('Record deleted and stock restored from server.');
+                } catch (err) {
+                    console.error('Reports: deleteTransaction API revert failed', err);
+                    const status = err && err.status ? err.status : null;
+                    const msg = err && err.message ? err.message : '';
+                    if (status === 404) {
+                        App.showToast('Issuance not found on server (may be legacy or already reverted).', 'info');
+                        await this.generate();
                         return;
                     }
+                    App.showToast(msg || 'Failed to delete record from server.', 'error');
                 }
             },
 
             syncData: function () {
-                this.sales = App.getSales();
                 this.inventory = App.getInventory();
                 this.mechanics = App.getMechanics();
                 this.bikes = App.getBikes();
@@ -1455,15 +1524,11 @@
             },
 
             getAllMechanicNames: function () {
-                const fromDb = (this.mechanics || []).map(m => m && m.name).filter(Boolean);
-                const fromSales = (this.sales || []).map(s => s && s.mechanic).filter(Boolean);
-                return this.getUniqueSortedStrings([...fromDb, ...fromSales]);
+                return this.getUniqueSortedStrings((this.mechanics || []).map(m => m && m.name).filter(Boolean));
             },
 
             getAllBikePlates: function () {
-                const fromDb = (this.bikes || []).map(b => b && b.plate).filter(Boolean);
-                const fromSales = (this.sales || []).map(s => s && s.bike).filter(Boolean);
-                return this.getUniqueSortedStrings([...fromDb, ...fromSales]);
+                return this.getUniqueSortedStrings((this.bikes || []).map(b => b && b.plate).filter(Boolean));
             },
 
             printTechnicianIssue: function (mechanic, items) {
@@ -1759,7 +1824,7 @@
 
                     await App.loadData();
                     this.syncData();
-                    this.generate();
+                    await this.generate();
                     this.printTechnicianIssue(mech, itemsForTransaction);
                     this.closeBuilderModal();
                 } catch (e) {
@@ -1814,9 +1879,13 @@
                 filterInfo.textContent = `Parts: ${parts.length} | Selected: ${selectedParts.length} | Total Items: ${selectedParts.reduce((sum, p) => sum + (Number(p.qty) || 0), 0)}`;
             },
 
-            openInvoiceModal: function () {
+            openInvoiceModal: async function () {
                 try {
                     this.syncData();
+                    if (this._hasMore) {
+                        this.sales = await this.ensureReportDataLoaded();
+                        this.filteredSales = this.sales;
+                    }
                     const modal = document.getElementById('invoiceModal');
                     const modalMech = document.getElementById('modalMechSelect');
                     const modalBike = document.getElementById('modalBikeSelect');
@@ -2069,11 +2138,12 @@
                 }
             },
 
-            renderSalesStats: function (sales) {
-                const totalRevenue = sales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+            renderSalesStats: function () {
+                const totalRevenue = this.sales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+                const count = this._totalGroups || this._summary.totalGroups || this.sales.length;
                 const countEl = document.getElementById('totalSalesCount');
                 const revenueEl = document.getElementById('totalRevenue');
-                if (countEl) countEl.textContent = sales.length;
+                if (countEl) countEl.textContent = count;
                 if (revenueEl) revenueEl.textContent = App.formatCurrency(totalRevenue);
             },
 
@@ -2112,7 +2182,8 @@
             },
 
             printSingleInvoice: function (id) {
-                const transaction = this.sales.find(s => s.id == id);
+                const transaction = this.filteredSales.find(s => s.id == id) ||
+                    this.sales.find(s => s.id == id);
                 if (!transaction) return;
                 const metaHtml = `
                     <div style="font-size: 16px; line-height: 1.6; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px;">
@@ -2158,7 +2229,7 @@
 
         document.addEventListener('DOMContentLoaded', async () => {
             await App.init();
-            Reports.init();
+            await Reports.init();
 
             const user = App.getCurrentUser();
             if (user) {

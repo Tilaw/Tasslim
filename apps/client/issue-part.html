@@ -607,17 +607,39 @@
                 <!-- ISSUANCE HISTORY (BOTTOM) -->
                 <div class="recent-history-section">
                     <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h3 style="margin: 0; font-size: 1.25rem;"><i class="fas fa-history"></i> Recent Issuance Logs
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px;">
+                        <h3 style="margin: 0; font-size: 1.25rem;"><i class="fas fa-history"></i> Issuance Logs
                         </h3>
                         <button class="btn btn-secondary" onclick="PickItem.printAuditReport()"
                             style="padding: 8px 15px; border-radius: 10px;">
                             <i class="fas fa-print"></i> Print Audit Report
                         </button>
                     </div>
+                    <div
+                        style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; background: white; padding: 16px; border-radius: 14px; border: 1px solid #e2e8f0;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label-pill" style="font-size: 0.7rem;">From</label>
+                            <input type="date" id="historyStartDate" class="form-control" style="height: 40px; border-radius: 10px;"
+                                onchange="PickItem.applyHistoryFilters()">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label-pill" style="font-size: 0.7rem;">To</label>
+                            <input type="date" id="historyEndDate" class="form-control" style="height: 40px; border-radius: 10px;"
+                                onchange="PickItem.applyHistoryFilters()">
+                        </div>
+                        <button class="btn btn-secondary" style="height: 40px; border-radius: 10px;"
+                            onclick="PickItem.clearHistoryFilters()">Clear Dates</button>
+                        <div id="historyCountInfo" style="margin-left: auto; color: #64748b; font-size: 0.85rem;"></div>
+                    </div>
                     <div id="historyList" class="history-grid-simplified"
                         style="display: flex; flex-direction: column; gap: 20px;">
                         <!-- Populated by JS with history-card-structured -->
+                    </div>
+                    <div id="historyLoadMoreWrap" style="text-align: center; margin-top: 20px; display: none;">
+                        <button id="historyLoadMoreBtn" class="btn btn-secondary" style="padding: 10px 24px; border-radius: 10px;"
+                            onclick="PickItem.loadMoreHistory()">
+                            <i class="fas fa-chevron-down"></i> Load older issuances
+                        </button>
                     </div>
                 </div>
 
@@ -691,7 +713,7 @@
 
     <script>
         const PickItem = {
-            version: "1.3.0-db-only",
+            version: "1.4.0-paginated",
             data: [],
             sales: [],
             selectedParts: [],
@@ -699,20 +721,23 @@
             _isSubmitting: false,
             _pollTimer: null,
             _lastSalesKey: '',
+            _historyCursor: null,
+            _historyHasMore: false,
+            _historyLoading: false,
+            _historyTotal: null,
 
             init: async function () {
                 console.log('PickItem Initializing (DB-backed only), Version:', this.version);
                 var loaded = await this.loadData();
-                this.renderHistory();
+                await this.refreshHistory();
                 this.populateMechanics();
                 this._startPolling();
-                // If first load failed, retry once after a short delay (mobile / flaky networks).
                 if (!loaded) {
                     var self = this;
                     setTimeout(function () {
                         self.loadData().then(function (ok) {
                             if (ok) {
-                                self.renderHistory();
+                                self.refreshHistory();
                                 self.populateMechanics();
                             }
                         });
@@ -726,7 +751,7 @@
 
                 function tick() {
                     if (document.hidden) return;
-                    self.loadData().then(function () {
+                    self.pollRecentHistory().then(function () {
                         var newKey = (self.sales.length + '_' + (self.sales[0] && self.sales[0].id ? self.sales[0].id : ''));
                         if (newKey !== self._lastSalesKey) {
                             self._lastSalesKey = newKey;
@@ -751,12 +776,24 @@
                 schedule();
             },
 
-            // Load data: prefer single GET /issue-context (1 round-trip); fallback to 4 parallel calls.
-            // Returns true when server state was applied; false keeps prior in-memory lists (no silent wipe).
+            getHistoryFilters: function () {
+                return {
+                    startDate: document.getElementById('historyStartDate')?.value || '',
+                    endDate: document.getElementById('historyEndDate')?.value || ''
+                };
+            },
+
+            buildHistoryParams: function (extra) {
+                var filters = this.getHistoryFilters();
+                var params = Object.assign({ type: 'issue', limit: 50, includeTotal: true }, extra || {});
+                if (filters.startDate) params.startDate = filters.startDate;
+                if (filters.endDate) params.endDate = filters.endDate;
+                return params;
+            },
+
             loadData: async function () {
                 var snapshot = {
                     data: this.data,
-                    sales: this.sales,
                     mechanics: this._mechanics,
                     bikes: this._bikes
                 };
@@ -768,7 +805,6 @@
                         this.data = Array.isArray(d.products) ? d.products : [];
                         this._mechanics = Array.isArray(d.mechanics) ? d.mechanics : [];
                         this._bikes = Array.isArray(d.bikes) ? d.bikes : [];
-                        this._applyTransactions(Array.isArray(d.transactions) ? d.transactions : []);
                         this._loadDataOk = true;
                         return true;
                     }
@@ -778,23 +814,20 @@
                 }
 
                 try {
-                    const [pData, mData, bData, tData] = await Promise.all([
+                    const [pData, mData, bData] = await Promise.all([
                         App.apiCall('/products', 'GET'),
                         App.apiCall('/mechanics', 'GET'),
-                        App.apiCall('/bikes', 'GET'),
-                        App.apiCall('/transactions?type=issue&limit=500', 'GET')
+                        App.apiCall('/bikes', 'GET')
                     ]);
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this._mechanics = (mData && mData.success && Array.isArray(mData.data)) ? mData.data : [];
                     this._bikes = (bData && bData.success && Array.isArray(bData.data)) ? bData.data : [];
-                    this._applyTransactions((tData && tData.success && Array.isArray(tData.data)) ? tData.data : []);
                     this._loadDataOk = true;
                     return true;
                 } catch (err) {
                     console.error('Failed to load issue-part data from server:', err);
-                    App.showToast((err && err.message) || 'Failed to load issue history from server', 'error');
+                    App.showToast((err && err.message) || 'Failed to load issue data from server', 'error');
                     this.data = snapshot.data;
-                    this.sales = snapshot.sales;
                     this._mechanics = snapshot.mechanics;
                     this._bikes = snapshot.bikes;
                     this._loadDataOk = false;
@@ -802,39 +835,91 @@
                 }
             },
 
-            _applyTransactions: function (transactions) {
-                var groups = {};
-                transactions.forEach(function (t) {
-                    var key = t.reference_id || ('tx_' + t.created_at + '_' + t.mechanic_id);
-                    var rawType = t.transaction_type != null ? t.transaction_type : t.transactionType;
-                    if (!groups[key]) {
-                        groups[key] = {
-                            id: t.reference_id || t.id,
-                            date: t.created_at,
-                            type: String(rawType || '').toLowerCase(),
-                            items: [],
-                            mechanic: t.mechanic_name || '',
-                            bike: t.bike_plate_number || '',
-                            status: 'completed',
-                            user: (t.first_name || '') + ' ' + (t.last_name || ''),
-                            total: 0,
-                            riderName: t.rider_name || '',
-                            riderNumber: t.rider_phone || '',
-                            riderId: t.rider_id || '',
-                            receiverName: t.receiver_name || ''
-                        };
+            refreshHistory: async function () {
+                if (this._historyLoading) return;
+                this._historyLoading = true;
+                try {
+                    const result = await App.fetchTransactionGroups(this.buildHistoryParams());
+                    this.sales = result.groups;
+                    this._historyCursor = result.meta.nextCursor || null;
+                    this._historyHasMore = !!result.meta.hasMore;
+                    this._historyTotal = result.meta.total != null ? result.meta.total : result.groups.length;
+                    this._lastSalesKey = this.sales.length + '_' + (this.sales[0] && this.sales[0].id ? this.sales[0].id : '');
+                    this.renderHistory();
+                    this.updateHistoryLoadMore();
+                } catch (err) {
+                    console.error('Failed to load issuance history:', err);
+                    App.showToast((err && err.message) || 'Failed to load issuance history', 'error');
+                } finally {
+                    this._historyLoading = false;
+                }
+            },
+
+            loadMoreHistory: async function () {
+                if (!this._historyHasMore || !this._historyCursor || this._historyLoading) return;
+                this._historyLoading = true;
+                const btn = document.getElementById('historyLoadMoreBtn');
+                if (btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                }
+                try {
+                    const result = await App.fetchTransactionGroups(this.buildHistoryParams({
+                        cursor: this._historyCursor,
+                        includeTotal: false
+                    }));
+                    const existingIds = new Set(this.sales.map(function (s) { return String(s.id); }));
+                    const newGroups = result.groups.filter(function (g) { return !existingIds.has(String(g.id)); });
+                    this.sales = this.sales.concat(newGroups);
+                    this._historyCursor = result.meta.nextCursor || null;
+                    this._historyHasMore = !!result.meta.hasMore;
+                    this.renderHistory();
+                    this.updateHistoryLoadMore();
+                } catch (err) {
+                    console.error('Failed to load older issuances:', err);
+                    App.showToast((err && err.message) || 'Failed to load older issuances', 'error');
+                } finally {
+                    this._historyLoading = false;
+                    if (btn) {
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-chevron-down"></i> Load older issuances';
                     }
-                    var qty = Math.abs(t.quantity);
-                    groups[key].items.push({
-                        productId: t.product_id,
-                        name: t.product_name,
-                        sku: t.product_sku,
-                        qty: qty,
-                        price: 0,
-                        total: 0
-                    });
-                });
-                this.sales = Object.values(groups);
+                }
+            },
+
+            pollRecentHistory: async function () {
+                if (this._historyLoading) return;
+                const filters = this.getHistoryFilters();
+                if (filters.startDate || filters.endDate) return;
+
+                const result = await App.fetchTransactionGroups(this.buildHistoryParams({ includeTotal: false }));
+                const existingIds = new Set(this.sales.map(function (s) { return String(s.id); }));
+                const fresh = result.groups.filter(function (g) { return !existingIds.has(String(g.id)); });
+                if (fresh.length) {
+                    this.sales = fresh.concat(this.sales);
+                }
+            },
+
+            applyHistoryFilters: function () {
+                this.refreshHistory();
+            },
+
+            clearHistoryFilters: function () {
+                const start = document.getElementById('historyStartDate');
+                const end = document.getElementById('historyEndDate');
+                if (start) start.value = '';
+                if (end) end.value = '';
+                this.refreshHistory();
+            },
+
+            updateHistoryLoadMore: function () {
+                const wrap = document.getElementById('historyLoadMoreWrap');
+                const info = document.getElementById('historyCountInfo');
+                if (wrap) wrap.style.display = this._historyHasMore ? 'block' : 'none';
+                if (info) {
+                    const total = this._historyTotal != null ? this._historyTotal : this.sales.length;
+                    info.textContent = 'Showing ' + this.sales.length + ' of ' + total + ' issuance groups';
+                }
             },
 
             populateMechanics: function () {
@@ -1219,13 +1304,13 @@
                     }
 
                     var refreshed = await this.loadData();
+                    await this.refreshHistory();
                     if (!refreshed) {
-                        App.showToast('Issuance was saved on the server, but this device could not reload history. Check your connection or refresh the page.', 'warning');
+                        App.showToast('Issuance was saved on the server, but this device could not reload catalog data. Check your connection or refresh the page.', 'warning');
                     } else {
                         App.showToast('Issuance recorded successfully!');
                     }
                     this.closeModal();
-                    this.renderHistory();
 
                 } catch (err) {
                     console.error('Issue failed:', err);
@@ -1327,20 +1412,17 @@
                         // Use central API so all devices see the deletion and inventory is restored centrally
                         await App.apiCall(`/transactions/group/${encodeURIComponent(tx.id)}`, 'DELETE');
 
-                        // Reload from server so this page always reflects authoritative DB state
                         await this.loadData();
-                        this.renderHistory();
+                        await this.refreshHistory();
                         App.showToast('Issuance group reverted.');
                     } catch (err) {
                         console.error('Revert failed:', err);
                         const status = err && err.status ? err.status : null;
                         const msg = err && err.message ? err.message : '';
 
-                        // If server has no record (old/offline issuance), fall back to local-only removal
                         if (status === 404) {
-                            // Just reload from server (which won't include this group) to keep UI consistent
                             await this.loadData();
-                            this.renderHistory();
+                            await this.refreshHistory();
                             App.showToast('Issuance not found on server (may be legacy or already reverted).', 'info');
                         } else {
                             App.showToast(msg || 'Revert failed.', 'error');
@@ -1349,15 +1431,27 @@
                 });
             },
 
-            printAuditReport: function () {
+            printAuditReport: async function () {
                 const tbody = document.querySelector('#auditReportTable tbody');
                 const dateSpan = document.getElementById('auditReportDate');
                 if (!tbody) return;
+
+                App.showToast('Preparing audit report...', 'success');
+                let groups = this.sales;
+                try {
+                    if (this._historyHasMore || this.getHistoryFilters().startDate || this.getHistoryFilters().endDate) {
+                        groups = await App.fetchAllTransactionGroups(this.buildHistoryParams({ limit: 200 }));
+                    }
+                } catch (err) {
+                    console.error('Failed to load full audit report:', err);
+                    App.showToast((err && err.message) || 'Failed to load full audit report', 'error');
+                    return;
+                }
+
                 dateSpan.textContent = new Date().toLocaleString();
                 tbody.innerHTML = '';
 
-                // For report, we use server-backed sales to show each part itemized (newest first)
-                [...this.sales]
+                [...groups]
                     .slice()
                     .sort((a, b) => new Date(b.date) - new Date(a.date))
                     .forEach(tx => {
