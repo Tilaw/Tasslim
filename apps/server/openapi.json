@@ -3,13 +3,17 @@
   "info": {
     "title": "Tasslim Parts Manager API",
     "description": "REST API for inventory management, purchase tracking, part issuance, bikes, mechanics, reports, and operational logs.\n\n## Authentication\nAll protected routes require a `Bearer` JWT obtained from `POST /api/v1/auth/login`. Include it in the `Authorization` header:\n```\nAuthorization: Bearer <token>\n```\nAccess tokens are short-lived. Use `POST /api/v1/auth/refresh` with a valid `refreshToken` to obtain new credentials without re-login.\n\n## Response Envelope\nAll responses follow a consistent envelope:\n```json\n{ \"success\": true,  \"data\": { ... } }   // 2xx\n{ \"success\": false, \"error\": { \"message\": \"...\" } }  // 4xx / 5xx\n```\n\n## Versioning\nThe current stable version is `v1`. The base path for all API routes is `/api/v1`.\n\n## Rate Limiting\nRequests are rate-limited per authenticated user. Exceeding the limit returns `429 Too Many Requests`.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "contact": {
       "name": "Tasslim Engineering",
       "email": "eng@taslimalwataniah.ae"
     }
   },
   "servers": [
+    {
+      "url": "http://localhost:4000",
+      "description": "Local development"
+    },
     {
       "url": "https://api.taslimalwataniah.ae",
       "description": "Production"
@@ -248,6 +252,83 @@
           }
         }
       },
+      "PaginationMeta": {
+        "type": "object",
+        "description": "Keyset pagination metadata returned alongside list endpoints.",
+        "properties": {
+          "nextCursor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque cursor for the next page. Pass as the `cursor` query parameter. Null when `hasMore` is false."
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "True when more records exist beyond the current page."
+          },
+          "total": {
+            "type": "integer",
+            "description": "Total matching group count. Only present when `includeTotal=true` on group list queries."
+          }
+        }
+      },
+      "TransactionGroupItem": {
+        "type": "object",
+        "properties": {
+          "productId": { "type": "string", "format": "uuid" },
+          "name":      { "type": "string" },
+          "sku":       { "type": "string" },
+          "qty":       { "type": "integer" },
+          "price":     { "type": "number" },
+          "total":     { "type": "number" }
+        }
+      },
+      "TransactionGroup": {
+        "type": "object",
+        "description": "One logical issuance or transaction group (multiple part lines sharing a referenceId).",
+        "properties": {
+          "id":           { "type": "string", "description": "Group ID (usually the referenceId)." },
+          "referenceId":  { "type": "string", "nullable": true },
+          "groupKey":     { "type": "string" },
+          "date":         { "type": "string", "format": "date-time" },
+          "type":         { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] },
+          "items":        { "type": "array", "items": { "$ref": "#/components/schemas/TransactionGroupItem" } },
+          "mechanic":     { "type": "string" },
+          "bike":         { "type": "string", "description": "Bike plate number." },
+          "status":       { "type": "string", "example": "completed" },
+          "user":         { "type": "string" },
+          "total":        { "type": "number" },
+          "riderName":    { "type": "string" },
+          "riderNumber":  { "type": "string" },
+          "riderId":      { "type": "string" },
+          "receiverName": { "type": "string" }
+        }
+      },
+      "TransactionGroupsSummary": {
+        "type": "object",
+        "properties": {
+          "totalGroups": { "type": "integer", "description": "Count of distinct transaction groups matching filters." },
+          "totalLines":  { "type": "integer", "description": "Count of individual transaction line rows." },
+          "totalParts":  { "type": "integer", "description": "Sum of absolute quantities across all lines." }
+        }
+      },
+      "ProductIssuedSummary": {
+        "type": "object",
+        "properties": {
+          "productId":   { "type": "string", "format": "uuid" },
+          "productName": { "type": "string" },
+          "productSku":  { "type": "string" },
+          "totalQty":    { "type": "integer", "description": "Total issued quantity for this product (sum of abs(quantity))." }
+        }
+      },
+      "IssueContextBundle": {
+        "type": "object",
+        "description": "Bootstrap payload for the issue-part page.",
+        "properties": {
+          "products":  { "type": "array", "items": { "type": "object" } },
+          "mechanics": { "type": "array", "items": { "type": "object" } },
+          "bikes":     { "type": "array", "items": { "type": "object" } }
+        }
+      },
       "DubaiEntriesBody": {
         "type": "object",
         "required": ["entries"],
@@ -306,6 +387,22 @@
     }
   },
   "paths": {
+    "/api/openapi.json": {
+      "get": {
+        "tags": ["Health"],
+        "summary": "OpenAPI specification",
+        "description": "Returns the machine-readable OpenAPI 3.0 document for this API. No authentication required.",
+        "security": [],
+        "operationId": "getOpenApiSpec",
+        "responses": {
+          "200": {
+            "description": "OpenAPI JSON document.",
+            "content": { "application/json": { "schema": { "type": "object" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": ["Health"],
@@ -696,16 +793,41 @@
     "/api/v1/transactions": {
       "get": {
         "tags": ["Transactions"],
-        "summary": "List transactions",
-        "description": "Returns inventory movements with optional filtering. Results are ordered by date descending.",
+        "summary": "List transaction lines (paginated)",
+        "description": "Returns individual inventory transaction rows with optional filtering. Uses keyset (cursor) pagination ordered by `created_at DESC, id DESC`. Reverted rows are excluded. Default page size is 200 (max 1000).",
         "operationId": "listTransactions",
         "parameters": [
-          { "name": "type",      "in": "query", "description": "Filter by transaction type.", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] } },
-          { "name": "productId", "in": "query", "description": "Filter by product UUID.",     "schema": { "type": "string", "format": "uuid" } },
-          { "name": "limit",     "in": "query", "description": "Maximum records to return (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
+          { "name": "type",          "in": "query", "description": "Filter by transaction type.", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] } },
+          { "name": "productId",     "in": "query", "description": "Filter by product UUID.", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "productName",   "in": "query", "description": "Exact product name match.", "schema": { "type": "string" } },
+          { "name": "mechanicId",    "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "mechanicName",  "in": "query", "description": "Exact mechanic name match.", "schema": { "type": "string" } },
+          { "name": "bikeId",        "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "bikePlate",     "in": "query", "description": "Exact bike plate number match.", "schema": { "type": "string" } },
+          { "name": "startDate",     "in": "query", "description": "Inclusive start date (`YYYY-MM-DD`).", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",       "in": "query", "description": "Inclusive end date (`YYYY-MM-DD`).", "schema": { "type": "string", "format": "date" } },
+          { "name": "limit",         "in": "query", "description": "Page size (default 200, max 1000).", "schema": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 200 } },
+          { "name": "cursor",        "in": "query", "description": "Keyset cursor from previous response `meta.nextCursor`.", "schema": { "type": "string" } }
         ],
         "responses": {
-          "200": { "description": "Transaction list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "200": {
+            "description": "Paginated transaction lines. Response includes `meta` with `nextCursor` and `hasMore`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       },
@@ -743,6 +865,128 @@
           "201": { "description": "All transactions recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/transactions/groups": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "List transaction groups (paginated)",
+        "description": "Returns one row per logical transaction group (e.g. one issuance job identified by `referenceId`), with all part lines nested in `items`. Preferred endpoint for issue history, reports, bike/mechanic history. Uses keyset pagination. Default page size 50 (max 200).",
+        "operationId": "listTransactionGroups",
+        "parameters": [
+          { "name": "type",          "in": "query", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] } },
+          { "name": "productId",     "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "productName",   "in": "query", "description": "Groups containing at least one line with this product name.", "schema": { "type": "string" } },
+          { "name": "mechanicId",    "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "mechanicName",  "in": "query", "schema": { "type": "string" } },
+          { "name": "bikeId",        "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "bikePlate",     "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate",     "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",       "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "limit",         "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 } },
+          { "name": "cursor",        "in": "query", "schema": { "type": "string" } },
+          { "name": "includeTotal",  "in": "query", "description": "When `true`, includes total matching group count in `meta.total`.", "schema": { "type": "boolean", "default": false } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated transaction groups.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "type": "array", "items": { "$ref": "#/components/schemas/TransactionGroup" } },
+                        "meta": { "$ref": "#/components/schemas/PaginationMeta" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/transactions/groups/summary": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Transaction groups aggregate summary",
+        "description": "Returns counts of matching groups, lines, and total part quantities without loading full history. Uses the same filters as `GET /transactions/groups`.",
+        "operationId": "getTransactionGroupsSummary",
+        "parameters": [
+          { "name": "type",         "in": "query", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] } },
+          { "name": "productId",    "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "productName",  "in": "query", "schema": { "type": "string" } },
+          { "name": "mechanicId",   "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "mechanicName", "in": "query", "schema": { "type": "string" } },
+          { "name": "bikeId",       "in": "query", "schema": { "type": "string", "format": "uuid" } },
+          { "name": "bikePlate",    "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate",    "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",      "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregate summary.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/TransactionGroupsSummary" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/api/v1/transactions/summary/products": {
+      "get": {
+        "tags": ["Transactions"],
+        "summary": "Per-product issued quantity summary",
+        "description": "Aggregates total issued quantity per product in SQL. Used by dashboard flow grid and inventory item reports. Supports the same filters as transaction list endpoints.",
+        "operationId": "getProductIssuedSummary",
+        "parameters": [
+          { "name": "type",         "in": "query", "schema": { "type": "string", "enum": ["purchase", "sale", "return", "adjustment", "issue"] }, "description": "Typically `issue`." },
+          { "name": "productId",    "in": "query", "schema": { "type": "string", "format": "uuid" }, "description": "When set, returns summary for a single product only." },
+          { "name": "productName",  "in": "query", "schema": { "type": "string" } },
+          { "name": "mechanicName", "in": "query", "schema": { "type": "string" } },
+          { "name": "bikePlate",    "in": "query", "schema": { "type": "string" } },
+          { "name": "startDate",    "in": "query", "schema": { "type": "string", "format": "date" } },
+          { "name": "endDate",      "in": "query", "schema": { "type": "string", "format": "date" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product quantity aggregates.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "type": "array", "items": { "$ref": "#/components/schemas/ProductIssuedSummary" } }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
@@ -1060,10 +1304,27 @@
       "get": {
         "tags": ["Issue context"],
         "summary": "Issue workflow context bundle",
-        "description": "Returns a pre-assembled payload containing products (with stock), mechanics, bikes, and riders in a single request. Designed to minimize round-trips when loading the part-issue / pick screen.",
+        "description": "Returns a pre-assembled payload containing products (with stock), mechanics, and bikes in a single request. Issuance history is loaded separately via `GET /transactions/groups`. Designed to minimize round-trips when loading the part-issue / pick screen.",
         "operationId": "getIssueContext",
         "responses": {
-          "200": { "description": "Context bundle.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "200": {
+            "description": "Context bundle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/IssueContextBundle" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
