@@ -321,37 +321,21 @@
             mappings: [],
             sales: [],
             oilChanges: [],
+            _historyLoading: false,
 
             init: function () {
-                this.loadData();
+                this.bikes = App.getBikes();
+                this.oilChanges = App.getOilChanges();
+                this.mappings = [];
             },
 
-            loadData: function () {
-                this.bikes = App.getBikes();
-
-                // Build service history from server-backed transactions snapshot
-                const sales = App.getSales();
-                const issueSales = sales.filter(s => s.type === 'issue');
-                const mapped = [];
-
-                issueSales.forEach(tx => {
-                    (tx.items || []).forEach((item, idx) => {
-                        mapped.push({
-                            id: `${tx.id}_${item.productId || item.sku || idx}`,
-                            bikePlate: tx.bike,
-                            pickedDate: tx.date,
-                            date: tx.date,
-                            mechanicName: tx.mechanic,
-                            mechanic: tx.mechanic,
-                            quantity: item.qty,
-                            productName: item.name,
-                            sku: item.sku || ''
-                        });
-                    });
-                });
-
-                this.mappings = mapped;
-                this.oilChanges = App.getOilChanges();
+            buildHistoryParams: function (plate) {
+                const start = document.getElementById('filterStart')?.value || '';
+                const end = document.getElementById('filterEnd')?.value || '';
+                const params = { type: 'issue', bikePlate: plate, limit: 200 };
+                if (start) params.startDate = start;
+                if (end) params.endDate = end;
+                return params;
             },
 
             searchBikes: function () {
@@ -390,7 +374,7 @@
                 this.loadHistory();
             },
 
-            loadHistory: function () {
+            loadHistory: async function () {
                 const plate = document.getElementById('bikeSelector').value;
                 const view = document.getElementById('historyView');
                 const empty = document.getElementById('noSelection');
@@ -401,39 +385,45 @@
                     return;
                 }
 
+                if (this._historyLoading) return;
+                this._historyLoading = true;
+
                 view.style.display = 'block';
                 empty.style.display = 'none';
 
                 const bike = this.bikes.find(b => b.plate === plate);
                 document.getElementById('bikeTitle').textContent = `Full History for ${plate} - ${bike ? bike.model : 'Unknown'}`;
 
-                // Filters
-                const start = document.getElementById('filterStart').value;
-                const end = document.getElementById('filterEnd').value;
-
-                // 1. Get Matching Records
-                let bikeMappings = this.mappings.filter(m =>
-                    m.bikePlate && m.bikePlate.split(',').map(p => p.trim()).includes(plate)
-                );
-
-                let bikeOil = this.oilChanges.filter(c =>
-                    c.bikePlate === plate || c.bikeId == (bike ? bike.id : 'none')
-                );
-
-                // Apply Date Filters
-                if (start) {
-                    const s = new Date(start);
-                    bikeMappings = bikeMappings.filter(m => new Date(m.pickedDate || m.date) >= s);
-                    bikeOil = bikeOil.filter(c => new Date(c.date) >= s);
-                }
-                if (end) {
-                    const e = new Date(end);
-                    e.setHours(23, 59, 59);
-                    bikeMappings = bikeMappings.filter(m => new Date(m.pickedDate || m.date) <= e);
-                    bikeOil = bikeOil.filter(c => new Date(c.date) <= e);
+                const container = document.getElementById('timelineContainer');
+                if (container) {
+                    container.innerHTML = '<div style="text-align:center; padding: 20px; color:#94a3b8;"><i class="fas fa-spinner fa-spin"></i> Loading history...</div>';
                 }
 
-                // 2. Combine and Sort
+                try {
+                    const groups = await App.fetchAllTransactionGroups(this.buildHistoryParams(plate));
+                    this.mappings = App.groupsToLineMappings(groups);
+
+                    let bikeMappings = this.mappings.filter(m =>
+                        m.bikePlate && m.bikePlate.split(',').map(p => p.trim()).includes(plate)
+                    );
+
+                    let bikeOil = this.oilChanges.filter(c =>
+                        c.bikePlate === plate || c.bikeId == (bike ? bike.id : 'none')
+                    );
+
+                    this.renderTimeline(bikeMappings, bikeOil);
+                } catch (err) {
+                    console.error('Failed to load bike history:', err);
+                    App.showToast((err && err.message) || 'Failed to load bike history', 'error');
+                    if (container) {
+                        container.innerHTML = '<div style="text-align:center; padding: 20px; color:#ef4444;">Failed to load history.</div>';
+                    }
+                } finally {
+                    this._historyLoading = false;
+                }
+            },
+
+            renderTimeline: function (bikeMappings, bikeOil) {
                 let timeline = [];
 
                 bikeMappings.forEach(m => {

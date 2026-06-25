@@ -811,14 +811,16 @@
         const Dashboard = {
             inventory: [],
             sales: [],
+            purchaseGroups: [],
             issuedTotals: {},
             outOfStockItems: [],
 
             init: async function () {
                 await App.init();
                 this.inventory = App.getInventory();
-                this.sales = App.getSales();
                 const suppliers = App.getSuppliers();
+                this.sales = [];
+                this.purchaseGroups = [];
 
                 const user = App.getCurrentUser();
                 if (user) {
@@ -829,6 +831,8 @@
                 }
 
                 document.getElementById('totalProducts').textContent = this.inventory.length;
+
+                await this.loadRecentActivity();
 
                 const normalSales = this.sales.filter(sale => !sale.type || sale.type === 'sale');
                 const revenue = normalSales.reduce((sum, sale) => sum + (Number(sale.total) || 0), 0);
@@ -848,29 +852,29 @@
                 const outOfStockItems = this.inventory.filter(item => (Number(item.stock) || 0) <= 0);
                 this.outOfStockItems = outOfStockItems;
                 this.renderOutOfStock(outOfStockItems);
-                const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
+                const additions = this.purchaseGroups.filter(s => s.type === 'receipt' || s.type === 'purchase');
                 this.renderRecentAdditions(additions);
 
-                // Issue counts must come only from the transactions API so they match
-                // the issue-part page and DB; never use localStorage (which can include
-                // reverted issues or stale data). Start at 0, then await server.
                 this.issuedTotals = {};
                 this.renderFlowGrid(this.inventory);
                 await this.syncIssueTotalsFromServer();
             },
 
-            calculateIssuedTotals: function () {
-                this.issuedTotals = {};
-                this.sales.forEach(s => {
-                    if (s.type === 'issue') {
-                        (s.items || []).forEach(it => {
-                            const pid = it.productId?.toString();
-                            if (pid) {
-                                this.issuedTotals[pid] = (this.issuedTotals[pid] || 0) + (Number(it.qty) || 0);
-                            }
-                        });
-                    }
-                });
+            loadRecentActivity: async function () {
+                try {
+                    const [salePage, purchaseRes] = await Promise.all([
+                        App.fetchTransactionGroups({ type: 'sale', limit: 5 }),
+                        App.apiCall('/transactions?type=purchase&limit=50', 'GET')
+                    ]);
+                    this.sales = salePage.groups || [];
+                    this.purchaseGroups = (purchaseRes && purchaseRes.success && Array.isArray(purchaseRes.data))
+                        ? App.mapTransactionLinesToGroups(purchaseRes.data)
+                        : [];
+                } catch (err) {
+                    console.error('Failed to load dashboard activity:', err);
+                    this.sales = [];
+                    this.purchaseGroups = [];
+                }
             },
 
             renderRecentSales: function (sales) {
@@ -1032,7 +1036,7 @@
 
             filterAdditions: function () {
                 const query = document.getElementById('additionsSearch').value.toLowerCase();
-                const additions = this.sales.filter(s => s.type === 'receipt' || s.type === 'purchase');
+                const additions = this.purchaseGroups.filter(s => s.type === 'receipt' || s.type === 'purchase');
                 const filtered = additions.filter(s =>
                     (s.items || []).some(it =>
                         (it.name || '').toLowerCase().includes(query) ||
@@ -1100,27 +1104,9 @@
                 this.renderFlowGrid(filtered);
             },
 
-            // Fetch issue/issuance data only from the transactions API so the dashboard
-            // matches the issue-part page and DB. When API returns 0 issues or fails,
-            // show 0 so we never display deleted or stale counts.
             syncIssueTotalsFromServer: async function () {
                 try {
-                    const tData = await App.apiCall('/transactions?type=issue', 'GET');
-                    if (!tData || !tData.success || !Array.isArray(tData.data)) {
-                        this.issuedTotals = {};
-                        this.renderFlowGrid(this.inventory);
-                        return;
-                    }
-
-                    const serverTotals = {};
-                    tData.data.forEach(t => {
-                        const productId = t.product_id != null ? t.product_id.toString() : null;
-                        if (!productId) return;
-                        const qty = Math.abs(Number(t.quantity) || 0);
-                        serverTotals[productId] = (serverTotals[productId] || 0) + qty;
-                    });
-
-                    this.issuedTotals = serverTotals;
+                    this.issuedTotals = await App.fetchIssuedProductTotals();
                     this.renderFlowGrid(this.inventory);
                 } catch (err) {
                     console.error('Failed to sync issued totals from server:', err);

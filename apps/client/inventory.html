@@ -353,41 +353,14 @@
             },
 
             loadData: async function () {
-                // Always load from API (no local/demo inventory mode)
                 try {
-                    const [pData, sData, tData] = await Promise.all([
+                    const [pData, sData] = await Promise.all([
                         App.apiCall('/products', 'GET'),
-                        App.apiCall('/suppliers', 'GET'),
-                        App.apiCall('/transactions', 'GET')
+                        App.apiCall('/suppliers', 'GET')
                     ]);
 
                     this.data = (pData && pData.success && Array.isArray(pData.data)) ? pData.data : [];
                     this.suppliers = (sData && sData.success && Array.isArray(sData.data)) ? sData.data : [];
-
-                    if (tData && tData.success && Array.isArray(tData.data)) {
-                        const transactions = tData.data;
-                        const groups = {};
-                        transactions.forEach(t => {
-                            const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
-                            if (!groups[key]) {
-                                groups[key] = {
-                                    id: t.reference_id || t.id,
-                                    date: t.created_at,
-                                    type: t.transaction_type,
-                                    items: [],
-                                };
-                            }
-                            groups[key].items.push({
-                                productId: t.product_id,
-                                name: t.product_name,
-                                sku: t.product_sku,
-                                qty: Math.abs(t.quantity),
-                            });
-                        });
-                        this.sales = Object.values(groups);
-                    } else {
-                        this.sales = [];
-                    }
                 } catch (err) {
                     console.error('[Inventory Data Load Error]:', err);
                     const status = err && err.status ? err.status : null;
@@ -397,10 +370,9 @@
                         window.location.href = 'index.html';
                         return;
                     }
-                    App.showToast('Some inventory data (like transactions) failed to load. ' + (msg || ''), 'warning');
+                    App.showToast('Some inventory data failed to load. ' + (msg || ''), 'warning');
                     this.data = this.data || [];
                     this.suppliers = this.suppliers || [];
-                    this.sales = this.sales || [];
                 }
             },
 
@@ -860,21 +832,17 @@
                 }
             },
 
-            printItemReport: function (id) {
+            printItemReport: async function (id) {
                 const item = this.data.find(i => i.id?.toString() === id.toString());
                 if (!item) return;
 
-                // Calculate Taken
                 let taken = 0;
-                this.sales.forEach(sale => {
-                    if (sale.type === 'issue' || !sale.type || sale.type === 'sale') {
-                        (sale.items || []).forEach(it => {
-                            if (it.productId?.toString() === id.toString() || it.name === item.name) {
-                                taken += (Number(it.qty) || 0);
-                            }
-                        });
-                    }
-                });
+                try {
+                    taken = await App.fetchProductIssuedQty(item.id);
+                } catch (err) {
+                    console.error('Failed to load issued quantity:', err);
+                    App.showToast('Could not load issued quantity for this item', 'warning');
+                }
 
                 const left = Number(item.stock) || 0;
                 const total = taken + left;

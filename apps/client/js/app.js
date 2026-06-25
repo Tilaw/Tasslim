@@ -786,6 +786,77 @@ const App = {
         return all;
     },
 
+    groupsToLineMappings: function (groups) {
+        const mapped = [];
+        (groups || []).forEach((tx) => {
+            (tx.items || []).forEach((item, idx) => {
+                mapped.push({
+                    id: `${tx.id}_${item.productId || item.sku || idx}`,
+                    bikePlate: tx.bike,
+                    pickedDate: tx.date,
+                    date: tx.date,
+                    mechanicName: tx.mechanic,
+                    mechanic: tx.mechanic,
+                    riderName: tx.riderName || '',
+                    quantity: item.qty,
+                    productName: item.name,
+                    sku: item.sku || '',
+                    productId: item.productId,
+                });
+            });
+        });
+        return mapped;
+    },
+
+    fetchIssuedProductTotals: async function (params = {}) {
+        const query = this.buildTransactionGroupsQuery({ type: 'issue', ...params });
+        const res = await this.apiCall(`/transactions/summary/products${query}`, 'GET');
+        const totals = {};
+        (res.data || []).forEach((row) => {
+            if (row.productId != null) {
+                totals[String(row.productId)] = Number(row.totalQty) || 0;
+            }
+        });
+        return totals;
+    },
+
+    fetchProductIssuedQty: async function (productId) {
+        const query = this.buildTransactionGroupsQuery({ type: 'issue', productId });
+        const res = await this.apiCall(`/transactions/summary/products${query}`, 'GET');
+        const row = (res.data || [])[0];
+        return row ? Number(row.totalQty) || 0 : 0;
+    },
+
+    mapTransactionLinesToGroups: function (transactions) {
+        const groups = {};
+        (transactions || []).forEach((t) => {
+            const key = t.reference_id || `tx_${t.created_at}_${t.mechanic_id}`;
+            const rawType = t.transaction_type != null ? t.transaction_type : t.transactionType;
+            if (!groups[key]) {
+                groups[key] = {
+                    id: t.reference_id || t.id,
+                    date: t.created_at,
+                    type: String(rawType || '').toLowerCase(),
+                    items: [],
+                    mechanic: t.mechanic_name || '',
+                    bike: t.bike_plate_number || '',
+                };
+            }
+            groups[key].items.push({
+                productId: t.product_id,
+                name: t.product_name,
+                sku: t.product_sku,
+                qty: Math.abs(Number(t.quantity) || 0),
+            });
+        });
+        return Object.values(groups);
+    },
+
+    fetchRecentTransactionGroups: async function (params = {}) {
+        const page = await this.fetchTransactionGroups({ limit: 50, ...params });
+        return page.groups;
+    },
+
     /**
      * Format currency
      */

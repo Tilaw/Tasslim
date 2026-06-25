@@ -45,6 +45,15 @@ export class TransactionController {
         }
     }
 
+    static async getProductSummary(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const rows = await TransactionService.getProductSummary(req.query);
+            res.json({ success: true, data: rows });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async create(req: AuthRequest, res: Response, next: NextFunction) {
         try {
             const result = await TransactionService.create(req.body, req.user!.userId);

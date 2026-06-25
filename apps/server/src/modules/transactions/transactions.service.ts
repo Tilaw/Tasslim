@@ -297,6 +297,33 @@ export class TransactionService {
         };
     }
 
+    static async getProductSummary(params: TransactionListParams) {
+        const values: any[] = [];
+        const where = this.appendFilters(params, values, { includeProductJoin: true });
+        const query = `
+            SELECT
+                t.product_id AS productId,
+                COALESCE(p.name, '(unknown product)') AS productName,
+                COALESCE(p.sku, '') AS productSku,
+                SUM(ABS(t.quantity)) AS totalQty
+            FROM inventory_transactions t
+            LEFT JOIN products p ON t.product_id = p.id
+            LEFT JOIN mechanics m ON t.mechanic_id = m.id
+            LEFT JOIN bikes b ON t.bike_id = b.id
+            ${where}
+            GROUP BY t.product_id, p.name, p.sku
+            ORDER BY totalQty DESC
+        `;
+
+        const [rows] = await pool.execute(query, values);
+        return (rows as any[]).map((row) => ({
+            productId: row.productId,
+            productName: row.productName,
+            productSku: row.productSku,
+            totalQty: Number(row.totalQty) || 0,
+        }));
+    }
+
     static async getGroupsSummary(params: TransactionListParams) {
         const values: any[] = [];
         const where = this.appendFilters(params, values, { includeProductJoin: true });

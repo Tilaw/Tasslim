@@ -7,6 +7,7 @@ import { createTransactionSchema, createBatchTransactionsSchema } from './transa
 const router = Router();
 
 router.get('/groups/summary', authMiddleware, TransactionController.getGroupsSummary);
+router.get('/summary/products', authMiddleware, TransactionController.getProductSummary);
 router.get('/groups', authMiddleware, TransactionController.getGroups);
 router.get('/', authMiddleware, TransactionController.getAll);
 router.post(
