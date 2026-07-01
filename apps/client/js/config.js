@@ -8,7 +8,8 @@ var CONFIG = {
         // Use relative URL if serving from the same backend server, 
         // or absolute URL if serving from a different domain or file:// protocol.
         BASE_URL: (() => {
-            // Check if there is an environment override (from js/env.js)
+            // 1. Explicit override (from js/env.js — local dev only, gitignored)
+            //    Production env.js on the server should set the correct API URL.
             if (window.ENV_CONFIG && window.ENV_CONFIG.API_BASE_URL) {
                 return window.ENV_CONFIG.API_BASE_URL;
             }
@@ -16,12 +17,13 @@ var CONFIG = {
             const host = window.location.hostname;
             const protocol = window.location.protocol;
 
-            // Safe fallback: If running on localhost or via file:// protocol
+            // 2. Local dev via file:// or localhost — use the local backend directly
             if (host === '127.0.0.1' || host === 'localhost' || protocol === 'file:') {
                 return 'http://localhost:4000/api/v1';
             }
 
-            // Production default fallback
+            // 3. Production fallback — frontend (Apache) and API (Node.js) are on
+            //    different origins, so a relative URL won't work. Use the API subdomain.
             return 'https://api.taslimalwataniah.ae/api/v1';
         })(),
 
