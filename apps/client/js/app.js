@@ -738,6 +738,10 @@ const App = {
     getBikes: function () { return this.state.bikes || []; },
     getSales: function () { return this.state.sales || []; },
     getOilChanges: function () { return this.state.oilChanges || []; },
+    fetchBikeReportHistory: async function (bikeId) {
+        const res = await this.apiCall(`/bikes/${bikeId}/report-history`, 'GET');
+        return res.success ? res.data : null;
+    },
 
     buildTransactionGroupsQuery: function (params = {}) {
         const qs = new URLSearchParams();

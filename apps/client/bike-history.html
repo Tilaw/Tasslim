@@ -7,6 +7,7 @@
     <title>Bike History - Tasslim Parts Manager</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         .history-timeline {
             position: relative;
@@ -165,9 +166,11 @@
                             Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
-                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing Bike</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing
+                            Bike</span></a></li>
                 <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
-                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i> <span>Passing IN/Out Bike</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i>
+                        <span>Passing IN/Out Bike</span></a></li>
                 <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
                             data-i18n="oilChange">Oil Change</span></a></li>
                 <li><a href="bike-history.html" class="nav-link active"><i class="fas fa-book"></i> <span
@@ -181,7 +184,8 @@
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
-                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return
+                            Items</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
                 </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
@@ -240,6 +244,10 @@
                         <button class="btn btn-success" onclick="HistoryManager.openInvoiceModal()"
                             style="height: 40px;">
                             <i class="fas fa-file-invoice-dollar"></i> Create Invoice
+                        </button>
+                        <button class="btn btn-success" onclick="HistoryManager.exportToExcel()"
+                            style="height: 40px; background-color: #10b981; border-color: #10b981;">
+                            <i class="fas fa-file-excel"></i> Export to Excel
                         </button>
                     </div>
                 </div>
@@ -314,7 +322,9 @@
         </div>
     </div>
 
-    <script src="js/env.js"></script><script src="js/config.js"></script><script src="js/app.js"></script>
+    <script src="js/env.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
     <script>
         const HistoryManager = {
             bikes: [],
@@ -491,6 +501,125 @@
                 window.print();
             },
 
+            exportToExcel: async function () {
+                const plate = document.getElementById('bikeSelector').value;
+                if (!plate) {
+                    App.showToast('Please select a bike first', 'warning');
+                    return;
+                }
+
+                const bike = this.bikes.find(b => b.plate === plate);
+                if (!bike) {
+                    App.showToast('Selected bike not found in loaded state', 'error');
+                    return;
+                }
+
+                App.showToast('Exporting bike history details...', 'info');
+
+                try {
+                    const history = await App.fetchBikeReportHistory(bike.id);
+                    if (!history) {
+                        App.showToast('Could not fetch bike history data', 'error');
+                        return;
+                    }
+
+                    const wb = XLSX.utils.book_new();
+
+                    // Sheet 1: Bike Info
+                    const bikeInfoData = [{
+                        'Plate Number': history.bike.plate || '',
+                        'Plate Category': history.bike.category || '',
+                        'Kind/Type': history.bike.kind || '',
+                        'Color': history.bike.color || '',
+                        'Ownership': history.bike.ownership || '',
+                        'Location': history.bike.location || '',
+                        'Registration Expiry': history.bike.regExp || '',
+                        'Registration Renew Date': history.bike.regRenew || '',
+                        'Insurance Expiry': history.bike.insExp || '',
+                        'Customer Name': history.bike.customer || '',
+                        'Customer Phone': history.bike.phone || '',
+                        'Accident Details': history.bike.accident || ''
+                    }];
+                    const wsBike = XLSX.utils.json_to_sheet(bikeInfoData);
+                    XLSX.utils.book_append_sheet(wb, wsBike, "Bike Info");
+
+                    // Sheet 2: Riders
+                    const riderRows = (history.riders || []).map(r => ({
+                        'Name': r.name || '',
+                        'Phone': r.phone || '',
+                        'Associated Plates': r.plates || '',
+                        'Source': r.source || 'Database'
+                    }));
+                    const wsRiders = XLSX.utils.json_to_sheet(riderRows.length ? riderRows : [{ 'Message': 'No riders recorded for this bike' }]);
+                    XLSX.utils.book_append_sheet(wb, wsRiders, "Riders");
+
+                    // Sheet 3: Mechanics
+                    const mechanicRows = (history.mechanics || []).map(m => ({
+                        'Name': m.name || '',
+                        'Phone': m.phone || '',
+                        'Specialization': m.specialization || ''
+                    }));
+                    const wsMechanics = XLSX.utils.json_to_sheet(mechanicRows.length ? mechanicRows : [{ 'Message': 'No mechanics recorded for this bike' }]);
+                    XLSX.utils.book_append_sheet(wb, wsMechanics, "Mechanics");
+
+                    // Sheet 4: Parts Issued
+                    const transactionRows = (history.transactions || []).map(t => ({
+                        'Date/Time': t.createdAt ? new Date(t.createdAt).toLocaleString() : '',
+                        'Reference ID': t.referenceId || '',
+                        'Transaction Type': t.transactionType || '',
+                        'Part/Product Name': t.productName || '',
+                        'Product SKU': t.productSku || '',
+                        'Brand': t.productBrand || '',
+                        'Model': t.productModel || '',
+                        'Quantity': t.quantity || 0,
+                        'Unit Price': t.unitPrice || 0,
+                        'Mechanic': t.mechanicName || '',
+                        'Rider Name (Logged)': t.riderName || '',
+                        'Rider Phone (Logged)': t.riderPhone || '',
+                        'Receiver Name': t.receiverName || '',
+                        'Notes': t.notes || ''
+                    }));
+                    const wsTx = XLSX.utils.json_to_sheet(transactionRows.length ? transactionRows : [{ 'Message': 'No parts service mappings logged' }]);
+                    XLSX.utils.book_append_sheet(wb, wsTx, "Parts Issued");
+
+                    // Sheet 5: Oil Changes
+                    const oilRows = (history.oilChanges || []).map(c => ({
+                        'Change Date': c.changeDate ? new Date(c.changeDate).toLocaleString() : '',
+                        'Oil Type/Brand': c.oilType || '',
+                        'Mileage (km)': c.mileage || 0,
+                        'Mechanic': c.mechanicName || '',
+                        'Rider Name': c.riderName || '',
+                        'Rider Phone': c.riderPhone || '',
+                        'Created At': c.createdAt ? new Date(c.createdAt).toLocaleString() : ''
+                    }));
+                    const wsOil = XLSX.utils.json_to_sheet(oilRows.length ? oilRows : [{ 'Message': 'No oil changes logged' }]);
+                    XLSX.utils.book_append_sheet(wb, wsOil, "Oil Changes");
+
+                    // Sheet 6: Movements
+                    const movementRows = (history.movements || []).map(m => ({
+                        'Date': m.movementDate || '',
+                        'Time': m.movementTime || '',
+                        'Direction': m.direction || '',
+                        'Rider Name': m.riderName || '',
+                        'Rider Phone': m.riderPhone || '',
+                        'Rider ID': m.riderId || '',
+                        'City': m.city || '',
+                        'Company': m.company || '',
+                        'Logged At': m.createdAt ? new Date(m.createdAt).toLocaleString() : ''
+                    }));
+                    const wsMovements = XLSX.utils.json_to_sheet(movementRows.length ? movementRows : [{ 'Message': 'No gate check-in/out logs' }]);
+                    XLSX.utils.book_append_sheet(wb, wsMovements, "Movements");
+
+                    const fileName = `Bike_Report_History_${plate}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+                    XLSX.writeFile(wb, fileName);
+
+                    App.showToast('Export successful!', 'success');
+                } catch (err) {
+                    console.error('Excel export failed:', err);
+                    App.showToast('Failed to export report: ' + (err.message || err), 'error');
+                }
+            },
+
             openInvoiceModal: function () {
                 const plate = document.getElementById('bikeSelector').value;
                 if (!plate) {
@@ -643,4 +772,3 @@
 </body>
 
 </html>
-
