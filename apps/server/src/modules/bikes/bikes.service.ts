@@ -109,6 +109,139 @@ export class BikeService {
     }
 
     static async getReportHistory(id: string) {
+        if (id === 'all') {
+            const bike = {
+                id: 'all',
+                plate: 'ALL BIKES',
+                category: 'ALL',
+                kind: 'ALL',
+                color: 'ALL',
+                ownership: 'ALL',
+                location: 'ALL',
+                regExp: '-',
+                regRenew: '-',
+                insExp: '-',
+                customer: 'ALL CUSTOMERS',
+                phone: '-',
+                accident: '-'
+            };
+
+            // Fetch riders from riders table
+            const [ridersTableRows]: any = await pool.execute(
+                `SELECT id, name, phone, plates, imported, created_at, updated_at 
+                 FROM riders`
+            );
+
+            // Fetch distinct riders from oil changes
+            const [oilChangesRiders]: any = await pool.execute(
+                `SELECT DISTINCT rider_name AS name, rider_phone AS phone 
+                 FROM oil_changes`
+            );
+
+            // Fetch distinct riders from transactions
+            const [txRiders]: any = await pool.execute(
+                `SELECT DISTINCT rider_name AS name, rider_phone AS phone, rider_id AS id 
+                 FROM inventory_transactions`
+            );
+
+            // Fetch distinct riders from movements
+            const [movementRiders]: any = await pool.execute(
+                `SELECT DISTINCT rider_name AS name, phone AS phone, rider_id AS id 
+                 FROM rider_bike_movements`
+            );
+
+            // Consolidate riders list
+            const ridersMap = new Map<string, any>();
+            for (const r of ridersTableRows) {
+                const key = `${(r.name || '').toLowerCase().trim()}_${(r.phone || '').toLowerCase().trim()}`;
+                ridersMap.set(key, { source: 'Master List', id: r.id, name: r.name, phone: r.phone, plates: r.plates || 'All/Multiple' });
+            }
+            for (const r of [...oilChangesRiders, ...txRiders, ...movementRiders]) {
+                if (!r.name && !r.phone) continue;
+                const key = `${(r.name || '').toLowerCase().trim()}_${(r.phone || '').toLowerCase().trim()}`;
+                if (!ridersMap.has(key)) {
+                    ridersMap.set(key, { source: 'Transaction logs', id: r.id || '', name: r.name || '', phone: r.phone || '', plates: 'Various' });
+                }
+            }
+            const consolidatedRiders = Array.from(ridersMap.values());
+
+            // Fetch mechanics
+            const [allMechanicsRows]: any = await pool.execute(
+                `SELECT id, name, phone, specialization FROM mechanics`
+            );
+
+            // Maintenance transactions
+            const [transactions]: any = await pool.execute(
+                `SELECT 
+                     t.id, t.reference_id AS referenceId, t.transaction_type AS transactionType, 
+                     t.quantity, t.notes, t.unit_price AS unitPrice, t.created_at AS createdAt,
+                     p.name AS productName, p.sku AS productSku, p.brand AS productBrand, p.model AS productModel,
+                     m.name AS mechanicName, m.phone AS mechanicPhone,
+                     t.rider_name AS riderName, t.rider_phone AS riderPhone, t.receiver_name AS receiverName,
+                     b.plate_number AS bikePlate
+                 FROM inventory_transactions t
+                 LEFT JOIN products p ON t.product_id = p.id
+                 LEFT JOIN mechanics m ON t.mechanic_id = m.id
+                 LEFT JOIN bikes b ON t.bike_id = b.id
+                 WHERE t.is_reverted IS NULL OR t.is_reverted = 0
+                 ORDER BY t.created_at DESC`
+            );
+
+            // Oil changes
+            const [oilChanges]: any = await pool.execute(
+                `SELECT 
+                     o.id, o.change_date AS changeDate, o.oil_type AS oilType, o.mileage, 
+                     o.rider_name AS riderName, o.rider_phone AS riderPhone, o.created_at AS createdAt,
+                     m.name AS mechanicName, m.phone AS mechanicPhone,
+                     b.plate_number AS bikePlate
+                 FROM oil_changes o
+                 LEFT JOIN mechanics m ON o.mechanic_id = m.id
+                 LEFT JOIN bikes b ON o.bike_id = b.id
+                 ORDER BY o.change_date DESC`
+            );
+
+            // Movements
+            const [movements]: any = await pool.execute(
+                `SELECT 
+                     id, rider_name AS riderName, phone AS riderPhone, rider_id AS riderId, 
+                     city, company, movement_date AS movementDate, movement_time AS movementTime, 
+                     direction, created_at AS createdAt, bike_number AS bikePlate
+                 FROM rider_bike_movements
+                 ORDER BY movement_date DESC, movement_time DESC`
+            );
+
+            // Fetch all bikes details
+            const [bikesRows]: any = await pool.execute(
+                `SELECT 
+                     id,
+                     plate_number AS \`plate\`,
+                     plate_category AS \`category\`,
+                     kind,
+                     color,
+                     ownership,
+                     location,
+                     customer_name AS \`customer\`,
+                     customer_phone AS \`phone\`,
+                     registration_expiry AS \`regExp\`,
+                     registration_renew_date AS \`regRenew\`,
+                     insurance_expiry AS \`insExp\`,
+                     accident_details AS \`accident\`,
+                     is_active AS \`isActive\`
+                 FROM bikes
+                 ORDER BY plate_number ASC`
+            );
+
+            return {
+                bike,
+                bikes: bikesRows,
+                riders: consolidatedRiders,
+                mechanics: allMechanicsRows,
+                transactions: transactions.map((t: any) => ({ ...t, bikePlate: t.bikePlate || 'Unknown' })),
+                oilChanges: oilChanges.map((o: any) => ({ ...o, bikePlate: o.bikePlate || 'Unknown' })),
+                movements: movements.map((m: any) => ({ ...m, bikePlate: m.bikePlate || 'Unknown' }))
+            };
+        }
+
         // 1. Get Bike Info
         const bike = await this.getById(id);
         if (!bike) {
@@ -198,10 +331,12 @@ export class BikeService {
                  t.quantity, t.notes, t.unit_price AS unitPrice, t.created_at AS createdAt,
                  p.name AS productName, p.sku AS productSku, p.brand AS productBrand, p.model AS productModel,
                  m.name AS mechanicName, m.phone AS mechanicPhone,
-                 t.rider_name AS riderName, t.rider_phone AS riderPhone, t.receiver_name AS receiverName
+                 t.rider_name AS riderName, t.rider_phone AS riderPhone, t.receiver_name AS receiverName,
+                 b.plate_number AS bikePlate
              FROM inventory_transactions t
              LEFT JOIN products p ON t.product_id = p.id
              LEFT JOIN mechanics m ON t.mechanic_id = m.id
+             LEFT JOIN bikes b ON t.bike_id = b.id
              WHERE t.bike_id = ? AND (t.is_reverted IS NULL OR t.is_reverted = 0)
              ORDER BY t.created_at DESC`,
             [id]
@@ -212,9 +347,11 @@ export class BikeService {
             `SELECT 
                  o.id, o.change_date AS changeDate, o.oil_type AS oilType, o.mileage, 
                  o.rider_name AS riderName, o.rider_phone AS riderPhone, o.created_at AS createdAt,
-                 m.name AS mechanicName, m.phone AS mechanicPhone
+                 m.name AS mechanicName, m.phone AS mechanicPhone,
+                 b.plate_number AS bikePlate
              FROM oil_changes o
              LEFT JOIN mechanics m ON o.mechanic_id = m.id
+             LEFT JOIN bikes b ON o.bike_id = b.id
              WHERE o.bike_id = ?
              ORDER BY o.change_date DESC`,
             [id]
@@ -225,7 +362,7 @@ export class BikeService {
             `SELECT 
                  id, rider_name AS riderName, phone AS riderPhone, rider_id AS riderId, 
                  city, company, movement_date AS movementDate, movement_time AS movementTime, 
-                 direction, created_at AS createdAt
+                 direction, created_at AS createdAt, bike_number AS bikePlate
              FROM rider_bike_movements
              WHERE bike_number = ?
              ORDER BY movement_date DESC, movement_time DESC`,
@@ -236,9 +373,9 @@ export class BikeService {
             bike,
             riders: consolidatedRiders,
             mechanics: consolidatedMechanics,
-            transactions,
-            oilChanges,
-            movements
+            transactions: transactions.map((t: any) => ({ ...t, bikePlate: t.bikePlate || plate })),
+            oilChanges: oilChanges.map((o: any) => ({ ...o, bikePlate: o.bikePlate || plate })),
+            movements: movements.map((m: any) => ({ ...m, bikePlate: m.bikePlate || plate }))
         };
     }
 
