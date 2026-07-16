@@ -23,6 +23,18 @@ export class BikeController {
         }
     }
 
+    static async getReportHistory(req: Request, res: Response, next: NextFunction) {
+        try {
+            const history = await BikeService.getReportHistory(req.params.id as string);
+            if (!history) {
+                return res.status(404).json({ success: false, error: 'Bike not found' });
+            }
+            res.json({ success: true, data: history });
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async create(req: Request, res: Response, next: NextFunction) {
         try {
             const bike = await BikeService.create(req.body);

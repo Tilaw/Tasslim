@@ -9,6 +9,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/', BikeController.getAll);
+router.get('/:id/report-history', BikeController.getReportHistory);
 router.get('/:id', BikeController.getById);
 
 // Staff can add and update, but only admin can delete

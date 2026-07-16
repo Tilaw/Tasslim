@@ -7,6 +7,7 @@
     <title>Bike History - Tasslim Parts Manager</title>
     <link rel="stylesheet" href="css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         .history-timeline {
             position: relative;
@@ -165,9 +166,11 @@
                             Order</span></a></li>
                 <li><a href="issue-part.html" class="nav-link"><i class="fas fa-hand-holding"></i> <span
                             data-i18n="pickItem">Issue Part (Mapping)</span></a></li>
-                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing Bike</span></a></li>
+                <li><a href="passing-bike.html" class="nav-link"><i class="fas fa-clipboard-list"></i> <span>Passing
+                            Bike</span></a></li>
                 <li><a href="dubai-bike.html" class="nav-link"><i class="fas fa-city"></i> <span>Dubai</span></a></li>
-                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i> <span>Passing IN/Out Bike</span></a></li>
+                <li><a href="passing-in-out-bike.html" class="nav-link"><i class="fas fa-exchange-alt"></i>
+                        <span>Passing IN/Out Bike</span></a></li>
                 <li><a href="oil-change.html" class="nav-link"><i class="fas fa-oil-can"></i> <span
                             data-i18n="oilChange">Oil Change</span></a></li>
                 <li><a href="bike-history.html" class="nav-link active"><i class="fas fa-book"></i> <span
@@ -181,7 +184,8 @@
                 <li><a href="mechanic-history.html" class="nav-link"><i class="fas fa-history"></i> <span
                             data-i18n="mechanicHistory">Mechanic History</span></a></li>
                 <li><a href="overtime.html" class="nav-link"><i class="fas fa-clock"></i> <span>Overtime</span></a></li>
-                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return Items</span></a></li>
+                <li><a href="return_item.html" class="nav-link"><i class="fas fa-undo-alt"></i> <span>Return
+                            Items</span></a></li>
                 <li><a href="riders.html" class="nav-link"><i class="fas fa-id-card"></i> <span>Riders Info</span></a>
                 </li>
                 <li><a href="bikes.html" class="nav-link"><i class="fas fa-motorcycle"></i> <span
@@ -240,6 +244,10 @@
                         <button class="btn btn-success" onclick="HistoryManager.openInvoiceModal()"
                             style="height: 40px;">
                             <i class="fas fa-file-invoice-dollar"></i> Create Invoice
+                        </button>
+                        <button class="btn btn-success" onclick="HistoryManager.exportToExcel()"
+                            style="height: 40px; background-color: #10b981; border-color: #10b981;">
+                            <i class="fas fa-file-excel"></i> Export to Excel
                         </button>
                     </div>
                 </div>
@@ -314,7 +322,9 @@
         </div>
     </div>
 
-    <script src="js/env.js"></script><script src="js/config.js"></script><script src="js/app.js"></script>
+    <script src="js/env.js"></script>
+    <script src="js/config.js"></script>
+    <script src="js/app.js"></script>
     <script>
         const HistoryManager = {
             bikes: [],
@@ -491,6 +501,217 @@
                 window.print();
             },
 
+            exportToExcel: async function () {
+                const plate = document.getElementById('bikeSelector').value;
+                if (!plate) {
+                    App.showToast('Please select a bike first', 'warning');
+                    return;
+                }
+
+                const bike = this.bikes.find(b => b.plate === plate);
+                if (!bike) {
+                    App.showToast('Selected bike not found in loaded state', 'error');
+                    return;
+                }
+
+                App.showToast('Generating professional Excel export...', 'info');
+
+                try {
+                    const history = await App.fetchBikeReportHistory(bike.id);
+                    if (!history) {
+                        App.showToast('Could not fetch bike history data', 'error');
+                        return;
+                    }
+
+                    const wb = XLSX.utils.book_new();
+                    const exportTimeStr = new Date().toLocaleString();
+
+                    // Helper to auto-fit column widths beautifully
+                    const autoFitColumns = (ws, minWidth = 10) => {
+                        if (!ws || !ws['!ref']) return;
+                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        const cols = [];
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            let maxLen = minWidth;
+                            for (let R = range.s.r; R <= range.e.r; ++R) {
+                                const addr = XLSX.utils.encode_cell({ r: R, c: C });
+                                const cell = ws[addr];
+                                if (cell && cell.v != null) {
+                                    const valStr = String(cell.v);
+                                    // Skip counting lengths of merged title banners in Row 0 and Row 1
+                                    if (R <= 1 && C > 0) continue;
+                                    if (valStr.length > maxLen) {
+                                        maxLen = valStr.length;
+                                    }
+                                }
+                            }
+                            cols.push({ wch: Math.min(45, maxLen + 3) });
+                        }
+                        ws['!cols'] = cols;
+                    };
+
+                    // Helper to template titles on sheets
+                    const createTitleHeader = (sheetName) => [
+                        ["TASSLIM PARTS & FLEET MANAGEMENT"],
+                        [sheetName.toUpperCase()],
+                        [],
+                        ["BIKE PLATE NUMBER", plate],
+                        ["REPORT EXPORT DATE", exportTimeStr],
+                        []
+                    ];
+
+                    const defaultMerges = [
+                        { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+                        { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } }
+                    ];
+
+                    // ---------------- Sheet 1: Bike Info ----------------
+                    const infoTitle = createTitleHeader("Bike Lifecycle Profile");
+                    const infoFields = [
+                        ["PROPERTY", "VALUE DESCRIPTION"],
+                        ["Plate Number", history.bike.plate || '-'],
+                        ["Plate Category", history.bike.category || '-'],
+                        ["Vehicle Kind/Type", history.bike.kind || '-'],
+                        ["Color", history.bike.color || '-'],
+                        ["Ownership status", history.bike.ownership || '-'],
+                        ["Assigned Location", history.bike.location || '-'],
+                        ["Customer/Owner Name", history.bike.customer || '-'],
+                        ["Customer Phone Number", history.bike.phone || '-'],
+                        ["Registration Expiry Date", history.bike.regExp || '-'],
+                        ["Registration Renew Date", history.bike.regRenew || '-'],
+                        ["Insurance Expiry Date", history.bike.insExp || '-'],
+                        ["Accident History / Details", history.bike.accident || '-']
+                    ];
+                    const wsBike = XLSX.utils.aoa_to_sheet([...infoTitle, ...infoFields]);
+                    wsBike['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsBike, 18);
+                    XLSX.utils.book_append_sheet(wb, wsBike, "Bike Profile");
+
+                    // ---------------- Sheet 2: Associated Riders ----------------
+                    const ridersTitle = createTitleHeader("Associated Rider History");
+                    ridersTitle.push(["Rider Name", "Phone Number", "Assigned Plates list", "Data Source / Context"]);
+                    const riderRows = (history.riders || []).map(r => [
+                        r.name || '-',
+                        r.phone || '-',
+                        r.plates || '-',
+                        r.source || 'Database log'
+                    ]);
+                    if (riderRows.length === 0) {
+                        riderRows.push(["No rider history recorded for this bike.", "", "", ""]);
+                    }
+                    const wsRiders = XLSX.utils.aoa_to_sheet([...ridersTitle, ...riderRows]);
+                    wsRiders['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsRiders, 15);
+                    XLSX.utils.book_append_sheet(wb, wsRiders, "Riders");
+
+                    // ---------------- Sheet 3: Mechanics ----------------
+                    const mechanicsTitle = createTitleHeader("Associated Maintenance Mechanics");
+                    mechanicsTitle.push(["Mechanic Name", "Phone Number", "Specialization Field"]);
+                    const mechanicRows = (history.mechanics || []).map(m => [
+                        m.name || '-',
+                        m.phone || '-',
+                        m.specialization || '-'
+                    ]);
+                    if (mechanicRows.length === 0) {
+                        mechanicRows.push(["No mechanics logged work for this bike.", "", ""]);
+                    }
+                    const wsMechanics = XLSX.utils.aoa_to_sheet([...mechanicsTitle, ...mechanicRows]);
+                    wsMechanics['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsMechanics, 15);
+                    XLSX.utils.book_append_sheet(wb, wsMechanics, "Mechanics");
+
+                    // ---------------- Sheet 4: Parts Issued ----------------
+                    const txTitle = createTitleHeader("Spares Consumption & Service History");
+                    txTitle.push([
+                        "Transaction Date/Time", "Reference Doc #", "Action/Type",
+                        "Spares/Product Name", "Product SKU", "Brand", "Model Spec",
+                        "Quantity Issued", "Unit Price (AED)", "Total Valuation (AED)",
+                        "Assigned Mechanic", "Rider Name (Logged)", "Rider Phone", "Receiver Name", "Additional Notes"
+                    ]);
+                    const txRows = (history.transactions || []).map(t => {
+                        const qty = Number(t.quantity) || 0;
+                        const price = Number(t.unitPrice) || 0;
+                        return [
+                            t.createdAt ? new Date(t.createdAt).toLocaleString() : '-',
+                            t.referenceId || '-',
+                            t.transactionType || '-',
+                            t.productName || '-',
+                            t.productSku || '-',
+                            t.productBrand || '-',
+                            t.productModel || '-',
+                            qty,
+                            price,
+                            qty * price,
+                            t.mechanicName || '-',
+                            t.riderName || '-',
+                            t.riderPhone || '-',
+                            t.receiverName || '-',
+                            t.notes || '-'
+                        ];
+                    });
+                    if (txRows.length === 0) {
+                        txRows.push(["No spare parts issued transactions logged for this bike.", "", "", "", "", "", "", 0, 0, 0, "", "", "", "", ""]);
+                    }
+                    const wsTx = XLSX.utils.aoa_to_sheet([...txTitle, ...txRows]);
+                    wsTx['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsTx, 12);
+                    XLSX.utils.book_append_sheet(wb, wsTx, "Parts Issued");
+
+                    // ---------------- Sheet 5: Oil Changes ----------------
+                    const oilTitle = createTitleHeader("Oil Change History");
+                    oilTitle.push(["Change Date/Time", "Oil Brand/Product Type", "Mileage Indicator (km)", "Mechanic Name", "Rider Name", "Rider Phone", "System Logged At"]);
+                    const oilRows = (history.oilChanges || []).map(c => [
+                        c.changeDate ? new Date(c.changeDate).toLocaleString() : '-',
+                        c.oilType || '-',
+                        Number(c.mileage) || 0,
+                        c.mechanicName || '-',
+                        c.riderName || '-',
+                        c.riderPhone || '-',
+                        c.createdAt ? new Date(c.createdAt).toLocaleString() : '-'
+                    ]);
+                    if (oilRows.length === 0) {
+                        oilRows.push(["No oil change events recorded for this bike.", "", 0, "", "", "", ""]);
+                    }
+                    const wsOil = XLSX.utils.aoa_to_sheet([...oilTitle, ...oilRows]);
+                    wsOil['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsOil, 14);
+                    XLSX.utils.book_append_sheet(wb, wsOil, "Oil Changes");
+
+                    // ---------------- Sheet 6: Gate Movements ----------------
+                    const movementTitle = createTitleHeader("Gate Passing check-in/out History");
+                    movementTitle.push(["Date", "Time", "Direction", "Rider Name", "Rider Phone Number", "Rider ID Card", "City Location", "Company Employer", "System Logged At"]);
+                    const movementRows = (history.movements || []).map(m => [
+                        m.movementDate || '-',
+                        m.movementTime || '-',
+                        m.direction || '-',
+                        m.riderName || '-',
+                        m.riderPhone || '-',
+                        m.riderId || '-',
+                        m.city || '-',
+                        m.company || '-',
+                        m.createdAt ? new Date(m.createdAt).toLocaleString() : '-'
+                    ]);
+                    if (movementRows.length === 0) {
+                        movementRows.push(["No gate passing records logged for this bike.", "", "", "", "", "", "", "", ""]);
+                    }
+                    const wsMovements = XLSX.utils.aoa_to_sheet([...movementTitle, ...movementRows]);
+                    wsMovements['!merges'] = [...defaultMerges];
+                    autoFitColumns(wsMovements, 14);
+                    XLSX.utils.book_append_sheet(wb, wsMovements, "Movements");
+
+                    // Trigger Save
+                    const cleanPlate = plate.replace(/[^a-zA-Z0-9-_]/g, '_');
+                    const cleanDate = new Date().toISOString().slice(0, 10);
+                    const fileName = `Tasslim_Bike_Report_${cleanPlate}_${cleanDate}.xlsx`;
+                    XLSX.writeFile(wb, fileName);
+
+                    App.showToast('Export compiled successfully!', 'success');
+                } catch (err) {
+                    console.error('Excel export failed:', err);
+                    App.showToast('Failed to export: ' + (err.message || err), 'error');
+                }
+            },
+
             openInvoiceModal: function () {
                 const plate = document.getElementById('bikeSelector').value;
                 if (!plate) {
@@ -643,4 +864,3 @@
 </body>
 
 </html>
-
