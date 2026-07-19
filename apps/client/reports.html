@@ -11,6 +11,7 @@
         href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     <style>
         /* ==========================================================
            TOKENS — "Workshop Ledger" system, mapped onto the app's
@@ -1265,6 +1266,10 @@
                     <p>Consumption, transactions, and inventory valuation at a glance.</p>
                 </div>
                 <div class="page-head-actions">
+                    <button class="icon-btn" onclick="Reports.exportToExcel()" title="Export to Excel"
+                        aria-label="Export to Excel" style="color: #27ae60; border-color: #27ae60;">
+                        <i class="fas fa-file-excel"></i>
+                    </button>
                     <button class="icon-btn" onclick="window.print()" title="Print current view"
                         aria-label="Print current view">
                         <i class="fas fa-print"></i>
@@ -2011,6 +2016,207 @@
                 this.inventory = App.getInventory();
                 this.mechanics = App.getMechanics();
                 this.bikes = App.getBikes();
+            },
+
+            exportToExcel: async function () {
+                App.showToast('Generating Excel report...', 'info');
+
+                try {
+                    if (typeof XLSX === 'undefined') {
+                        throw new Error('SheetJS library is not loaded. Please ensure the CDN script is included in the page header.');
+                    }
+
+                    // Load full report data matching the current filters (ensures no data loss)
+                    const fullSales = await this.ensureReportDataLoaded();
+                    const isStaff = App.getCurrentUser()?.role === 'staff';
+
+                    const wb = XLSX.utils.book_new();
+                    const exportTimeStr = new Date().toLocaleString();
+                    const cleanDate = new Date().toISOString().slice(0, 10);
+
+                    // Helper to auto-fit column widths beautifully
+                    const autoFitColumns = (ws, minWidth = 10) => {
+                        if (!ws || !ws['!ref']) return;
+                        const range = XLSX.utils.decode_range(ws['!ref']);
+                        const cols = [];
+                        for (let C = range.s.c; C <= range.e.c; ++C) {
+                            let maxLen = minWidth;
+                            for (let R = range.s.r; R <= range.e.r; ++R) {
+                                if (R <= 1 && C > 0) continue; // Skip title merging cells
+                                const cell = ws[XLSX.utils.encode_cell({ r: R, c: C })];
+                                if (cell && cell.v != null && String(cell.v).length > maxLen) {
+                                    maxLen = String(cell.v).length;
+                                }
+                            }
+                            cols.push({ wch: Math.min(45, maxLen + 3) });
+                        }
+                        ws['!cols'] = cols;
+                    };
+
+                    const mkTitle = (name, colCount = 8) => [
+                        ['TASSLIM PARTS & WORKSHOP MANAGEMENT'],
+                        [name.toUpperCase()],
+                        [],
+                        ['ACTIVE FILTERS:'],
+                        ['  Mechanic', document.getElementById('mechFilter')?.value || 'All Mechanics'],
+                        ['  Bike Plate', document.getElementById('bikeFilter')?.value || 'All Bikes'],
+                        ['  Start Date', document.getElementById('startDate')?.value || 'Beginning'],
+                        ['  End Date', document.getElementById('endDate')?.value || 'Today'],
+                        ['  Search Item', document.getElementById('itemSearchInput')?.value || 'None'],
+                        ['EXPORT DATE', exportTimeStr],
+                        []
+                    ];
+
+                    const addSheet = (ws, name, colCount = 8) => {
+                        ws['!merges'] = [
+                            { s: { r: 0, c: 0 }, e: { r: 0, c: colCount - 1 } },
+                            { s: { r: 1, c: 0 }, e: { r: 1, c: colCount - 1 } }
+                        ];
+                        autoFitColumns(ws, 12);
+                        XLSX.utils.book_append_sheet(wb, ws, name);
+                    };
+
+                    // ── Sheet 1: Summary Stats & Valuation ───────────────────
+                    const summaryTitle = mkTitle('Reports Overview & KPIs', 4);
+                    const totalRevenue = fullSales.reduce((sum, s) => sum + (Number(s.total) || 0), 0);
+                    const totalCost = this.inventory.reduce((sum, i) => sum + (Number(i.cost || 0) * Number(i.stock || 0)), 0);
+                    const totalRetail = this.inventory.reduce((sum, i) => sum + (Number(i.price || 0) * Number(i.stock || 0)), 0);
+                    const potentialProfit = totalRetail - totalCost;
+                    const totalItemsUsed = Number(this._summary.totalParts) || 0;
+
+                    const summaryRows = [
+                        ['METRIC', 'VALUE'],
+                        ['Total Transaction Groups (Filtered)', fullSales.length],
+                        ['Total Parts Issued Count (Filtered)', totalItemsUsed]
+                    ];
+
+                    if (!isStaff) {
+                        summaryRows.push(
+                            ['Total Sales Revenue (Filtered)', { t: 'n', v: totalRevenue, z: '"AED" #,##0.00' }],
+                            ['Total Inventory Current Cost', { t: 'n', v: totalCost, z: '"AED" #,##0.00' }],
+                            ['Potential Retail Valuation', { t: 'n', v: totalRetail, z: '"AED" #,##0.00' }],
+                            ['Potential Future Profit', { t: 'n', v: potentialProfit, z: '"AED" #,##0.00' }]
+                        );
+                    } else {
+                        summaryRows.push(
+                            ['Total Sales Revenue (Filtered)', '***'],
+                            ['Total Inventory Current Cost', '***'],
+                            ['Potential Retail Valuation', '***'],
+                            ['Potential Future Profit', '***']
+                        );
+                    }
+
+                    const wsSummary = XLSX.utils.aoa_to_sheet([...summaryTitle, ...summaryRows]);
+                    addSheet(wsSummary, 'Overview & KPIs', 4);
+
+                    // ── Sheet 2: Workshop Consumption Details (Line-item items used) ──
+                    const consumptionTitle = mkTitle('Workshop Consumption Details', 9);
+                    const consumptionHdr = [
+                        'Date', 'Transaction ID', 'Mechanic Name', 'Bike Plate',
+                        'Part Name', 'SKU Code', 'Unit Price (AED)', 'Quantity Issued', 'Total Cost (AED)'
+                    ];
+                    consumptionTitle.push(consumptionHdr);
+
+                    const consumptionRows = [];
+                    const issueSales = fullSales.filter(s => s.type === 'issue');
+                    issueSales.forEach(s => {
+                        (s.items || []).forEach(it => {
+                            const unitPrice = Number(it.price) || 0;
+                            const qty = Number(it.qty) || 0;
+                            const lineTotal = Number(it.total) || (unitPrice * qty);
+
+                            consumptionRows.push([
+                                s.date ? new Date(s.date).toLocaleDateString() : '-',
+                                s.id ? s.id.toString() : '-',
+                                s.mechanic || 'N/A',
+                                s.bike || 'N/A',
+                                it.name || 'N/A',
+                                it.sku || 'N/A',
+                                isStaff ? '***' : { t: 'n', v: unitPrice, z: '"AED" #,##0.00' },
+                                { t: 'n', v: qty, z: '#,##0' },
+                                isStaff ? '***' : { t: 'n', v: lineTotal, z: '"AED" #,##0.00' }
+                            ]);
+                        });
+                    });
+
+                    if (!consumptionRows.length) {
+                        consumptionRows.push(Array(consumptionHdr.length).fill('-'));
+                    }
+
+                    const wsConsumption = XLSX.utils.aoa_to_sheet([...consumptionTitle, ...consumptionRows]);
+                    addSheet(wsConsumption, 'Workshop Consumption', consumptionHdr.length);
+
+                    // ── Sheet 3: Recent Transactions Summary ─────────────────
+                    const txTitle = mkTitle('Recent Transactions Summary', 4);
+                    const txHdr = ['Date', 'Transaction ID', 'Total Items Issued', 'Total Value (AED)'];
+                    txTitle.push(txHdr);
+
+                    const txRows = fullSales.map(s => {
+                        const totalQty = (s.items || []).reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+                        return [
+                            s.date ? new Date(s.date).toLocaleDateString() : '-',
+                            s.id ? s.id.toString() : '-',
+                            { t: 'n', v: totalQty, z: '#,##0' },
+                            isStaff ? '***' : { t: 'n', v: Number(s.total) || 0, z: '"AED" #,##0.00' }
+                        ];
+                    });
+
+                    if (!txRows.length) {
+                        txRows.push(Array(txHdr.length).fill('-'));
+                    }
+
+                    const wsTransactions = XLSX.utils.aoa_to_sheet([...txTitle, ...txRows]);
+                    addSheet(wsTransactions, 'Recent Transactions', txHdr.length);
+
+                    // ── Sheet 4: Inventory Valuation Breakdown ───────────────
+                    const valTitle = mkTitle('Inventory Valuation Details', 9);
+                    const valHdr = [
+                        'Part Name', 'SKU Code', 'Category', 'Current Stock Qty',
+                        'Unit Cost (AED)', 'Retail Unit Price (AED)',
+                        'Total Stock Cost (AED)', 'Total Retail Value (AED)', 'Potential Profit (AED)'
+                    ];
+                    valTitle.push(valHdr);
+
+                    const valRows = this.inventory.map(p => {
+                        const stock = Number(p.stock) || 0;
+                        const cost = Number(p.cost) || 0;
+                        const price = Number(p.price) || 0;
+                        const totalCostCol = cost * stock;
+                        const totalRetailVal = price * stock;
+                        const potentialProf = totalRetailVal - totalCostCol;
+
+                        return [
+                            p.name || 'N/A',
+                            p.sku || 'N/A',
+                            p.category || 'N/A',
+                            { t: 'n', v: stock, z: '#,##0' },
+                            isStaff ? '***' : { t: 'n', v: cost, z: '"AED" #,##0.00' },
+                            isStaff ? '***' : { t: 'n', v: price, z: '"AED" #,##0.00' },
+                            isStaff ? '***' : { t: 'n', v: totalCostCol, z: '"AED" #,##0.00' },
+                            isStaff ? '***' : { t: 'n', v: totalRetailVal, z: '"AED" #,##0.00' },
+                            isStaff ? '***' : { t: 'n', v: potentialProf, z: '"AED" #,##0.00' }
+                        ];
+                    });
+
+                    if (!valRows.length) {
+                        valRows.push(Array(valHdr.length).fill('-'));
+                    }
+
+                    const wsValuation = XLSX.utils.aoa_to_sheet([...valTitle, ...valRows]);
+                    addSheet(wsValuation, 'Inventory Valuation', valHdr.length);
+
+                    // ── Download Workbook ────────────────────────────────────
+                    const fileTag = document.getElementById('bikeFilter')?.value
+                        ? document.getElementById('bikeFilter').value.replace(/[^a-zA-Z0-9-_]/g, '_')
+                        : 'ALL';
+
+                    XLSX.writeFile(wb, `Tasslim_Workshop_Report_${fileTag}_${cleanDate}.xlsx`);
+                    App.showToast('Excel report exported successfully!', 'success');
+
+                } catch (err) {
+                    console.error('Excel export failed:', err);
+                    App.showToast('Export failed: ' + (err.message || err), 'error');
+                }
             },
 
             getUniqueSortedStrings: function (values) {
