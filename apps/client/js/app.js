@@ -11,6 +11,9 @@ const API_BASE_URL = (window.CONFIG && window.CONFIG.API)
         ? 'http://localhost:4000/api/v1'
         : '/api/v1';
 
+// Make API_BASE_URL globally accessible
+window.API_BASE_URL = API_BASE_URL;
+
 
 const App = {
     // Storage keys (session + UX only). User accounts are not cached in the browser — always use GET /auth.
@@ -124,6 +127,103 @@ const App = {
                     this._setSession(null);
                     if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
                         alert('401 Error on endpoint: ' + endpoint + '\\nResponse text: ' + await response.text().catch(e => 'No text'));
+                        this.showToast('Session expired. Please sign in again.', 'error');
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
+                throw err;
+            }
+
+            return result;
+        } catch (error) {
+            console.error(`[api]: ${method} ${endpoint} failed:`, error);
+            throw error;
+        }
+    },
+
+    /**
+     * Helper for API calls with multipart/form-data (file uploads).
+     * Similar to apiCall but handles FormData and file uploads.
+     * @param {string} endpoint - API path (e.g. '/passing-logs/rider-movements')
+     * @param {string} method - POST, PATCH, etc.
+     * @param {FormData} formData - FormData object with files and fields
+     * @param {boolean} _retriedAfterRefresh - Internal: skip refresh to avoid loop
+     */
+    apiCallMultipart: async function (endpoint, method = 'POST', formData = null, _retriedAfterRefresh = false) {
+        const session = this.getCurrentUser();
+        const headers = {};
+
+        if (session && session.token) {
+            headers['Authorization'] = `Bearer ${session.token}`;
+        }
+
+        // Do NOT set Content-Type for FormData - browser will set it with boundary
+        const options = { method, headers };
+        if (formData) options.body = formData;
+
+        try {
+            const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error(`[api]: Expected JSON but got ${contentType || 'no content-type'}. Response text:`, text.substring(0, 500));
+                const err = new Error(`Server returned non-JSON response (${response.status}). The server might be down or misconfigured.`);
+                err.status = response.status;
+                throw err;
+            }
+
+            const result = await response.json();
+
+            if (response.ok && result && result.success === false) {
+                const msg = result.error?.message || result.error || 'API returned success: false';
+                const err = new Error(typeof msg === 'string' ? msg : 'API Request failed');
+                err.status = response.status;
+                throw err;
+            }
+
+            if (!response.ok) {
+                let msg = result.error?.message || result.error || 'API Request failed';
+                const details = result.error?.details;
+                if (Array.isArray(details) && details.length > 0) {
+                    const d0 = details[0];
+                    const bit = [d0.field, d0.message].filter(Boolean).join(': ');
+                    if (bit) msg = `${msg} (${bit})`;
+                }
+                const err = new Error(typeof msg === 'string' ? msg : 'API Request failed');
+                err.status = response.status;
+
+                // 401 and token expired: try refresh once, then retry this request
+                if (response.status === 401 && !_retriedAfterRefresh && session && session.refreshToken) {
+                    const isAuthEndpoint = (endpoint === '/auth/refresh' || endpoint.startsWith('/auth/'));
+                    const isTokenError = (result.error?.message || '').toLowerCase().includes('token') || (result.error?.message || '').toLowerCase().includes('expired');
+                    if (!isAuthEndpoint && isTokenError) {
+                        try {
+                            const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ refreshToken: session.refreshToken })
+                            });
+                            const refreshData = await refreshRes.json();
+                            if (refreshData.success && refreshData.data && refreshData.data.token) {
+                                const updatedSession = {
+                                    ...(session || {}),
+                                    token: refreshData.data.token,
+                                    refreshToken: refreshData.data.refreshToken || (session && session.refreshToken)
+                                };
+                                this._setSession(updatedSession);
+                                return this.apiCallMultipart(endpoint, method, formData, true);
+                            }
+                        } catch (refreshErr) {
+                            console.warn('[api]: Token refresh failed', refreshErr);
+                        }
+                    }
+                }
+
+                if (response.status === 401) {
+                    this._setSession(null);
+                    if (!window.location.pathname.includes('index.html') && window.location.pathname !== '/' && window.location.pathname !== '') {
                         this.showToast('Session expired. Please sign in again.', 'error');
                         window.location.href = 'index.html';
                         return;

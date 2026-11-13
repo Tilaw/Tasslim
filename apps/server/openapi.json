@@ -1365,31 +1365,153 @@
       "get": {
         "tags": ["Passing logs"],
         "summary": "List rider movements",
-        "description": "Returns gate IN/OUT movement log for rider bikes.",
+        "description": "Returns gate IN/OUT movement log for rider bikes with optional document metadata.",
         "operationId": "listRiderMovements",
         "parameters": [
           { "name": "limit", "in": "query", "description": "Maximum records (default: 100).", "schema": { "type": "integer", "minimum": 1, "maximum": 500 } }
         ],
         "responses": {
-          "200": { "description": "Movement list.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "200": { "description": "Movement list with document information.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       },
       "post": {
         "tags": ["Passing logs"],
-        "summary": "Record rider movement",
-        "description": "Log a single bike gate movement (IN or OUT) with optional rider metadata.",
+        "summary": "Record rider movement with optional documents",
+        "description": "Log a single bike gate movement (IN or OUT) with optional rider metadata and document uploads (handover papers, passing papers).",
         "operationId": "createRiderMovement",
         "requestBody": {
           "required": true,
           "content": {
-            "application/json": { "schema": { "$ref": "#/components/schemas/RiderMovementBody" } }
+            "application/json": { 
+              "schema": { "$ref": "#/components/schemas/RiderMovementBody" },
+              "examples": {
+                "jsonFormat": {
+                  "summary": "JSON format (no documents)",
+                  "value": {
+                    "bikeNumber": "DXB-4421",
+                    "date": "2025-04-01",
+                    "direction": "IN",
+                    "riderName": "Ahmed",
+                    "phone": "+971501234567"
+                  }
+                }
+              }
+            },
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": ["bikeNumber", "date", "direction"],
+                "properties": {
+                  "bikeNumber": { "type": "string", "example": "DXB-4421" },
+                  "date": { "type": "string", "format": "date", "example": "2025-04-01" },
+                  "direction": { "type": "string", "enum": ["IN", "OUT"] },
+                  "time": { "type": "string", "example": "09:30" },
+                  "riderName": { "type": "string" },
+                  "riderId": { "type": "string" },
+                  "phone": { "type": "string" },
+                  "city": { "type": "string" },
+                  "company": { "type": "string" },
+                  "handoverPaper": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Handover papers image file (JPEG, PNG, GIF, WebP, max 5MB)"
+                  },
+                  "passingPaper": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Passing-in/out papers image file (JPEG, PNG, GIF, WebP, max 5MB)"
+                  }
+                }
+              }
+            }
           }
         },
         "responses": {
-          "201": { "description": "Movement recorded.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiSuccess" } } } },
+          "201": { 
+            "description": "Movement recorded with document metadata.", 
+            "content": { 
+              "application/json": { 
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "format": "uuid" },
+                            "bikeNumber": { "type": "string" },
+                            "direction": { "type": "string" },
+                            "handoverPaperPath": { "type": "string", "nullable": true, "description": "Relative path to uploaded handover document" },
+                            "handoverPaperOriginalName": { "type": "string", "nullable": true },
+                            "passingPaperPath": { "type": "string", "nullable": true, "description": "Relative path to uploaded passing document" },
+                            "passingPaperOriginalName": { "type": "string", "nullable": true }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              } 
+            } 
+          },
+          "400": { "description": "Invalid file type or size.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "422": { "$ref": "#/components/responses/UnprocessableEntity" }
+        }
+      }
+    },
+    "/api/v1/passing-logs/rider-movements/{id}": {
+      "get": {
+        "tags": ["Passing logs"],
+        "summary": "Get rider movement by ID",
+        "description": "Retrieve a single rider movement record including document metadata.",
+        "operationId": "getRiderMovementById",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "description": "Movement UUID", "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { 
+            "description": "Movement record with documents.", 
+            "content": { 
+              "application/json": { 
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/ApiSuccess" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string", "format": "uuid" },
+                            "bikeNumber": { "type": "string" },
+                            "direction": { "type": "string", "enum": ["IN", "OUT"] },
+                            "movementDate": { "type": "string", "format": "date" },
+                            "movementTime": { "type": "string", "nullable": true },
+                            "riderName": { "type": "string", "nullable": true },
+                            "riderId": { "type": "string", "nullable": true },
+                            "phone": { "type": "string", "nullable": true },
+                            "city": { "type": "string", "nullable": true },
+                            "company": { "type": "string", "nullable": true },
+                            "handoverPaperPath": { "type": "string", "nullable": true },
+                            "handoverPaperOriginalName": { "type": "string", "nullable": true },
+                            "passingPaperPath": { "type": "string", "nullable": true },
+                            "passingPaperOriginalName": { "type": "string", "nullable": true },
+                            "createdAt": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              } 
+            } 
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
         }
       }
     },

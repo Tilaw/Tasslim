@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PassingLogsController } from './passing-logs.controller.js';
 import { authMiddleware, requireRole } from '../../middleware/auth.middleware.js';
+import { uploadRiderMovementDocuments } from '../../middleware/upload.middleware.js';
 
 const router = Router();
 
@@ -14,9 +15,11 @@ router.post(
 );
 
 router.get('/rider-movements', PassingLogsController.listRiderMovements);
+router.get('/rider-movements/:id', PassingLogsController.getRiderMovementById);
 router.post(
     '/rider-movements',
     requireRole('super_admin', 'admin', 'store_manager', 'inventory_manager', 'staff'),
+    uploadRiderMovementDocuments,
     PassingLogsController.createRiderMovement
 );
 

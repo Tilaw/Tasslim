@@ -50,6 +50,8 @@ export class PassingLogsController {
     static async createRiderMovement(req: AuthRequest, res: Response, next: NextFunction) {
         try {
             const b = req.body as any;
+            const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+            
             const bikeNumber = String(b.bikeNumber || '').trim();
             const date = String(b.date || '').trim();
             const direction = String(b.direction || '').trim();
@@ -59,6 +61,24 @@ export class PassingLogsController {
             if (!direction || !['IN', 'OUT'].includes(direction.toUpperCase())) {
                 return res.status(400).json({ success: false, error: { message: 'direction must be IN or OUT' } });
             }
+
+            // Extract file information if files were uploaded
+            let handoverPaperPath: string | null = null;
+            let handoverPaperOriginalName: string | null = null;
+            let passingPaperPath: string | null = null;
+            let passingPaperOriginalName: string | null = null;
+
+            if (files) {
+                if (files.handoverPaper && files.handoverPaper[0]) {
+                    handoverPaperPath = `uploads/rider-movements/${files.handoverPaper[0].filename}`;
+                    handoverPaperOriginalName = files.handoverPaper[0].originalname;
+                }
+                if (files.passingPaper && files.passingPaper[0]) {
+                    passingPaperPath = `uploads/rider-movements/${files.passingPaper[0].filename}`;
+                    passingPaperOriginalName = files.passingPaper[0].originalname;
+                }
+            }
+
             const data = await PassingLogsService.createRiderMovement({
                 bikeNumber,
                 phone: b.phone,
@@ -68,9 +88,26 @@ export class PassingLogsController {
                 company: b.company,
                 date,
                 time: b.time,
-                direction
+                direction,
+                handoverPaperPath,
+                handoverPaperOriginalName,
+                passingPaperPath,
+                passingPaperOriginalName
             });
             res.status(201).json({ success: true, data });
+        } catch (e) {
+            next(e);
+        }
+    }
+
+    static async getRiderMovementById(req: AuthRequest, res: Response, next: NextFunction) {
+        try {
+            const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+            const data = await PassingLogsService.getRiderMovementById(id);
+            if (!data) {
+                return res.status(404).json({ success: false, error: { message: 'Movement not found' } });
+            }
+            res.json({ success: true, data });
         } catch (e) {
             next(e);
         }

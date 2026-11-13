@@ -3,3 +3,4 @@ dist/
 logs/
 error.log
 db_out.txt
+uploads/

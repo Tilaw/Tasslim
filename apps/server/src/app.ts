@@ -106,6 +106,10 @@ app.use('/api/v1/passing-logs', passingLogsRoutes);
 // Catch-all for API 404s (matches any /api/v1 route not handled above)
 app.use('/api/v1', notFoundHandler);
 
+// Serve uploads directory for accessing uploaded documents
+const uploadsPath = path.join(__dirname, '../uploads');
+app.use('/uploads', express.static(uploadsPath));
+
 // Serve Static Frontend Files
 const frontendPath = path.join(__dirname, '../../');
 app.use(express.static(frontendPath));

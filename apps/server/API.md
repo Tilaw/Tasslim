@@ -325,7 +325,8 @@ Returns `{ products, mechanics, bikes }`. History is loaded via `GET /transactio
 | GET | `/dubai-entries` | Any authenticated | List Dubai manual part entries |
 | POST | `/dubai-entries` | admin, staff, managers | Create Dubai entries (max 50 lines) |
 | GET | `/rider-movements` | Any authenticated | List gate IN/OUT movements |
-| POST | `/rider-movements` | admin, staff, managers | Record gate movement |
+| GET | `/rider-movements/:id` | Any authenticated | Get single movement by ID with documents |
+| POST | `/rider-movements` | admin, staff, managers | Record gate movement with optional document uploads |
 
 **Dubai entry POST body**
 
@@ -337,8 +338,9 @@ Returns `{ products, mechanics, bikes }`. History is loaded via `GET /transactio
 }
 ```
 
-**Rider movement POST body**
+**Rider movement POST body** (supports both JSON and multipart/form-data)
 
+JSON format:
 ```json
 {
   "bikeNumber": "DXB-123",
@@ -347,10 +349,53 @@ Returns `{ products, mechanics, bikes }`. History is loaded via `GET /transactio
   "direction": "IN",
   "riderName": "Ahmed",
   "phone": "+971...",
+  "riderId": "RDR-001",
   "city": "Dubai",
   "company": "..."
 }
 ```
+
+Multipart/form-data format (for document uploads):
+```http
+POST /api/v1/passing-logs/rider-movements
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+
+Fields:
+- bikeNumber (required, string)
+- date (required, string YYYY-MM-DD)
+- direction (required, string: "IN" or "OUT")
+- time (optional, string HH:MM)
+- phone (optional, string)
+- riderName (optional, string)
+- riderId (optional, string)
+- city (optional, string)
+- company (optional, string)
+- handoverPaper (optional, file: image/jpeg, image/png, image/gif, image/webp, max 5MB)
+- passingPaper (optional, file: image/jpeg, image/png, image/gif, image/webp, max 5MB)
+```
+
+**Response includes document metadata:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "bikeNumber": "DXB-123",
+    "direction": "IN",
+    "handoverPaperPath": "uploads/rider-movements/1234567890-abc123-handover.jpg",
+    "handoverPaperOriginalName": "handover-scan.jpg",
+    "passingPaperPath": "uploads/rider-movements/1234567890-def456-passing.jpg",
+    "passingPaperOriginalName": "passing-document.jpg",
+    ...
+  }
+}
+```
+
+**Accessing uploaded documents:**
+- Documents are served at: `GET /uploads/rider-movements/{filename}`
+- Authentication required (same as API endpoints)
+- Opens directly in browser for viewing
 
 `direction` must be `IN` or `OUT`.
 

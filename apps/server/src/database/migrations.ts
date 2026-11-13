@@ -252,6 +252,21 @@ export async function migrate() {
             }
         }
 
+        // Check for missing document columns in rider_bike_movements table
+        const riderMovementDocCols = [
+            { name: 'handover_paper_path', type: 'VARCHAR(500)' },
+            { name: 'handover_paper_original_name', type: 'VARCHAR(255)' },
+            { name: 'passing_paper_path', type: 'VARCHAR(500)' },
+            { name: 'passing_paper_original_name', type: 'VARCHAR(255)' }
+        ];
+
+        for (const col of riderMovementDocCols) {
+            if (!(await columnExists('rider_bike_movements', col.name))) {
+                console.log(`[database]: Adding missing column ${col.name} to rider_bike_movements table...`);
+                await pool.query(`ALTER TABLE rider_bike_movements ADD COLUMN ${col.name} ${col.type}`);
+            }
+        }
+
         // Ensure inventory_transactions.transaction_type accepts 'issue' (ENUM may only have purchase,sale,return,adjustment)
         const [txCol]: any = await pool.query(
             `SELECT COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'inventory_transactions' AND COLUMN_NAME = 'transaction_type'`,

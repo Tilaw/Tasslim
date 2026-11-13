@@ -35,6 +35,10 @@ export class PassingLogsService {
         date: string;
         time?: string | null;
         direction: string;
+        handoverPaperPath?: string | null;
+        handoverPaperOriginalName?: string | null;
+        passingPaperPath?: string | null;
+        passingPaperOriginalName?: string | null;
     }) {
         const id = crypto.randomUUID();
         const dir = (data.direction || '').toUpperCase() === 'OUT' ? 'OUT' : 'IN';
@@ -42,8 +46,9 @@ export class PassingLogsService {
 
         await pool.execute(
             `INSERT INTO rider_bike_movements 
-                (id, bike_number, phone, rider_name, rider_id, city, company, movement_date, movement_time, direction)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                (id, bike_number, phone, rider_name, rider_id, city, company, movement_date, movement_time, direction,
+                 handover_paper_path, handover_paper_original_name, passing_paper_path, passing_paper_original_name)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 id,
                 data.bikeNumber.trim(),
@@ -54,14 +59,20 @@ export class PassingLogsService {
                 data.company?.trim() || null,
                 movementDate,
                 data.time?.trim() || null,
-                dir
+                dir,
+                data.handoverPaperPath || null,
+                data.handoverPaperOriginalName || null,
+                data.passingPaperPath || null,
+                data.passingPaperOriginalName || null
             ]
         );
 
         const [rows]: any = await pool.execute(
             `SELECT id, bike_number AS bikeNumber, phone, rider_name AS riderName, rider_id AS riderId,
                     city, company, movement_date AS movementDate, movement_time AS movementTime,
-                    direction, created_at AS createdAt
+                    direction, created_at AS createdAt,
+                    handover_paper_path AS handoverPaperPath, handover_paper_original_name AS handoverPaperOriginalName,
+                    passing_paper_path AS passingPaperPath, passing_paper_original_name AS passingPaperOriginalName
              FROM rider_bike_movements WHERE id = ?`,
             [id]
         );
@@ -73,9 +84,24 @@ export class PassingLogsService {
         const [rows] = await pool.execute(
             `SELECT id, bike_number AS bikeNumber, phone, rider_name AS riderName, rider_id AS riderId,
                     city, company, movement_date AS movementDate, movement_time AS movementTime,
-                    direction, created_at AS createdAt
+                    direction, created_at AS createdAt,
+                    handover_paper_path AS handoverPaperPath, handover_paper_original_name AS handoverPaperOriginalName,
+                    passing_paper_path AS passingPaperPath, passing_paper_original_name AS passingPaperOriginalName
              FROM rider_bike_movements ORDER BY created_at DESC LIMIT ` + limit
         );
         return rows;
+    }
+
+    static async getRiderMovementById(id: string) {
+        const [rows]: any = await pool.execute(
+            `SELECT id, bike_number AS bikeNumber, phone, rider_name AS riderName, rider_id AS riderId,
+                    city, company, movement_date AS movementDate, movement_time AS movementTime,
+                    direction, created_at AS createdAt,
+                    handover_paper_path AS handoverPaperPath, handover_paper_original_name AS handoverPaperOriginalName,
+                    passing_paper_path AS passingPaperPath, passing_paper_original_name AS passingPaperOriginalName
+             FROM rider_bike_movements WHERE id = ?`,
+            [id]
+        );
+        return rows[0] || null;
     }
 }

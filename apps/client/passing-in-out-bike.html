@@ -165,6 +165,19 @@
                         </div>
                     </div>
 
+                    <div class="form-grid-2" style="margin-top:18px;">
+                        <div class="form-group">
+                            <label class="form-label">Handover Papers</label>
+                            <input type="file" id="mHandoverPaper" class="form-control" accept="image/*">
+                            <small style="color:#6b7280;">Upload image (JPEG, PNG, GIF, WebP - Max 5MB)</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Passing-In/Out Papers</label>
+                            <input type="file" id="mPassingPaper" class="form-control" accept="image/*">
+                            <small style="color:#6b7280;">Upload image (JPEG, PNG, GIF, WebP - Max 5MB)</small>
+                        </div>
+                    </div>
+
                     <button type="button" class="btn btn-primary" style="width:100%; margin-top:16px;"
                         onclick="RiderIoPage.submit()">
                         <i class="fas fa-save"></i> Save record
@@ -205,11 +218,12 @@
                                 <th>Company</th>
                                 <th>Date</th>
                                 <th>Time</th>
+                                <th>Documents</th>
                             </tr>
                         </thead>
                         <tbody id="recentMove">
                             <tr>
-                                <td colspan="10" style="text-align:center;color:#9ca3af;padding:16px;">Loading…</td>
+                                <td colspan="11" style="text-align:center;color:#9ca3af;padding:16px;">Loading…</td>
                             </tr>
                         </tbody>
                     </table>
@@ -295,7 +309,7 @@
                     const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
                     tbody.innerHTML = '';
                     if (rows.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;color:#9ca3af;padding:16px;\">No records yet.</td></tr>';
+                        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:16px;">No records yet.</td></tr>';
                         return;
                     }
                     rows.forEach(r => {
@@ -303,6 +317,24 @@
                         const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
                         const md = r.movementDate || '-';
                         const mt = r.movementTime || '-';
+                        
+                        // Build documents column
+                        let docsHtml = '';
+                        if (r.handoverPaperPath || r.passingPaperPath) {
+                            docsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+                            if (r.handoverPaperPath) {
+                                const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
+                                docsHtml += `<a href="${serverUrl}/${r.handoverPaperPath}" target="_blank" title="Handover Papers" style="color:#2563eb;text-decoration:none;"><i class="fas fa-file-image"></i> H</a>`;
+                            }
+                            if (r.passingPaperPath) {
+                                const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
+                                docsHtml += `<a href="${serverUrl}/${r.passingPaperPath}" target="_blank" title="Passing Papers" style="color:#16a34a;text-decoration:none;"><i class="fas fa-file-image"></i> P</a>`;
+                            }
+                            docsHtml += '</div>';
+                        } else {
+                            docsHtml = '-';
+                        }
+
                         tr.innerHTML = `
                             <td>${when}</td>
                             <td><strong>${RiderIoPage._esc(r.direction)}</strong></td>
@@ -314,11 +346,12 @@
                             <td>${RiderIoPage._esc(r.company)}</td>
                             <td>${RiderIoPage._esc(md)}</td>
                             <td>${RiderIoPage._esc(mt)}</td>
+                            <td>${docsHtml}</td>
                         `;
                         tbody.appendChild(tr);
                     });
                 } catch (e) {
-                    tbody.innerHTML = '<tr><td colspan=\"10\" style=\"text-align:center;color:#e11d48;\">Could not load list.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#e11d48;">Could not load list.</td></tr>';
                 }
             },
 
@@ -423,21 +456,43 @@
                     App.showToast('Bike number and date are required.', 'warning');
                     return;
                 }
-                const body = {
-                    bikeNumber,
-                    phone: document.getElementById('mPhone').value.trim() || null,
-                    riderName: document.getElementById('mRiderName').value.trim() || null,
-                    riderId: document.getElementById('mRiderId').value.trim() || null,
-                    city: document.getElementById('mCity').value.trim() || null,
-                    company: document.getElementById('mCompany').value.trim() || null,
-                    date,
-                    time: document.getElementById('mTime').value || null,
-                    direction
-                };
+
+                // Create FormData for multipart submission
+                const formData = new FormData();
+                formData.append('bikeNumber', bikeNumber);
+                formData.append('date', date);
+                formData.append('direction', direction);
+                
+                const phone = document.getElementById('mPhone').value.trim();
+                const riderName = document.getElementById('mRiderName').value.trim();
+                const riderId = document.getElementById('mRiderId').value.trim();
+                const city = document.getElementById('mCity').value.trim();
+                const company = document.getElementById('mCompany').value.trim();
+                const time = document.getElementById('mTime').value;
+
+                if (phone) formData.append('phone', phone);
+                if (riderName) formData.append('riderName', riderName);
+                if (riderId) formData.append('riderId', riderId);
+                if (city) formData.append('city', city);
+                if (company) formData.append('company', company);
+                if (time) formData.append('time', time);
+
+                // Add file uploads if present
+                const handoverPaperInput = document.getElementById('mHandoverPaper');
+                const passingPaperInput = document.getElementById('mPassingPaper');
+                
+                if (handoverPaperInput.files && handoverPaperInput.files[0]) {
+                    formData.append('handoverPaper', handoverPaperInput.files[0]);
+                }
+                if (passingPaperInput.files && passingPaperInput.files[0]) {
+                    formData.append('passingPaper', passingPaperInput.files[0]);
+                }
+
                 if (this._submitting) return;
                 this._submitting = true;
                 try {
-                    const res = await App.apiCall('/passing-logs/rider-movements', 'POST', body);
+                    // Use apiCallMultipart for file uploads
+                    const res = await App.apiCallMultipart('/passing-logs/rider-movements', 'POST', formData);
                     if (!res || !res.success) throw new Error('Save failed');
                     App.showToast('Movement saved.', 'success');
                     document.getElementById('mBike').value = '';
@@ -446,6 +501,8 @@
                     document.getElementById('mRiderId').value = '';
                     document.getElementById('mCity').value = '';
                     document.getElementById('mCompany').value = '';
+                    document.getElementById('mHandoverPaper').value = '';
+                    document.getElementById('mPassingPaper').value = '';
                     await this.loadRecent();
                 } catch (e) {
                     App.showToast(e.message || 'Failed to save', 'error');
