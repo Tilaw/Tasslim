@@ -204,6 +204,34 @@
                 <input type="file" id="riderIoImportFile"
                     accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     style="display:none;" aria-hidden="true">
+                
+                <!-- Search Bar -->
+                <div class="card-body" style="padding:16px;border-bottom:1px solid #e5e7eb;">
+                    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:250px;">
+                            <input type="text" id="movementSearch" class="form-control" 
+                                placeholder="Search by bike number, rider name, phone, ID, city, or company..." 
+                                style="width:100%;">
+                        </div>
+                        <div style="display:flex;gap:8px;">
+                            <select id="directionFilter" class="form-control" style="min-width:100px;">
+                                <option value="">All Directions</option>
+                                <option value="IN">IN Only</option>
+                                <option value="OUT">OUT Only</option>
+                            </select>
+                            <button type="button" class="btn" style="background:#10b981;color:white;" 
+                                onclick="RiderIoPage.applySearch()">
+                                <i class="fas fa-search"></i> Search
+                            </button>
+                            <button type="button" class="btn" style="background:#6b7280;color:white;" 
+                                onclick="RiderIoPage.clearSearch()">
+                                <i class="fas fa-times"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+                    <div id="searchResultCount" style="margin-top:8px;color:#6b7280;font-size:14px;"></div>
+                </div>
+
                 <div class="card-body table-container" style="overflow-x:auto;">
                     <table class="activity-table">
                         <thead>
@@ -288,12 +316,24 @@
 
         const RiderIoPage = {
             _submitting: false,
+            _allMovements: [], // Store all movements for client-side filtering
+            _filteredMovements: [], // Store filtered results
 
             init() {
                 const d = new Date();
                 document.getElementById('mDate').value = d.toISOString().slice(0, 10);
                 document.getElementById('mTime').value = d.toTimeString().slice(0, 5);
                 this.loadRecent();
+
+                // Setup search event listeners
+                const searchInput = document.getElementById('movementSearch');
+                if (searchInput) {
+                    searchInput.addEventListener('keyup', (e) => {
+                        if (e.key === 'Enter') {
+                            this.applySearch();
+                        }
+                    });
+                }
             },
 
             _esc(s) {
@@ -305,53 +345,123 @@
             async loadRecent() {
                 const tbody = document.getElementById('recentMove');
                 try {
-                    const res = await App.apiCall('/passing-logs/rider-movements?limit=50', 'GET');
+                    const res = await App.apiCall('/passing-logs/rider-movements?limit=500', 'GET');
                     const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
-                    tbody.innerHTML = '';
-                    if (rows.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:16px;">No records yet.</td></tr>';
-                        return;
-                    }
-                    rows.forEach(r => {
-                        const tr = document.createElement('tr');
-                        const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
-                        const md = r.movementDate || '-';
-                        const mt = r.movementTime || '-';
-                        
-                        // Build documents column
-                        let docsHtml = '';
-                        if (r.handoverPaperPath || r.passingPaperPath) {
-                            docsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
-                            if (r.handoverPaperPath) {
-                                const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
-                                docsHtml += `<a href="${serverUrl}/${r.handoverPaperPath}" target="_blank" title="Handover Papers" style="color:#2563eb;text-decoration:none;"><i class="fas fa-file-image"></i> H</a>`;
-                            }
-                            if (r.passingPaperPath) {
-                                const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
-                                docsHtml += `<a href="${serverUrl}/${r.passingPaperPath}" target="_blank" title="Passing Papers" style="color:#16a34a;text-decoration:none;"><i class="fas fa-file-image"></i> P</a>`;
-                            }
-                            docsHtml += '</div>';
-                        } else {
-                            docsHtml = '-';
-                        }
-
-                        tr.innerHTML = `
-                            <td>${when}</td>
-                            <td><strong>${RiderIoPage._esc(r.direction)}</strong></td>
-                            <td>${RiderIoPage._esc(r.bikeNumber)}</td>
-                            <td>${RiderIoPage._esc(r.phone)}</td>
-                            <td>${RiderIoPage._esc(r.riderName)}</td>
-                            <td>${RiderIoPage._esc(r.riderId)}</td>
-                            <td>${RiderIoPage._esc(r.city)}</td>
-                            <td>${RiderIoPage._esc(r.company)}</td>
-                            <td>${RiderIoPage._esc(md)}</td>
-                            <td>${RiderIoPage._esc(mt)}</td>
-                            <td>${docsHtml}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
+                    
+                    // Store all movements for filtering
+                    this._allMovements = rows;
+                    this._filteredMovements = rows;
+                    
+                    this.renderMovements(rows);
+                    this.updateSearchCount();
                 } catch (e) {
                     tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#e11d48;">Could not load list.</td></tr>';
+                }
+            },
+
+            renderMovements(rows) {
+                const tbody = document.getElementById('recentMove');
+                tbody.innerHTML = '';
+                
+                if (rows.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:#9ca3af;padding:16px;">No records found.</td></tr>';
+                    return;
+                }
+
+                rows.forEach(r => {
+                    const tr = document.createElement('tr');
+                    const when = r.createdAt ? new Date(r.createdAt).toLocaleString() : '-';
+                    const md = r.movementDate || '-';
+                    const mt = r.movementTime || '-';
+                    
+                    // Build documents column
+                    let docsHtml = '';
+                    if (r.handoverPaperPath || r.passingPaperPath) {
+                        docsHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+                        if (r.handoverPaperPath) {
+                            const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
+                            docsHtml += `<a href="${serverUrl}/${r.handoverPaperPath}" target="_blank" title="Handover Papers" style="color:#2563eb;text-decoration:none;"><i class="fas fa-file-image"></i> H</a>`;
+                        }
+                        if (r.passingPaperPath) {
+                            const serverUrl = window.API_BASE_URL.replace('/api/v1', '');
+                            docsHtml += `<a href="${serverUrl}/${r.passingPaperPath}" target="_blank" title="Passing Papers" style="color:#16a34a;text-decoration:none;"><i class="fas fa-file-image"></i> P</a>`;
+                        }
+                        docsHtml += '</div>';
+                    } else {
+                        docsHtml = '-';
+                    }
+
+                    tr.innerHTML = `
+                        <td>${when}</td>
+                        <td><strong>${this._esc(r.direction)}</strong></td>
+                        <td>${this._esc(r.bikeNumber)}</td>
+                        <td>${this._esc(r.phone)}</td>
+                        <td>${this._esc(r.riderName)}</td>
+                        <td>${this._esc(r.riderId)}</td>
+                        <td>${this._esc(r.city)}</td>
+                        <td>${this._esc(r.company)}</td>
+                        <td>${this._esc(md)}</td>
+                        <td>${this._esc(mt)}</td>
+                        <td>${docsHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            },
+
+            applySearch() {
+                const searchTerm = document.getElementById('movementSearch').value.trim().toLowerCase();
+                const directionFilter = document.getElementById('directionFilter').value;
+
+                let filtered = this._allMovements;
+
+                // Apply direction filter
+                if (directionFilter) {
+                    filtered = filtered.filter(r => r.direction === directionFilter);
+                }
+
+                // Apply text search
+                if (searchTerm) {
+                    filtered = filtered.filter(r => {
+                        const bikeNumber = (r.bikeNumber || '').toLowerCase();
+                        const riderName = (r.riderName || '').toLowerCase();
+                        const phone = (r.phone || '').toLowerCase();
+                        const riderId = (r.riderId || '').toLowerCase();
+                        const city = (r.city || '').toLowerCase();
+                        const company = (r.company || '').toLowerCase();
+                        
+                        return bikeNumber.includes(searchTerm) ||
+                               riderName.includes(searchTerm) ||
+                               phone.includes(searchTerm) ||
+                               riderId.includes(searchTerm) ||
+                               city.includes(searchTerm) ||
+                               company.includes(searchTerm);
+                    });
+                }
+
+                this._filteredMovements = filtered;
+                this.renderMovements(filtered);
+                this.updateSearchCount();
+            },
+
+            clearSearch() {
+                document.getElementById('movementSearch').value = '';
+                document.getElementById('directionFilter').value = '';
+                this._filteredMovements = this._allMovements;
+                this.renderMovements(this._allMovements);
+                this.updateSearchCount();
+            },
+
+            updateSearchCount() {
+                const countEl = document.getElementById('searchResultCount');
+                if (countEl) {
+                    const filtered = this._filteredMovements.length;
+                    const total = this._allMovements.length;
+                    
+                    if (filtered === total) {
+                        countEl.textContent = `Showing all ${total} movement${total !== 1 ? 's' : ''}`;
+                    } else {
+                        countEl.textContent = `Showing ${filtered} of ${total} movement${total !== 1 ? 's' : ''}`;
+                    }
                 }
             },
 
@@ -361,8 +471,18 @@
                     return;
                 }
                 try {
-                    const res = await App.apiCall('/passing-logs/rider-movements?limit=500', 'GET');
-                    const rows = res && res.success && Array.isArray(res.data) ? res.data : [];
+                    // Use filtered movements if search is active, otherwise fetch all
+                    let rows = this._filteredMovements;
+                    
+                    // If no filter applied, fetch fresh data
+                    const searchTerm = document.getElementById('movementSearch').value.trim();
+                    const directionFilter = document.getElementById('directionFilter').value;
+                    
+                    if (!searchTerm && !directionFilter) {
+                        const res = await App.apiCall('/passing-logs/rider-movements?limit=500', 'GET');
+                        rows = res && res.success && Array.isArray(res.data) ? res.data : [];
+                    }
+
                     const data = rows.map((r) => ({
                         CreatedAt: r.createdAt ? new Date(r.createdAt).toISOString() : '',
                         Direction: r.direction || '',
@@ -373,7 +493,9 @@
                         City: r.city || '',
                         Company: r.company || '',
                         Date: r.movementDate || '',
-                        Time: r.movementTime || ''
+                        Time: r.movementTime || '',
+                        HasHandoverPaper: r.handoverPaperPath ? 'Yes' : 'No',
+                        HasPassingPaper: r.passingPaperPath ? 'Yes' : 'No'
                     }));
                     const ws = XLSX.utils.json_to_sheet(data.length ? data : [{
                         BikeNumber: '', Direction: 'IN', Date: ''
